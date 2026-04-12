@@ -658,58 +658,95 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Reconciliation: find session by email/phone/document
+    // ─── Enhanced Reconciliation Engine ───
     let sessionId: string | null = null;
     let identityId: string | null = null;
-    const matchFields = [order.customer.email, order.customer.phone, order.customer.document].filter(Boolean);
+    let matchField: string | null = null;
 
-    if (matchFields.length > 0) {
-      // Try email first
-      if (order.customer.email) {
-        const { data: identity } = await supabase
-          .from("identities").select("id")
-          .eq("workspace_id", workspaceId).eq("email", order.customer.email)
-          .limit(1).single();
-        if (identity) identityId = identity.id;
-      }
-      // Fallback to phone
-      if (!identityId && order.customer.phone) {
-        const { data: identity } = await supabase
-          .from("identities").select("id")
-          .eq("workspace_id", workspaceId).eq("phone", order.customer.phone)
-          .limit(1).single();
-        if (identity) identityId = identity.id;
-      }
+    // Strategy 1: Match by email
+    if (!identityId && order.customer.email) {
+      const { data: identity } = await supabase
+        .from("identities").select("id")
+        .eq("workspace_id", workspaceId).eq("email", order.customer.email)
+        .limit(1).single();
+      if (identity) { identityId = identity.id; matchField = "email"; }
+    }
+    // Strategy 2: Match by phone
+    if (!identityId && order.customer.phone) {
+      const { data: identity } = await supabase
+        .from("identities").select("id")
+        .eq("workspace_id", workspaceId).eq("phone", order.customer.phone)
+        .limit(1).single();
+      if (identity) { identityId = identity.id; matchField = "phone"; }
+    }
+    // Strategy 3: Match by external_id / document
+    if (!identityId && order.customer.document) {
+      const { data: identity } = await supabase
+        .from("identities").select("id")
+        .eq("workspace_id", workspaceId).eq("external_id", order.customer.document)
+        .limit(1).single();
+      if (identity) { identityId = identity.id; matchField = "document"; }
+    }
+    // Strategy 4: Match via leads table (email or phone)
+    if (!identityId && (order.customer.email || order.customer.phone)) {
+      let leadQuery = supabase.from("leads").select("identity_id, session_id").eq("workspace_id", workspaceId);
+      if (order.customer.email) leadQuery = leadQuery.eq("email", order.customer.email);
+      else if (order.customer.phone) leadQuery = leadQuery.eq("phone", order.customer.phone);
+      const { data: lead } = await leadQuery.order("created_at", { ascending: false }).limit(1).single();
+      if (lead?.identity_id) { identityId = lead.identity_id; matchField = "lead_" + (order.customer.email ? "email" : "phone"); }
+      if (lead?.session_id && !sessionId) sessionId = lead.session_id;
+    }
+    // Strategy 5: Match via gateway_customers
+    if (!identityId && order.customer.email) {
+      const { data: gc } = await supabase
+        .from("gateway_customers").select("identity_id")
+        .eq("workspace_id", workspaceId).eq("email", order.customer.email)
+        .limit(1).single();
+      if (gc?.identity_id) { identityId = gc.identity_id; matchField = "gateway_customer"; }
+    }
 
-      if (identityId) {
-        const { data: session } = await supabase
-          .from("sessions")
-          .select("id, utm_source, utm_medium, utm_campaign, utm_content, utm_term, fbp, fbc, fbclid, gclid, ttclid, landing_page, referrer")
-          .eq("workspace_id", workspaceId).eq("identity_id", identityId)
-          .order("created_at", { ascending: false }).limit(1).single();
+    // Find latest session with UTMs for the matched identity
+    let sessionData: any = null;
+    if (identityId) {
+      const { data: session } = await supabase
+        .from("sessions")
+        .select("id, utm_source, utm_medium, utm_campaign, utm_content, utm_term, fbp, fbc, fbclid, gclid, ttclid, landing_page, referrer, ip_hash, user_agent")
+        .eq("workspace_id", workspaceId).eq("identity_id", identityId)
+        .order("created_at", { ascending: false }).limit(1).single();
 
-        if (session) {
-          sessionId = session.id;
-          await supabase.from("orders").update({
-            session_id: session.id, identity_id: identityId,
-            utm_source: session.utm_source, utm_medium: session.utm_medium,
-            utm_campaign: session.utm_campaign, utm_content: session.utm_content,
-            utm_term: session.utm_term, fbp: session.fbp, fbc: session.fbc,
-            fbclid: session.fbclid, gclid: session.gclid, ttclid: session.ttclid,
-            landing_page: session.landing_page, referrer: session.referrer,
-          }).eq("id", savedOrder?.id);
-        }
-
-        // Log reconciliation
-        await supabase.from("reconciliation_logs").insert({
-          workspace_id: workspaceId, provider, entity_type: "order",
-          entity_id: savedOrder?.id, external_id: order.external_order_id,
-          reconciliation_type: sessionId ? "session_matched" : "identity_only",
-          status: sessionId ? "success" : "partial",
-          details_json: { identity_id: identityId, session_id: sessionId, match_field: order.customer.email ? "email" : "phone" },
-        });
+      if (session) {
+        sessionId = session.id;
+        sessionData = session;
+        await supabase.from("orders").update({
+          session_id: session.id, identity_id: identityId,
+          utm_source: session.utm_source, utm_medium: session.utm_medium,
+          utm_campaign: session.utm_campaign, utm_content: session.utm_content,
+          utm_term: session.utm_term, fbp: session.fbp, fbc: session.fbc,
+          fbclid: session.fbclid, gclid: session.gclid, ttclid: session.ttclid,
+          landing_page: session.landing_page, referrer: session.referrer,
+        }).eq("id", savedOrder?.id);
       }
     }
+
+    // Upsert gateway_customer for future reconciliation
+    if (order.customer.email || order.customer.phone) {
+      await supabase.from("gateway_customers").upsert({
+        workspace_id: workspaceId, provider, gateway_integration_id: integrationId,
+        external_customer_id: order.external_order_id,
+        identity_id: identityId, name: order.customer.name || null,
+        email: order.customer.email || null, phone: order.customer.phone || null,
+        document: order.customer.document || null,
+      }, { onConflict: "workspace_id,provider,external_customer_id", ignoreDuplicates: true });
+    }
+
+    // Log reconciliation
+    await supabase.from("reconciliation_logs").insert({
+      workspace_id: workspaceId, provider, entity_type: "order",
+      entity_id: savedOrder?.id, external_id: order.external_order_id,
+      reconciliation_type: sessionId ? "session_matched" : identityId ? "identity_only" : "unmatched",
+      status: sessionId ? "success" : identityId ? "partial" : "failed",
+      details_json: { identity_id: identityId, session_id: sessionId, match_field: matchField, strategies_tried: ["email", "phone", "document", "lead", "gateway_customer"] },
+    });
 
     // Map to marketing event
     const { data: customMapping } = await supabase
