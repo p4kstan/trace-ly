@@ -1,29 +1,14 @@
 import {
-  LayoutDashboard,
-  GitBranch,
-  MonitorDot,
-  ScrollText,
-  Bug,
-  Settings,
-  Zap,
-  Brain,
-  CreditCard,
-  HeartPulse,
+  LayoutDashboard, GitBranch, MonitorDot, ScrollText, Bug, Settings,
+  Zap, Brain, CreditCard, HeartPulse, Key, LogOut,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
+import { useAuth } from "@/hooks/use-auth";
+import { useWorkspace, useEventStats } from "@/hooks/use-tracking-data";
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarHeader,
-  SidebarFooter,
-  useSidebar,
+  Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
+  SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter, useSidebar,
 } from "@/components/ui/sidebar";
 
 const mainItems = [
@@ -36,6 +21,7 @@ const mainItems = [
 ];
 
 const settingsItems = [
+  { title: "API Keys", url: "/api-keys", icon: Key },
   { title: "Integrations", url: "/integrations", icon: Zap },
   { title: "Plans", url: "/plans", icon: CreditCard },
   { title: "Settings", url: "/settings", icon: Settings },
@@ -47,6 +33,13 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const location = useLocation();
   const isActive = (path: string) => location.pathname === path;
+  const { user, signOut } = useAuth();
+  const { data: workspace } = useWorkspace();
+  const { data: stats } = useEventStats(workspace?.id);
+
+  const eventCount = stats?.totalEvents || 0;
+  const eventLimit = 10000;
+  const eventPct = Math.min(100, Math.round((eventCount / eventLimit) * 100));
 
   return (
     <Sidebar collapsible="icon">
@@ -55,9 +48,7 @@ export function AppSidebar() {
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center glow-primary">
             <Zap className="w-4 h-4 text-primary-foreground" />
           </div>
-          {!collapsed && (
-            <span className="text-lg font-bold gradient-text">CapiTrack AI</span>
-          )}
+          {!collapsed && <span className="text-lg font-bold gradient-text">CapiTrack AI</span>}
         </div>
       </SidebarHeader>
 
@@ -71,12 +62,7 @@ export function AppSidebar() {
               {mainItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                    <NavLink
-                      to={item.url}
-                      end={item.url === "/"}
-                      className="transition-colors"
-                      activeClassName="bg-sidebar-accent text-primary font-medium"
-                    >
+                    <NavLink to={item.url} end={item.url === "/"} className="transition-colors" activeClassName="bg-sidebar-accent text-primary font-medium">
                       <item.icon className="w-4 h-4" />
                       {!collapsed && <span>{item.title}</span>}
                     </NavLink>
@@ -96,11 +82,7 @@ export function AppSidebar() {
               {settingsItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                    <NavLink
-                      to={item.url}
-                      className="transition-colors"
-                      activeClassName="bg-sidebar-accent text-primary font-medium"
-                    >
+                    <NavLink to={item.url} className="transition-colors" activeClassName="bg-sidebar-accent text-primary font-medium">
                       <item.icon className="w-4 h-4" />
                       {!collapsed && <span>{item.title}</span>}
                     </NavLink>
@@ -112,15 +94,21 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4 border-t border-sidebar-border">
+      <SidebarFooter className="p-4 border-t border-sidebar-border space-y-3">
         {!collapsed && (
           <div className="glass-card p-3 text-center">
             <p className="text-xs text-muted-foreground">Free Plan</p>
-            <p className="text-xs text-primary font-medium">2,340 / 10,000 events</p>
+            <p className="text-xs text-primary font-medium">{eventCount.toLocaleString()} / {eventLimit.toLocaleString()} events</p>
             <div className="w-full h-1 bg-muted rounded-full mt-2">
-              <div className="w-[23%] h-full bg-primary rounded-full" />
+              <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${eventPct}%` }} />
             </div>
           </div>
+        )}
+        {user && !collapsed && (
+          <button onClick={signOut} className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground w-full px-2">
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sair ({user.email?.split("@")[0]})</span>
+          </button>
         )}
       </SidebarFooter>
     </Sidebar>
