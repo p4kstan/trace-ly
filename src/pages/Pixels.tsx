@@ -34,14 +34,14 @@ export default function Pixels() {
     setSaving(true);
 
     if (editingId) {
-      const updateData: Record<string, unknown> = {
+      const updatePayload: { name: string; pixel_id: string; test_event_code: string | null; access_token_encrypted?: string } = {
         name: form.name,
         pixel_id: form.pixel_id,
         test_event_code: form.test_event_code || null,
       };
-      if (form.access_token) updateData.access_token_encrypted = form.access_token;
+      if (form.access_token) updatePayload.access_token_encrypted = form.access_token;
 
-      const { error } = await supabase.from("meta_pixels").update(updateData).eq("id", editingId);
+      const { error } = await supabase.from("meta_pixels").update(updatePayload).eq("id", editingId);
       if (error) toast.error(error.message);
       else toast.success("Pixel atualizado!");
     } else {
