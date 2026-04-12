@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
-import { Toaster } from "@/components/ui/toaster";
+// Legacy Toaster removed - unified on Sonner
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useAuth } from "@/hooks/use-auth";
@@ -63,7 +63,7 @@ function ProtectedRoutes() {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
+      {/* Unified toast: Sonner only */}
       <Sonner />
       <BrowserRouter>
         <Routes>
