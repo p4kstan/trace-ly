@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Zap, Mail, Lock, User } from "lucide-react";
+import { Zap, Mail, Lock, User, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Auth() {
@@ -20,12 +20,8 @@ export default function Auth() {
     const result = await lovable.auth.signInWithOAuth("google", {
       redirect_uri: window.location.origin,
     });
-    if (result.error) {
-      toast.error("Erro ao entrar com Google");
-    }
-    if (result.redirected) {
-      return;
-    }
+    if (result.error) toast.error("Erro ao entrar com Google");
+    if (result.redirected) return;
     setLoading(false);
   };
 
@@ -69,26 +65,32 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md space-y-8 animate-fade-in">
+    <div className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden p-4">
+      {/* Subtle background grid */}
+      <div className="absolute inset-0 dot-grid opacity-30" />
+      {/* Gradient orbs */}
+      <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px]" />
+      <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-accent/5 rounded-full blur-[120px]" />
+
+      <div className="w-full max-w-sm space-y-8 animate-fade-in relative z-10">
         <div className="text-center">
-          <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center glow-primary mx-auto mb-4">
-            <Zap className="w-7 h-7 text-primary-foreground" />
+          <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-4">
+            <Zap className="w-6 h-6 text-primary" />
           </div>
-          <h1 className="text-2xl font-bold gradient-text">CapiTrack AI</h1>
-          <p className="text-muted-foreground text-sm mt-1">Server-side tracking platform</p>
+          <h1 className="text-xl font-bold text-gradient-primary">CapiTrack AI</h1>
+          <p className="text-muted-foreground text-xs mt-1 tracking-wide">Server-side tracking platform</p>
         </div>
 
-        <div className="glass-card p-6 space-y-6">
-          <h2 className="text-lg font-semibold text-foreground text-center">
-            {mode === "login" ? "Entrar" : mode === "signup" ? "Criar conta" : "Redefinir senha"}
+        <div className="surface-elevated p-6 space-y-5">
+          <h2 className="text-sm font-semibold text-foreground text-center">
+            {mode === "login" ? "Bem-vindo de volta" : mode === "signup" ? "Criar conta" : "Redefinir senha"}
           </h2>
 
           {mode !== "forgot" && (
             <>
               <Button
                 variant="outline"
-                className="w-full gap-2"
+                className="w-full gap-2 h-10 text-sm border-border/60 hover:bg-secondary/60"
                 onClick={handleGoogleLogin}
                 disabled={loading}
               >
@@ -102,59 +104,64 @@ export default function Auth() {
               </Button>
 
               <div className="flex items-center gap-3">
-                <Separator className="flex-1" />
-                <span className="text-xs text-muted-foreground">ou</span>
-                <Separator className="flex-1" />
+                <Separator className="flex-1 bg-border/40" />
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider">ou</span>
+                <Separator className="flex-1 bg-border/40" />
               </div>
             </>
           )}
 
-          <form onSubmit={mode === "login" ? handleLogin : mode === "signup" ? handleSignup : handleForgotPassword} className="space-y-4">
+          <form onSubmit={mode === "login" ? handleLogin : mode === "signup" ? handleSignup : handleForgotPassword} className="space-y-3.5">
             {mode === "signup" && (
-              <div className="space-y-2">
-                <Label htmlFor="name" className="text-foreground">Nome completo</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="name" className="text-xs text-muted-foreground">Nome completo</Label>
                 <div className="relative">
-                  <User className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-                  <Input id="name" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Seu nome" className="pl-10" required />
+                  <User className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground/60" />
+                  <Input id="name" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Seu nome" className="pl-9 h-9 text-sm bg-muted/30 border-border/40 focus:border-primary/40" required />
                 </div>
               </div>
             )}
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-foreground">E-mail</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="email" className="text-xs text-muted-foreground">E-mail</Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" className="pl-10" required />
+                <Mail className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground/60" />
+                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" className="pl-9 h-9 text-sm bg-muted/30 border-border/40 focus:border-primary/40" required />
               </div>
             </div>
             {mode !== "forgot" && (
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-foreground">Senha</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="password" className="text-xs text-muted-foreground">Senha</Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-                  <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="pl-10" required minLength={6} />
+                  <Lock className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground/60" />
+                  <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="pl-9 h-9 text-sm bg-muted/30 border-border/40 focus:border-primary/40" required minLength={6} />
                 </div>
               </div>
             )}
-            <Button type="submit" className="w-full bg-primary text-primary-foreground hover:bg-primary/90 glow-primary" disabled={loading}>
+            <Button type="submit" className="w-full h-9 text-sm gap-2 glow-primary" disabled={loading}>
               {loading ? "Aguarde..." : mode === "login" ? "Entrar" : mode === "signup" ? "Criar conta" : "Enviar link"}
+              {!loading && <ArrowRight className="w-3.5 h-3.5" />}
             </Button>
           </form>
 
-          <div className="text-center space-y-2 text-sm">
+          <div className="text-center space-y-1.5 text-xs">
             {mode === "login" && (
               <>
-                <button onClick={() => setMode("forgot")} className="text-primary hover:underline block mx-auto">Esqueci a senha</button>
-                <p className="text-muted-foreground">Não tem conta? <button onClick={() => setMode("signup")} className="text-primary hover:underline">Criar conta</button></p>
+                <button onClick={() => setMode("forgot")} className="text-muted-foreground hover:text-primary transition-colors block mx-auto">Esqueci a senha</button>
+                <p className="text-muted-foreground">Não tem conta? <button onClick={() => setMode("signup")} className="text-primary hover:underline font-medium">Criar conta</button></p>
               </>
             )}
             {mode === "signup" && (
-              <p className="text-muted-foreground">Já tem conta? <button onClick={() => setMode("login")} className="text-primary hover:underline">Entrar</button></p>
+              <p className="text-muted-foreground">Já tem conta? <button onClick={() => setMode("login")} className="text-primary hover:underline font-medium">Entrar</button></p>
             )}
             {mode === "forgot" && (
-              <button onClick={() => setMode("login")} className="text-primary hover:underline">Voltar ao login</button>
+              <button onClick={() => setMode("login")} className="text-primary hover:underline font-medium">Voltar ao login</button>
             )}
           </div>
         </div>
+
+        <p className="text-center text-[10px] text-muted-foreground/40">
+          © 2026 CapiTrack AI · Tracking server-side inteligente
+        </p>
       </div>
     </div>
   );

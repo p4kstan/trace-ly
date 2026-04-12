@@ -12,21 +12,23 @@ export function MetricCard({ title, value, change, icon: Icon, prefix }: MetricC
   const isPositive = change >= 0;
 
   return (
-    <div className="glass-card p-5 animate-slide-up hover:glow-primary transition-shadow duration-300">
+    <div className="surface-elevated p-4 hover-lift group">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-sm text-muted-foreground">{title}</span>
-        <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
-          <Icon className="w-4 h-4 text-primary" />
+        <span className="text-xs font-medium text-muted-foreground tracking-wide uppercase">{title}</span>
+        <div className="w-8 h-8 rounded-lg bg-primary/8 border border-primary/10 flex items-center justify-center group-hover:bg-primary/12 transition-colors">
+          <Icon className="w-3.5 h-3.5 text-primary" />
         </div>
       </div>
-      <div className="text-2xl font-bold text-foreground">
+      <div className="text-xl font-bold text-foreground tabular-nums tracking-tight">
         {prefix}{value}
       </div>
-      <div className={`flex items-center gap-1 mt-2 text-sm ${isPositive ? "text-success" : "text-destructive"}`}>
-        {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-        <span>{isPositive ? "+" : ""}{change}%</span>
-        <span className="text-muted-foreground ml-1">vs last 7d</span>
-      </div>
+      {change !== 0 && (
+        <div className={`flex items-center gap-1 mt-2 text-xs ${isPositive ? "text-success" : "text-destructive"}`}>
+          {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+          <span className="font-medium">{isPositive ? "+" : ""}{change}%</span>
+          <span className="text-muted-foreground ml-0.5">vs 7d</span>
+        </div>
+      )}
     </div>
   );
 }
