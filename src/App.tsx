@@ -17,6 +17,7 @@ const Debugger = lazy(() => import("@/pages/Debugger"));
 const AIAnalytics = lazy(() => import("@/pages/AIAnalytics"));
 const Integrations = lazy(() => import("@/pages/Integrations"));
 const Plans = lazy(() => import("@/pages/Plans"));
+const Usage = lazy(() => import("@/pages/Usage"));
 const SettingsPage = lazy(() => import("@/pages/SettingsPage"));
 const SystemDiagnostic = lazy(() => import("@/pages/SystemDiagnostic"));
 const ApiKeys = lazy(() => import("@/pages/ApiKeys"));
@@ -56,6 +57,7 @@ function ProtectedRoutes() {
           <Route path="/tutorials" element={<Tutorials />} />
           <Route path="/mcp" element={<McpIntegration />} />
           <Route path="/plans" element={<Plans />} />
+          <Route path="/usage" element={<Usage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/system-diagnostic" element={<SystemDiagnostic />} />
           <Route path="/api-keys" element={<ApiKeys />} />
