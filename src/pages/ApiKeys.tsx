@@ -10,12 +10,7 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-function generatePublicKey() {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let result = "pk_";
-  for (let i = 0; i < 32; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
-  return result;
-}
+import { generatePublicKey } from "@/lib/key-utils";
 
 export default function ApiKeys() {
   const { data: workspace } = useWorkspace();

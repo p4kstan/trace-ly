@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Plus, Copy, CheckCircle, XCircle, Trash2, Webhook, Settings2, RefreshCw, ExternalLink } from "lucide-react";
 
 const PROVIDERS = [

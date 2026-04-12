@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useWorkspace } from "@/hooks/use-tracking-data";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 type DiagnosticStatus = "healthy" | "degraded" | "offline" | "warnings" | "configured" | "not_configured" | "error" | "info" | "online" | "unknown";
 

@@ -920,8 +920,10 @@ Deno.serve(async (req) => {
                 ...(pixel.test_event_code ? { test_event_code: pixel.test_event_code } : {}),
               };
 
-              const metaRes = await fetch(`https://graph.facebook.com/v21.0/${pixel.pixel_id}/events?access_token=${pixel.access_token_encrypted}`, {
-                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(metaPayload),
+              // Send token in POST body (not query string) to avoid log exposure
+              const metaRes = await fetch(`https://graph.facebook.com/v21.0/${pixel.pixel_id}/events`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ...metaPayload, access_token: pixel.access_token_encrypted }),
               });
               const metaData = await metaRes.json();
 
