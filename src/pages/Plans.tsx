@@ -1,5 +1,5 @@
-import { Check, Zap } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Check, Zap, Clock } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 const plans = [
   {
@@ -35,6 +35,10 @@ export default function Plans() {
       <div className="text-center">
         <h1 className="text-2xl font-bold text-foreground">Plans & Pricing</h1>
         <p className="text-muted-foreground text-sm mt-1">Scale your tracking as you grow</p>
+        <Badge variant="secondary" className="mt-3">
+          <Clock className="w-3 h-3 mr-1" />
+          Billing em breve — planos são apenas informativos
+        </Badge>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
@@ -64,19 +68,9 @@ export default function Plans() {
               ))}
             </ul>
 
-            <Button
-              className={`mt-6 w-full ${
-                plan.current
-                  ? "bg-secondary text-secondary-foreground"
-                  : plan.popular
-                  ? "bg-primary text-primary-foreground hover:bg-primary/90 glow-primary"
-                  : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-              }`}
-              disabled={plan.current}
-            >
-              {plan.current ? "Current Plan" : plan.name === "Enterprise" ? "Contact Sales" : "Upgrade"}
-              {plan.popular && !plan.current && <Zap className="w-4 h-4 ml-1" />}
-            </Button>
+            <div className="mt-6 w-full text-center py-2 rounded-lg bg-muted text-muted-foreground text-sm font-medium">
+              {plan.current ? "Plano atual" : "Em breve"}
+            </div>
           </div>
         ))}
       </div>
