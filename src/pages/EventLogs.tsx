@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Search, Filter, Download, Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,7 +76,7 @@ export default function EventLogs() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((evt) => {
+                {paginatedEvents.map((evt) => {
                   const customData = evt.custom_data_json as Record<string, unknown> | null;
                   const value = customData?.value;
                   const hasDedupKey = !!evt.deduplication_key;
