@@ -249,13 +249,13 @@ export default function AIAnalytics() {
           {!loadingInsights && insightsData?.insights && (
             <div className="grid gap-3">
               {insightsData.insights.map((insight, i) => (
-                <Card key={i} className={`border ${severityColor(insight.severity)} transition-all hover:shadow-md`}>
+          <Card key={i} className={`border ${severityColor(insight.severity)} transition-all hover:shadow-md`}>
                   <CardContent className="p-4">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 shrink-0">{severityIcon(insight.severity)}</div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <h3 className="font-semibold text-sm">{insight.title}</h3>
+                          <h3 className="font-semibold text-sm text-foreground">{insight.title}</h3>
                           <Badge variant="outline" className="text-[10px] gap-1">
                             {typeIcon(insight.type)}
                             {insight.type}
