@@ -290,6 +290,39 @@ export type Database = {
           },
         ]
       }
+      event_mappings: {
+        Row: {
+          config_json: Json | null
+          created_at: string
+          gateway: string
+          gateway_event: string
+          id: string
+          is_active: boolean
+          marketing_event: string
+          workspace_id: string
+        }
+        Insert: {
+          config_json?: Json | null
+          created_at?: string
+          gateway: string
+          gateway_event: string
+          id?: string
+          is_active?: boolean
+          marketing_event: string
+          workspace_id: string
+        }
+        Update: {
+          config_json?: Json | null
+          created_at?: string
+          gateway?: string
+          gateway_event?: string
+          id?: string
+          is_active?: boolean
+          marketing_event?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       events: {
         Row: {
           action_source: string | null
@@ -1940,34 +1973,85 @@ export type Database = {
         }
         Relationships: []
       }
+      gateway_integrations: {
+        Row: {
+          api_base_url: string | null
+          created_at: string
+          credentials_encrypted: string | null
+          environment: string
+          id: string
+          name: string
+          provider: string
+          status: string
+          updated_at: string
+          webhook_secret_encrypted: string | null
+          workspace_id: string
+        }
+        Insert: {
+          api_base_url?: string | null
+          created_at?: string
+          credentials_encrypted?: string | null
+          environment?: string
+          id?: string
+          name: string
+          provider: string
+          status?: string
+          updated_at?: string
+          webhook_secret_encrypted?: string | null
+          workspace_id: string
+        }
+        Update: {
+          api_base_url?: string | null
+          created_at?: string
+          credentials_encrypted?: string | null
+          environment?: string
+          id?: string
+          name?: string
+          provider?: string
+          status?: string
+          updated_at?: string
+          webhook_secret_encrypted?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       identities: {
         Row: {
+          email: string | null
           email_hash: string | null
           external_id: string | null
           fingerprint: string | null
           first_seen_at: string
           id: string
           last_seen_at: string
+          name: string | null
+          phone: string | null
           phone_hash: string | null
           workspace_id: string
         }
         Insert: {
+          email?: string | null
           email_hash?: string | null
           external_id?: string | null
           fingerprint?: string | null
           first_seen_at?: string
           id?: string
           last_seen_at?: string
+          name?: string | null
+          phone?: string | null
           phone_hash?: string | null
           workspace_id: string
         }
         Update: {
+          email?: string | null
           email_hash?: string | null
           external_id?: string | null
           fingerprint?: string | null
           first_seen_at?: string
           id?: string
           last_seen_at?: string
+          name?: string | null
+          phone?: string | null
           phone_hash?: string | null
           workspace_id?: string
         }
@@ -1980,6 +2064,78 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      leads: {
+        Row: {
+          created_at: string
+          document: string | null
+          email: string | null
+          fbc: string | null
+          fbclid: string | null
+          fbp: string | null
+          gclid: string | null
+          id: string
+          identity_id: string | null
+          landing_page: string | null
+          name: string | null
+          phone: string | null
+          referrer: string | null
+          session_id: string | null
+          ttclid: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          document?: string | null
+          email?: string | null
+          fbc?: string | null
+          fbclid?: string | null
+          fbp?: string | null
+          gclid?: string | null
+          id?: string
+          identity_id?: string | null
+          landing_page?: string | null
+          name?: string | null
+          phone?: string | null
+          referrer?: string | null
+          session_id?: string | null
+          ttclid?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          document?: string | null
+          email?: string | null
+          fbc?: string | null
+          fbclid?: string | null
+          fbp?: string | null
+          gclid?: string | null
+          id?: string
+          identity_id?: string | null
+          landing_page?: string | null
+          name?: string | null
+          phone?: string | null
+          referrer?: string | null
+          session_id?: string | null
+          ttclid?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
       }
       meta_pixels: {
         Row: {
@@ -2028,6 +2184,211 @@ export type Database = {
           },
         ]
       }
+      order_items: {
+        Row: {
+          category: string | null
+          created_at: string
+          id: string
+          order_id: string
+          product_id: string | null
+          product_name: string | null
+          quantity: number
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          id?: string
+          order_id: string
+          product_id?: string | null
+          product_name?: string | null
+          quantity?: number
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          id?: string
+          order_id?: string
+          product_id?: string | null
+          product_name?: string | null
+          quantity?: number
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          created_at: string
+          currency: string | null
+          customer_document: string | null
+          customer_email: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          external_checkout_id: string | null
+          fbc: string | null
+          fbclid: string | null
+          fbp: string | null
+          gateway: string
+          gateway_order_id: string | null
+          gclid: string | null
+          id: string
+          identity_id: string | null
+          landing_page: string | null
+          payment_method: string | null
+          pixel_id: string | null
+          referrer: string | null
+          session_id: string | null
+          status: string
+          total_value: number | null
+          ttclid: string | null
+          updated_at: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string | null
+          customer_document?: string | null
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          external_checkout_id?: string | null
+          fbc?: string | null
+          fbclid?: string | null
+          fbp?: string | null
+          gateway: string
+          gateway_order_id?: string | null
+          gclid?: string | null
+          id?: string
+          identity_id?: string | null
+          landing_page?: string | null
+          payment_method?: string | null
+          pixel_id?: string | null
+          referrer?: string | null
+          session_id?: string | null
+          status?: string
+          total_value?: number | null
+          ttclid?: string | null
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string | null
+          customer_document?: string | null
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          external_checkout_id?: string | null
+          fbc?: string | null
+          fbclid?: string | null
+          fbp?: string | null
+          gateway?: string
+          gateway_order_id?: string | null
+          gclid?: string | null
+          id?: string
+          identity_id?: string | null
+          landing_page?: string | null
+          payment_method?: string | null
+          pixel_id?: string | null
+          referrer?: string | null
+          session_id?: string | null
+          status?: string
+          total_value?: number | null
+          ttclid?: string | null
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      payments: {
+        Row: {
+          amount: number | null
+          chargeback_at: string | null
+          created_at: string
+          currency: string | null
+          gateway: string
+          gateway_payment_id: string | null
+          id: string
+          order_id: string | null
+          paid_at: string | null
+          payment_method: string | null
+          raw_payload_json: Json | null
+          refunded_at: string | null
+          status: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          amount?: number | null
+          chargeback_at?: string | null
+          created_at?: string
+          currency?: string | null
+          gateway: string
+          gateway_payment_id?: string | null
+          id?: string
+          order_id?: string | null
+          paid_at?: string | null
+          payment_method?: string | null
+          raw_payload_json?: Json | null
+          refunded_at?: string | null
+          status?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          amount?: number | null
+          chargeback_at?: string | null
+          created_at?: string
+          currency?: string | null
+          gateway?: string
+          gateway_payment_id?: string | null
+          id?: string
+          order_id?: string | null
+          paid_at?: string | null
+          payment_method?: string | null
+          raw_payload_json?: Json | null
+          refunded_at?: string | null
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -2062,13 +2423,16 @@ export type Database = {
           country: string | null
           created_at: string
           fbc: string | null
+          fbclid: string | null
           fbp: string | null
+          gclid: string | null
           id: string
           identity_id: string | null
           ip_hash: string | null
           landing_page: string | null
           referrer: string | null
           region: string | null
+          ttclid: string | null
           updated_at: string
           user_agent: string | null
           utm_campaign: string | null
@@ -2084,13 +2448,16 @@ export type Database = {
           country?: string | null
           created_at?: string
           fbc?: string | null
+          fbclid?: string | null
           fbp?: string | null
+          gclid?: string | null
           id?: string
           identity_id?: string | null
           ip_hash?: string | null
           landing_page?: string | null
           referrer?: string | null
           region?: string | null
+          ttclid?: string | null
           updated_at?: string
           user_agent?: string | null
           utm_campaign?: string | null
@@ -2106,13 +2473,16 @@ export type Database = {
           country?: string | null
           created_at?: string
           fbc?: string | null
+          fbclid?: string | null
           fbp?: string | null
+          gclid?: string | null
           id?: string
           identity_id?: string | null
           ip_hash?: string | null
           landing_page?: string | null
           referrer?: string | null
           region?: string | null
+          ttclid?: string | null
           updated_at?: string
           user_agent?: string | null
           utm_campaign?: string | null
@@ -2213,6 +2583,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      webhook_logs: {
+        Row: {
+          error_message: string | null
+          event_type: string | null
+          gateway: string
+          id: string
+          payload_json: Json | null
+          processed_at: string | null
+          processing_status: string
+          received_at: string
+          signature_valid: boolean | null
+          workspace_id: string
+        }
+        Insert: {
+          error_message?: string | null
+          event_type?: string | null
+          gateway: string
+          id?: string
+          payload_json?: Json | null
+          processed_at?: string | null
+          processing_status?: string
+          received_at?: string
+          signature_valid?: boolean | null
+          workspace_id: string
+        }
+        Update: {
+          error_message?: string | null
+          event_type?: string | null
+          gateway?: string
+          id?: string
+          payload_json?: Json | null
+          processed_at?: string | null
+          processing_status?: string
+          received_at?: string
+          signature_valid?: boolean | null
+          workspace_id?: string
+        }
+        Relationships: []
       }
       workspace_members: {
         Row: {
