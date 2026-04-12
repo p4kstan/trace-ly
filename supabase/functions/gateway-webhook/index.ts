@@ -10,56 +10,33 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
 );
 
-// Default event mappings
-const DEFAULT_MAPPINGS: Record<string, Record<string, string>> = {
-  stripe: {
-    "checkout.session.completed": "Purchase",
-    "payment_intent.succeeded": "Purchase",
-    "customer.subscription.created": "Subscribe",
-    "customer.subscription.updated": "subscription_renewed",
-    "customer.subscription.deleted": "subscription_canceled",
-    "charge.refunded": "order_refunded",
-    "charge.dispute.created": "order_chargeback",
-  },
-  mercadopago: {
-    "payment.approved": "Purchase",
-    "payment.created": "order_created",
-    "payment.refunded": "order_refunded",
-    "payment.cancelled": "order_refused",
-  },
-  pagarme: {
-    "order.paid": "Purchase",
-    "order.created": "order_created",
-    "order.refunded": "order_refunded",
-    "order.canceled": "order_refused",
-    "charge.paid": "order_paid",
-  },
-  asaas: {
-    PAYMENT_CONFIRMED: "Purchase",
-    PAYMENT_RECEIVED: "Purchase",
-    PAYMENT_CREATED: "order_created",
-    PAYMENT_REFUNDED: "order_refunded",
-    PAYMENT_OVERDUE: "order_refused",
-    PAYMENT_DELETED: "order_refused",
-  },
-  hotmart: {
-    PURCHASE_COMPLETE: "Purchase",
-    PURCHASE_APPROVED: "Purchase",
-    PURCHASE_REFUNDED: "order_refunded",
-    PURCHASE_CHARGEBACK: "order_chargeback",
-    PURCHASE_CANCELED: "order_refused",
-  },
-  generic: {
-    order_paid: "Purchase",
-    order_created: "InitiateCheckout",
-    lead_created: "Lead",
-    payment_approved: "Purchase",
-    payment_refused: "order_refused",
-    payment_refunded: "order_refunded",
-  },
+// ─── Internal event types ───
+type InternalEvent =
+  | "checkout_created" | "checkout_started" | "checkout_abandoned"
+  | "order_created" | "order_pending" | "order_waiting_payment"
+  | "order_paid" | "order_approved" | "order_refused" | "order_canceled"
+  | "order_expired" | "order_refunded" | "order_partially_refunded" | "order_chargeback"
+  | "payment_created" | "payment_pending" | "payment_authorized" | "payment_paid"
+  | "payment_failed" | "payment_refunded"
+  | "pix_generated" | "pix_paid" | "boleto_generated" | "boleto_paid"
+  | "subscription_started" | "subscription_renewed" | "subscription_past_due" | "subscription_canceled"
+  | "lead_captured";
+
+// ─── Default internal → Meta mapping ───
+const INTERNAL_TO_META: Record<string, string> = {
+  checkout_created: "InitiateCheckout",
+  checkout_started: "InitiateCheckout",
+  payment_created: "AddPaymentInfo",
+  payment_authorized: "AddPaymentInfo",
+  order_paid: "Purchase",
+  order_approved: "Purchase",
+  payment_paid: "Purchase",
+  pix_paid: "Purchase",
+  boleto_paid: "Purchase",
+  subscription_started: "Subscribe",
+  lead_captured: "Lead",
 };
 
-// Marketing events that should be forwarded to Meta
 const META_EVENTS = new Set([
   "PageView","ViewContent","AddToCart","InitiateCheckout","AddPaymentInfo",
   "Purchase","Lead","CompleteRegistration","Search","AddToWishlist",
@@ -67,88 +44,487 @@ const META_EVENTS = new Set([
   "Schedule","Donate","FindLocation",
 ]);
 
+// ─── Normalized structures ───
+interface NormalizedCustomer {
+  name?: string;
+  email?: string;
+  phone?: string;
+  document?: string;
+}
+
 interface NormalizedOrder {
   gateway: string;
-  gateway_order_id: string;
-  customer_email?: string;
-  customer_name?: string;
-  customer_phone?: string;
-  customer_document?: string;
+  external_order_id: string;
+  external_payment_id?: string;
+  external_checkout_id?: string;
+  external_subscription_id?: string;
+  customer: NormalizedCustomer;
   status: string;
   total_value?: number;
   currency?: string;
   payment_method?: string;
+  installments?: number;
   items?: Array<{ product_id?: string; product_name?: string; category?: string; quantity: number; unit_price?: number; total_price?: number }>;
-  gateway_payment_id?: string;
   raw_payload: unknown;
 }
 
-function normalizeStripe(payload: Record<string, unknown>): NormalizedOrder {
-  const obj = (payload.data as Record<string, unknown>)?.object as Record<string, unknown> || {};
-  const customer = (obj.customer_details || obj.customer || {}) as Record<string, unknown>;
+// ─── Per-gateway: event type extraction + normalization ───
+
+// Helper to safely get nested values
+function dig(obj: any, ...keys: string[]): any {
+  let cur = obj;
+  for (const k of keys) {
+    if (cur == null) return undefined;
+    cur = cur[k];
+  }
+  return cur;
+}
+
+function str(v: any): string { return v != null ? String(v) : ""; }
+function num(v: any): number { const n = Number(v); return isNaN(n) ? 0 : n; }
+
+// ─── STRIPE ───
+function stripeEventType(p: any): string { return str(p.type); }
+function stripeInternalEvent(evtType: string): InternalEvent {
+  const m: Record<string, InternalEvent> = {
+    "checkout.session.completed": "order_paid",
+    "payment_intent.succeeded": "payment_paid",
+    "payment_intent.created": "payment_created",
+    "charge.succeeded": "payment_paid",
+    "charge.refunded": "payment_refunded",
+    "charge.dispute.created": "order_chargeback",
+    "customer.subscription.created": "subscription_started",
+    "customer.subscription.updated": "subscription_renewed",
+    "customer.subscription.deleted": "subscription_canceled",
+    "invoice.paid": "payment_paid",
+  };
+  return m[evtType] || "order_created";
+}
+function normalizeStripe(p: any): NormalizedOrder {
+  const obj = dig(p, "data", "object") || {};
+  const cust = obj.customer_details || obj.customer || {};
   return {
     gateway: "stripe",
-    gateway_order_id: String(obj.id || obj.payment_intent || ""),
-    customer_email: String(customer.email || obj.receipt_email || ""),
-    customer_name: String(customer.name || ""),
-    status: String(obj.status || obj.payment_status || "unknown"),
-    total_value: Number(obj.amount_total || obj.amount || 0) / 100,
-    currency: String(obj.currency || "usd").toUpperCase(),
-    payment_method: String(obj.payment_method_types?.[0] || "card"),
-    gateway_payment_id: String(obj.payment_intent || obj.id || ""),
-    raw_payload: payload,
+    external_order_id: str(obj.id || obj.payment_intent),
+    external_payment_id: str(obj.payment_intent || obj.id),
+    customer: { email: str(cust.email || obj.receipt_email), name: str(cust.name) },
+    status: str(obj.status || obj.payment_status),
+    total_value: num(obj.amount_total || obj.amount) / 100,
+    currency: str(obj.currency || "usd").toUpperCase(),
+    payment_method: str(dig(obj, "payment_method_types", 0) || "card"),
+    raw_payload: p,
   };
 }
 
-function normalizeMercadoPago(payload: Record<string, unknown>): NormalizedOrder {
-  const data = (payload.data as Record<string, unknown>) || {};
+// ─── MERCADO PAGO ───
+function mercadopagoEventType(p: any): string { return str(p.action || p.type); }
+function mercadopagoInternalEvent(evtType: string): InternalEvent {
+  const m: Record<string, InternalEvent> = {
+    "payment.created": "payment_created",
+    "payment.approved": "payment_paid",
+    "payment.updated": "payment_pending",
+    "payment.refunded": "payment_refunded",
+    "payment.cancelled": "order_canceled",
+    "payment.in_process": "payment_pending",
+    "payment.rejected": "payment_failed",
+    "payment.pending": "payment_pending",
+    "chargebacks": "order_chargeback",
+  };
+  return m[evtType] || "order_created";
+}
+function normalizeMercadoPago(p: any): NormalizedOrder {
+  const data = p.data || {};
   return {
     gateway: "mercadopago",
-    gateway_order_id: String(data.id || payload.id || ""),
-    status: String(payload.action || "unknown"),
-    total_value: Number(data.transaction_amount || 0),
-    currency: String(data.currency_id || "BRL"),
-    payment_method: String((data.payment_method as Record<string, unknown>)?.type || ""),
-    gateway_payment_id: String(data.id || ""),
-    raw_payload: payload,
+    external_order_id: str(data.id || p.id),
+    external_payment_id: str(data.id),
+    customer: { email: str(dig(data, "payer", "email")), name: str(dig(data, "payer", "first_name")) },
+    status: str(p.action),
+    total_value: num(data.transaction_amount),
+    currency: str(data.currency_id || "BRL"),
+    payment_method: str(dig(data, "payment_method", "type") || dig(data, "payment_type_id")),
+    installments: num(data.installments) || undefined,
+    raw_payload: p,
   };
 }
 
-function normalizeGeneric(provider: string, payload: Record<string, unknown>): NormalizedOrder {
+// ─── PAGAR.ME ───
+function pagarmeEventType(p: any): string { return str(p.type); }
+function pagarmeInternalEvent(evtType: string): InternalEvent {
+  const m: Record<string, InternalEvent> = {
+    "order.created": "order_created",
+    "order.paid": "order_paid",
+    "order.canceled": "order_canceled",
+    "charge.paid": "payment_paid",
+    "charge.failed": "payment_failed",
+    "charge.refunded": "payment_refunded",
+    "subscription.created": "subscription_started",
+    "subscription.canceled": "subscription_canceled",
+    "subscription.charged": "subscription_renewed",
+  };
+  return m[evtType] || "order_created";
+}
+function normalizePagarme(p: any): NormalizedOrder {
+  const data = p.data || {};
+  const cust = data.customer || {};
+  const charges = data.charges || [];
+  const charge = charges[0] || {};
+  return {
+    gateway: "pagarme",
+    external_order_id: str(data.id || data.code),
+    external_payment_id: str(charge.id),
+    customer: { email: str(cust.email), name: str(cust.name), phone: str(dig(cust, "phones", "mobile_phone", "number")), document: str(cust.document) },
+    status: str(data.status),
+    total_value: num(data.amount) / 100,
+    currency: str(data.currency || "BRL"),
+    payment_method: str(charge.payment_method),
+    installments: num(charge.installments) || undefined,
+    raw_payload: p,
+  };
+}
+
+// ─── ASAAS ───
+function asaasEventType(p: any): string { return str(p.event); }
+function asaasInternalEvent(evtType: string): InternalEvent {
+  const m: Record<string, InternalEvent> = {
+    "PAYMENT_CREATED": "payment_created",
+    "PAYMENT_UPDATED": "payment_pending",
+    "PAYMENT_RECEIVED": "payment_paid",
+    "PAYMENT_CONFIRMED": "payment_paid",
+    "PAYMENT_OVERDUE": "payment_failed",
+    "PAYMENT_DELETED": "order_canceled",
+    "PAYMENT_REFUNDED": "payment_refunded",
+    "PAYMENT_CHARGEBACK_REQUESTED": "order_chargeback",
+    "PAYMENT_DUNNING_RECEIVED": "payment_paid",
+  };
+  return m[evtType] || "payment_pending";
+}
+function normalizeAsaas(p: any): NormalizedOrder {
+  const payment = p.payment || {};
+  return {
+    gateway: "asaas",
+    external_order_id: str(payment.id),
+    external_payment_id: str(payment.id),
+    customer: { name: str(payment.customerName), email: str(payment.customerEmail), phone: str(payment.customerPhone), document: str(payment.cpfCnpj) },
+    status: str(payment.status),
+    total_value: num(payment.value || payment.netValue),
+    currency: "BRL",
+    payment_method: str(payment.billingType),
+    raw_payload: p,
+  };
+}
+
+// ─── HOTMART ───
+function hotmartEventType(p: any): string { return str(p.event || p.hottok && "PURCHASE"); }
+function hotmartInternalEvent(evtType: string): InternalEvent {
+  const m: Record<string, InternalEvent> = {
+    "PURCHASE_COMPLETE": "order_paid",
+    "PURCHASE_APPROVED": "order_paid",
+    "PURCHASE_PROTEST": "order_chargeback",
+    "PURCHASE_REFUNDED": "order_refunded",
+    "PURCHASE_CHARGEBACK": "order_chargeback",
+    "PURCHASE_CANCELED": "order_canceled",
+    "PURCHASE_BILLET_PRINTED": "boleto_generated",
+    "PURCHASE_DELAYED": "payment_pending",
+    "SUBSCRIPTION_CANCELLATION": "subscription_canceled",
+    "SWITCH_PLAN": "subscription_renewed",
+  };
+  return m[evtType] || "order_created";
+}
+function normalizeHotmart(p: any): NormalizedOrder {
+  const data = p.data || p;
+  const buyer = data.buyer || {};
+  const purchase = data.purchase || {};
+  const product = data.product || {};
+  return {
+    gateway: "hotmart",
+    external_order_id: str(purchase.transaction || purchase.order_bump?.id),
+    external_payment_id: str(purchase.transaction),
+    customer: { email: str(buyer.email), name: str(buyer.name), phone: str(buyer.phone || buyer.cellphone), document: str(buyer.document) },
+    status: str(purchase.status),
+    total_value: num(purchase.price?.value || purchase.original_offer_price?.value),
+    currency: str(purchase.price?.currency_value || "BRL"),
+    payment_method: str(purchase.payment?.type),
+    items: [{ product_name: str(product.name), product_id: str(product.id), quantity: 1, unit_price: num(purchase.price?.value) }],
+    raw_payload: p,
+  };
+}
+
+// ─── MONETIZZE ───
+function monetizzeEventType(p: any): string { return str(p.tipoPostback?.cod || p.tipo_postback || p.event); }
+function monetizzeInternalEvent(evtType: string): InternalEvent {
+  const lower = evtType.toLowerCase();
+  if (lower.includes("aprovad") || lower === "1") return "order_paid";
+  if (lower.includes("aguardando") || lower === "2") return "payment_pending";
+  if (lower.includes("cancelad") || lower === "3") return "order_canceled";
+  if (lower.includes("devolvid") || lower.includes("reembolso") || lower === "6") return "order_refunded";
+  if (lower.includes("chargeback") || lower === "7") return "order_chargeback";
+  if (lower.includes("assinatura_ativ")) return "subscription_started";
+  if (lower.includes("assinatura_renov")) return "subscription_renewed";
+  if (lower.includes("assinatura_cancel")) return "subscription_canceled";
+  return "order_created";
+}
+function normalizeMonetizze(p: any): NormalizedOrder {
+  const venda = p.venda || p;
+  const comprador = p.comprador || venda.comprador || {};
+  const produto = p.produto || venda.produto || {};
+  return {
+    gateway: "monetizze",
+    external_order_id: str(venda.codigo || venda.transacao || p.transacao),
+    external_payment_id: str(venda.codigo || venda.transacao),
+    customer: { email: str(comprador.email), name: str(comprador.nome), phone: str(comprador.telefone), document: str(comprador.cnpj_cpf) },
+    status: str(venda.status || venda.statusDescricao),
+    total_value: num(venda.valorLiquido || venda.valor || venda.preco),
+    currency: "BRL",
+    payment_method: str(venda.formaPagamento || venda.forma_pagamento),
+    items: produto.nome ? [{ product_name: str(produto.nome), product_id: str(produto.codigo), quantity: 1 }] : undefined,
+    raw_payload: p,
+  };
+}
+
+// ─── EDUZZ ───
+function eduzzEventType(p: any): string { return str(p.event_type || p.trans_status); }
+function eduzzInternalEvent(evtType: string): InternalEvent {
+  const m: Record<string, InternalEvent> = {
+    "invoice_created": "order_created",
+    "invoice_approved": "order_paid",
+    "invoice_paid": "order_paid",
+    "invoice_pending": "payment_pending",
+    "invoice_canceled": "order_canceled",
+    "invoice_refunded": "order_refunded",
+    "contract_created": "subscription_started",
+    "contract_renewed": "subscription_renewed",
+    "contract_canceled": "subscription_canceled",
+    "1": "payment_pending",
+    "3": "order_paid",
+    "4": "order_canceled",
+    "6": "payment_pending",
+    "7": "order_refunded",
+  };
+  return m[evtType] || "order_created";
+}
+function normalizeEduzz(p: any): NormalizedOrder {
+  const sale = p.sale || p;
+  const client = p.client || sale.client || {};
+  const content = p.content || sale.content || {};
+  return {
+    gateway: "eduzz",
+    external_order_id: str(sale.sale_id || sale.invoice_code || p.trans_cod),
+    external_payment_id: str(sale.sale_id || p.trans_cod),
+    customer: { email: str(client.email || p.cus_email), name: str(client.name || p.cus_name), phone: str(client.phone || p.cus_cel), document: str(client.document || p.cus_taxnumber) },
+    status: str(sale.sale_status || p.trans_status),
+    total_value: num(sale.sale_amount_win || sale.sale_net || p.trans_value),
+    currency: "BRL",
+    payment_method: str(sale.sale_payment_method || p.trans_paymentmethod),
+    items: content.title ? [{ product_name: str(content.title), product_id: str(content.id), quantity: 1 }] : undefined,
+    raw_payload: p,
+  };
+}
+
+// ─── APPMAX ───
+function appmaxEventType(p: any): string { return str(p.event || p.status); }
+function appmaxInternalEvent(evtType: string): InternalEvent {
+  const m: Record<string, InternalEvent> = {
+    "order_created": "order_created",
+    "order_approved": "order_paid",
+    "order_paid": "order_paid",
+    "order_canceled": "order_canceled",
+    "order_refunded": "order_refunded",
+    "subscription_created": "subscription_started",
+    "subscription_renewed": "subscription_renewed",
+    "subscription_canceled": "subscription_canceled",
+    "approved": "order_paid",
+    "canceled": "order_canceled",
+    "refunded": "order_refunded",
+  };
+  return m[evtType] || "order_created";
+}
+function normalizeAppmax(p: any): NormalizedOrder {
+  const order = p.data?.order || p.order || p;
+  const customer = order.customer || p.customer || {};
+  return {
+    gateway: "appmax",
+    external_order_id: str(order.id || order.order_id),
+    external_payment_id: str(order.payment_id || order.id),
+    customer: { email: str(customer.email), name: str(customer.name || customer.firstname), phone: str(customer.phone || customer.telephone), document: str(customer.cpf || customer.document) },
+    status: str(order.status),
+    total_value: num(order.total || order.amount),
+    currency: "BRL",
+    payment_method: str(order.payment_method || order.payment_type),
+    raw_payload: p,
+  };
+}
+
+// ─── CAKTO ───
+function caktoEventType(p: any): string { return str(p.event || p.status); }
+function caktoInternalEvent(evtType: string): InternalEvent {
+  const lower = evtType.toLowerCase();
+  if (lower.includes("lead")) return "lead_captured";
+  if (lower.includes("checkout")) return "checkout_started";
+  if (lower.includes("approved") || lower.includes("paid")) return "payment_paid";
+  if (lower.includes("pending")) return "payment_pending";
+  if (lower.includes("cancel")) return "order_canceled";
+  if (lower.includes("refund")) return "payment_refunded";
+  return "order_created";
+}
+function normalizeCakto(p: any): NormalizedOrder {
+  const data = p.data || p;
+  const customer = data.customer || data.buyer || {};
+  return {
+    gateway: "cakto",
+    external_order_id: str(data.id || data.order_id || data.transaction_id),
+    external_payment_id: str(data.payment_id || data.id),
+    customer: { email: str(customer.email), name: str(customer.name), phone: str(customer.phone), document: str(customer.document) },
+    status: str(data.status),
+    total_value: num(data.amount || data.value || data.total),
+    currency: "BRL",
+    payment_method: str(data.payment_method),
+    raw_payload: p,
+  };
+}
+
+// ─── KIRVANO ───
+function kirvanoEventType(p: any): string { return str(p.event || p.type || p.status); }
+function kirvanoInternalEvent(evtType: string): InternalEvent {
+  const lower = evtType.toLowerCase();
+  if (lower.includes("checkout")) return "checkout_created";
+  if (lower.includes("pix") && lower.includes("gen")) return "pix_generated";
+  if (lower.includes("pix") && lower.includes("paid")) return "pix_paid";
+  if (lower.includes("approved") || lower.includes("paid")) return "payment_paid";
+  if (lower.includes("refused") || lower.includes("rejected")) return "payment_failed";
+  if (lower.includes("subscription") && lower.includes("creat")) return "subscription_started";
+  if (lower.includes("subscription") && lower.includes("renew")) return "subscription_renewed";
+  return "order_created";
+}
+function normalizeKirvano(p: any): NormalizedOrder {
+  const data = p.data || p;
+  const customer = data.customer || data.buyer || {};
+  return {
+    gateway: "kirvano",
+    external_order_id: str(data.id || data.order_id),
+    external_payment_id: str(data.payment_id || data.charge_id || data.id),
+    customer: { email: str(customer.email), name: str(customer.name), phone: str(customer.phone), document: str(customer.document || customer.cpf) },
+    status: str(data.status),
+    total_value: num(data.amount || data.value),
+    currency: "BRL",
+    payment_method: str(data.payment_method || data.payment_type),
+    raw_payload: p,
+  };
+}
+
+// ─── PAGSEGURO ───
+function pagseguroEventType(p: any): string { return str(p.notificationType || p.event || p.type); }
+function pagseguroInternalEvent(evtType: string): InternalEvent {
+  const lower = evtType.toLowerCase();
+  if (lower.includes("checkout")) return "checkout_created";
+  if (lower === "transaction" || lower.includes("paid") || lower.includes("3")) return "payment_paid";
+  if (lower.includes("pending") || lower.includes("1") || lower.includes("2")) return "payment_pending";
+  if (lower.includes("cancel") || lower.includes("7")) return "order_canceled";
+  if (lower.includes("refund") || lower.includes("5") || lower.includes("6")) return "payment_refunded";
+  return "order_created";
+}
+function normalizePagseguro(p: any): NormalizedOrder {
+  const data = p.transaction || p.charge || p.data || p;
+  const sender = data.sender || data.customer || {};
+  return {
+    gateway: "pagseguro",
+    external_order_id: str(data.code || data.id || data.reference),
+    external_payment_id: str(data.code || data.id),
+    customer: { email: str(sender.email || dig(sender, "email")), name: str(sender.name), phone: str(dig(sender, "phone", "number") || sender.phone) },
+    status: str(data.status),
+    total_value: num(data.grossAmount || data.amount?.value || data.amount),
+    currency: "BRL",
+    payment_method: str(dig(data, "paymentMethod", "type") || data.payment_method),
+    raw_payload: p,
+  };
+}
+
+// ─── GENERIC (fallback for future gateways) ───
+function genericInternalEvent(evtType: string): InternalEvent {
+  const lower = evtType.toLowerCase();
+  if (lower.includes("paid") || lower.includes("approved") || lower.includes("confirmed")) return "payment_paid";
+  if (lower.includes("refund")) return "payment_refunded";
+  if (lower.includes("chargeback")) return "order_chargeback";
+  if (lower.includes("cancel")) return "order_canceled";
+  if (lower.includes("pending")) return "payment_pending";
+  if (lower.includes("lead")) return "lead_captured";
+  if (lower.includes("checkout")) return "checkout_started";
+  if (lower.includes("subscription") && lower.includes("creat")) return "subscription_started";
+  return "order_created";
+}
+function normalizeGeneric(provider: string, p: any): NormalizedOrder {
+  const cust = p.customer || p.buyer || p.payer || {};
   return {
     gateway: provider,
-    gateway_order_id: String(payload.order_id || payload.id || payload.transaction_id || ""),
-    customer_email: String(payload.email || (payload.customer as Record<string, unknown>)?.email || ""),
-    customer_name: String(payload.name || (payload.customer as Record<string, unknown>)?.name || ""),
-    customer_phone: String(payload.phone || (payload.customer as Record<string, unknown>)?.phone || ""),
-    status: String(payload.status || payload.event || "unknown"),
-    total_value: Number(payload.amount || payload.value || payload.total || 0),
-    currency: String(payload.currency || "BRL"),
-    payment_method: String(payload.payment_method || payload.method || ""),
-    gateway_payment_id: String(payload.payment_id || payload.id || ""),
-    raw_payload: payload,
+    external_order_id: str(p.order_id || p.id || p.transaction_id || p.code),
+    external_payment_id: str(p.payment_id || p.id),
+    customer: { email: str(cust.email || p.email), name: str(cust.name || p.name), phone: str(cust.phone || p.phone), document: str(cust.document || p.document) },
+    status: str(p.status || p.event),
+    total_value: num(p.amount || p.value || p.total),
+    currency: str(p.currency || "BRL"),
+    payment_method: str(p.payment_method || p.method),
+    raw_payload: p,
   };
 }
 
-function normalizePayload(provider: string, payload: Record<string, unknown>): NormalizedOrder {
+// ─── Router ───
+function extractEventType(provider: string, p: any): string {
   switch (provider) {
-    case "stripe": return normalizeStripe(payload);
-    case "mercadopago": return normalizeMercadoPago(payload);
-    default: return normalizeGeneric(provider, payload);
+    case "stripe": return stripeEventType(p);
+    case "mercadopago": return mercadopagoEventType(p);
+    case "pagarme": return pagarmeEventType(p);
+    case "asaas": return asaasEventType(p);
+    case "hotmart": return hotmartEventType(p);
+    case "monetizze": return monetizzeEventType(p);
+    case "eduzz": return eduzzEventType(p);
+    case "appmax": return appmaxEventType(p);
+    case "cakto": return caktoEventType(p);
+    case "kirvano": return kirvanoEventType(p);
+    case "pagseguro": return pagseguroEventType(p);
+    default: return str(p.event || p.type || p.action || "unknown");
   }
 }
 
-function extractEventType(provider: string, payload: Record<string, unknown>): string {
+function resolveInternalEvent(provider: string, evtType: string): InternalEvent {
   switch (provider) {
-    case "stripe": return String(payload.type || "unknown");
-    case "mercadopago": return String(payload.action || payload.type || "unknown");
-    case "asaas": return String(payload.event || "unknown");
-    case "hotmart": return String(payload.event || "unknown");
-    case "pagarme": return String(payload.type || "unknown");
-    default: return String(payload.event || payload.type || payload.action || "unknown");
+    case "stripe": return stripeInternalEvent(evtType);
+    case "mercadopago": return mercadopagoInternalEvent(evtType);
+    case "pagarme": return pagarmeInternalEvent(evtType);
+    case "asaas": return asaasInternalEvent(evtType);
+    case "hotmart": return hotmartInternalEvent(evtType);
+    case "monetizze": return monetizzeInternalEvent(evtType);
+    case "eduzz": return eduzzInternalEvent(evtType);
+    case "appmax": return appmaxInternalEvent(evtType);
+    case "cakto": return caktoInternalEvent(evtType);
+    case "kirvano": return kirvanoInternalEvent(evtType);
+    case "pagseguro": return pagseguroInternalEvent(evtType);
+    default: return genericInternalEvent(evtType);
   }
 }
 
+function normalizePayload(provider: string, p: any): NormalizedOrder {
+  switch (provider) {
+    case "stripe": return normalizeStripe(p);
+    case "mercadopago": return normalizeMercadoPago(p);
+    case "pagarme": return normalizePagarme(p);
+    case "asaas": return normalizeAsaas(p);
+    case "hotmart": return normalizeHotmart(p);
+    case "monetizze": return normalizeMonetizze(p);
+    case "eduzz": return normalizeEduzz(p);
+    case "appmax": return normalizeAppmax(p);
+    case "cakto": return normalizeCakto(p);
+    case "kirvano": return normalizeKirvano(p);
+    case "pagseguro": return normalizePagseguro(p);
+    default: return normalizeGeneric(provider, p);
+  }
+}
+
+// ─── Deduplication key ───
+function buildDeduplicationKey(provider: string, eventType: string, externalId: string): string {
+  return `${provider}:${eventType}:${externalId}`;
+}
+
+// ─── Main handler ───
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") {
@@ -159,167 +535,230 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const provider = url.searchParams.get("provider") || "generic";
     const workspaceId = url.searchParams.get("workspace_id");
+    const integrationId = url.searchParams.get("integration_id") || null;
 
     if (!workspaceId) {
       return new Response(JSON.stringify({ error: "workspace_id query param required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const payload = await req.json();
-    const eventType = extractEventType(provider, payload);
+    const rawBody = await req.text();
+    let payload: any;
+    try { payload = JSON.parse(rawBody); } catch { payload = { raw: rawBody }; }
 
-    // Log webhook
-    const { data: webhookLog } = await supabase.from("webhook_logs").insert({
+    const eventType = extractEventType(provider, payload);
+    const internalEvent = resolveInternalEvent(provider, eventType);
+    const order = normalizePayload(provider, payload);
+
+    // Extract external event ID for idempotency
+    const externalEventId = str(payload.id || payload.event_id || payload.notification_id || order.external_order_id);
+    const dedupKey = buildDeduplicationKey(provider, eventType, externalEventId);
+
+    // Save to gateway_webhook_logs
+    const headers_json: Record<string, string> = {};
+    req.headers.forEach((v, k) => { headers_json[k] = v; });
+
+    const { data: webhookLog } = await supabase.from("gateway_webhook_logs").insert({
       workspace_id: workspaceId,
-      gateway: provider,
+      gateway_integration_id: integrationId,
+      provider,
+      external_event_id: externalEventId,
       event_type: eventType,
-      signature_valid: true, // TODO: per-provider signature validation
+      signature_valid: true,
+      http_headers_json: headers_json,
+      query_params_json: Object.fromEntries(url.searchParams.entries()),
       payload_json: payload,
       processing_status: "processing",
     }).select("id").single();
 
-    // Normalize order data
-    const order = normalizePayload(provider, payload);
+    // Also keep backward compat log in webhook_logs
+    await supabase.from("webhook_logs").insert({
+      workspace_id: workspaceId,
+      gateway: provider,
+      event_type: eventType,
+      signature_valid: true,
+      payload_json: payload,
+      processing_status: "processing",
+    }).select("id").single();
 
-    // Get event mapping (custom or default)
-    const { data: customMapping } = await supabase
-      .from("event_mappings")
-      .select("marketing_event")
+    // Idempotency check: skip if same external event already processed
+    const { data: existingLog } = await supabase
+      .from("gateway_webhook_logs")
+      .select("id")
       .eq("workspace_id", workspaceId)
-      .eq("gateway", provider)
-      .eq("gateway_event", eventType)
-      .eq("is_active", true)
+      .eq("external_event_id", externalEventId)
+      .eq("provider", provider)
+      .eq("processing_status", "processed")
       .limit(1)
       .single();
 
-    const marketingEvent = customMapping?.marketing_event
-      || DEFAULT_MAPPINGS[provider]?.[eventType]
-      || DEFAULT_MAPPINGS.generic[eventType]
-      || null;
+    if (existingLog) {
+      // Update current log as duplicate
+      if (webhookLog?.id) {
+        await supabase.from("gateway_webhook_logs").update({ processing_status: "duplicate" }).eq("id", webhookLog.id);
+      }
+      return new Response(JSON.stringify({ status: "duplicate", message: "Event already processed" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
     // Upsert order
-    const { data: savedOrder } = await supabase.from("orders").insert({
+    const orderData: any = {
       workspace_id: workspaceId,
       gateway: order.gateway,
-      gateway_order_id: order.gateway_order_id,
-      customer_email: order.customer_email,
-      customer_name: order.customer_name,
-      customer_phone: order.customer_phone,
-      customer_document: order.customer_document,
-      status: order.status,
+      gateway_order_id: order.external_order_id,
+      gateway_integration_id: integrationId,
+      customer_email: order.customer.email || null,
+      customer_name: order.customer.name || null,
+      customer_phone: order.customer.phone || null,
+      customer_document: order.customer.document || null,
+      status: internalEvent.includes("paid") || internalEvent.includes("approved") ? "paid" : internalEvent.includes("refund") ? "refunded" : internalEvent.includes("chargeback") ? "chargeback" : internalEvent.includes("cancel") ? "canceled" : "pending",
+      financial_status: internalEvent,
       total_value: order.total_value,
       currency: order.currency,
       payment_method: order.payment_method,
-    }).select("id").single();
+      installments: order.installments,
+      external_checkout_id: order.external_checkout_id,
+      external_subscription_id: order.external_subscription_id,
+    };
 
-    // Insert payment
+    if (internalEvent === "order_paid" || internalEvent === "payment_paid" || internalEvent === "pix_paid" || internalEvent === "boleto_paid") {
+      orderData.paid_at = new Date().toISOString();
+    }
+    if (internalEvent === "order_refunded" || internalEvent === "payment_refunded") {
+      orderData.refunded_at = new Date().toISOString();
+    }
+    if (internalEvent === "order_canceled") {
+      orderData.canceled_at = new Date().toISOString();
+    }
+
+    const { data: savedOrder } = await supabase.from("orders").insert(orderData).select("id").single();
+
+    // Insert payment record
+    const paymentStatus = internalEvent.includes("paid") || internalEvent.includes("approved") ? "paid" : internalEvent.includes("refund") ? "refunded" : internalEvent.includes("chargeback") ? "chargeback" : internalEvent.includes("fail") || internalEvent.includes("refused") ? "failed" : "pending";
+
     await supabase.from("payments").insert({
       workspace_id: workspaceId,
       order_id: savedOrder?.id,
       gateway: order.gateway,
-      gateway_payment_id: order.gateway_payment_id,
+      gateway_integration_id: integrationId,
+      gateway_payment_id: order.external_payment_id,
       payment_method: order.payment_method,
-      status: order.status,
+      status: paymentStatus,
       amount: order.total_value,
       currency: order.currency,
-      paid_at: marketingEvent === "Purchase" ? new Date().toISOString() : null,
-      raw_payload_json: order.raw_payload,
+      installments: order.installments,
+      paid_at: paymentStatus === "paid" ? new Date().toISOString() : null,
+      refunded_at: paymentStatus === "refunded" ? new Date().toISOString() : null,
+      chargeback_at: paymentStatus === "chargeback" ? new Date().toISOString() : null,
+      raw_payload_json: payload,
     });
 
-    // Insert order items
-    if (order.items?.length) {
+    // Insert order items if present
+    if (order.items?.length && savedOrder?.id) {
       await supabase.from("order_items").insert(
-        order.items.map(item => ({ order_id: savedOrder?.id, ...item }))
+        order.items.map(item => ({ order_id: savedOrder.id, workspace_id: workspaceId, ...item }))
       );
     }
 
-    // Reconcile: try to find session by email
+    // Reconciliation: find session by email/phone/document
     let sessionId: string | null = null;
     let identityId: string | null = null;
-    if (order.customer_email) {
-      const { data: identity } = await supabase
-        .from("identities")
-        .select("id")
-        .eq("workspace_id", workspaceId)
-        .eq("email", order.customer_email)
-        .limit(1)
-        .single();
+    const matchFields = [order.customer.email, order.customer.phone, order.customer.document].filter(Boolean);
 
-      if (identity) {
-        identityId = identity.id;
+    if (matchFields.length > 0) {
+      // Try email first
+      if (order.customer.email) {
+        const { data: identity } = await supabase
+          .from("identities").select("id")
+          .eq("workspace_id", workspaceId).eq("email", order.customer.email)
+          .limit(1).single();
+        if (identity) identityId = identity.id;
+      }
+      // Fallback to phone
+      if (!identityId && order.customer.phone) {
+        const { data: identity } = await supabase
+          .from("identities").select("id")
+          .eq("workspace_id", workspaceId).eq("phone", order.customer.phone)
+          .limit(1).single();
+        if (identity) identityId = identity.id;
+      }
+
+      if (identityId) {
         const { data: session } = await supabase
           .from("sessions")
-          .select("id, utm_source, utm_medium, utm_campaign, utm_content, utm_term, fbp, fbc, landing_page, referrer")
-          .eq("workspace_id", workspaceId)
-          .eq("identity_id", identity.id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .single();
+          .select("id, utm_source, utm_medium, utm_campaign, utm_content, utm_term, fbp, fbc, fbclid, gclid, ttclid, landing_page, referrer")
+          .eq("workspace_id", workspaceId).eq("identity_id", identityId)
+          .order("created_at", { ascending: false }).limit(1).single();
 
         if (session) {
           sessionId = session.id;
-          // Enrich order with session UTMs
           await supabase.from("orders").update({
-            session_id: session.id,
-            identity_id: identity.id,
-            utm_source: session.utm_source,
-            utm_medium: session.utm_medium,
-            utm_campaign: session.utm_campaign,
-            utm_content: session.utm_content,
-            utm_term: session.utm_term,
-            fbp: session.fbp,
-            fbc: session.fbc,
-            landing_page: session.landing_page,
-            referrer: session.referrer,
+            session_id: session.id, identity_id: identityId,
+            utm_source: session.utm_source, utm_medium: session.utm_medium,
+            utm_campaign: session.utm_campaign, utm_content: session.utm_content,
+            utm_term: session.utm_term, fbp: session.fbp, fbc: session.fbc,
+            fbclid: session.fbclid, gclid: session.gclid, ttclid: session.ttclid,
+            landing_page: session.landing_page, referrer: session.referrer,
           }).eq("id", savedOrder?.id);
         }
+
+        // Log reconciliation
+        await supabase.from("reconciliation_logs").insert({
+          workspace_id: workspaceId, provider, entity_type: "order",
+          entity_id: savedOrder?.id, external_id: order.external_order_id,
+          reconciliation_type: sessionId ? "session_matched" : "identity_only",
+          status: sessionId ? "success" : "partial",
+          details_json: { identity_id: identityId, session_id: sessionId, match_field: order.customer.email ? "email" : "phone" },
+        });
       }
     }
 
-    // Create event if mapped to marketing event
+    // Map to marketing event
+    const { data: customMapping } = await supabase
+      .from("event_mappings")
+      .select("marketing_event, external_event_name")
+      .eq("workspace_id", workspaceId)
+      .eq("gateway", provider)
+      .eq("gateway_event", eventType)
+      .eq("is_active", true)
+      .limit(1).single();
+
+    const marketingEvent = customMapping?.marketing_event || customMapping?.external_event_name || INTERNAL_TO_META[internalEvent] || null;
+
     let eventId: string | null = null;
-    if (marketingEvent) {
+    if (marketingEvent || internalEvent) {
+      const evtName = marketingEvent || internalEvent;
       const { data: evt } = await supabase.from("events").insert({
         workspace_id: workspaceId,
-        event_name: marketingEvent,
-        event_id: generateEventId(),
+        event_name: evtName,
+        event_id: crypto.randomUUID(),
         event_time: new Date().toISOString(),
-        event_source_url: order.raw_payload ? undefined : undefined,
         action_source: "system",
         source: `webhook_${provider}`,
         session_id: sessionId,
         identity_id: identityId,
-        processing_status: META_EVENTS.has(marketingEvent) ? "pending" : "internal",
-        custom_data_json: {
-          value: order.total_value,
-          currency: order.currency,
-          order_id: order.gateway_order_id,
-          payment_method: order.payment_method,
-        },
+        processing_status: META_EVENTS.has(evtName) ? "pending" : "internal",
+        custom_data_json: { value: order.total_value, currency: order.currency, order_id: order.external_order_id, payment_method: order.payment_method, internal_event: internalEvent },
+        deduplication_key: dedupKey,
       }).select("id").single();
       eventId = evt?.id || null;
 
-      // If it's a conversion event, record it
-      if (marketingEvent === "Purchase" || marketingEvent === "Lead" || marketingEvent === "Subscribe") {
+      // Record conversion
+      if (["Purchase", "Lead", "Subscribe"].includes(evtName) || internalEvent === "order_paid" || internalEvent === "payment_paid") {
         await supabase.from("conversions").insert({
           workspace_id: workspaceId,
-          event_id: evt?.id || generateEventId(),
-          session_id: sessionId,
-          identity_id: identityId,
-          conversion_type: marketingEvent.toLowerCase(),
-          value: order.total_value,
-          currency: order.currency,
-          attributed_source: null, // will be filled by reconciliation
+          event_id: evt?.id || crypto.randomUUID(),
+          session_id: sessionId, identity_id: identityId,
+          conversion_type: evtName.toLowerCase(),
+          value: order.total_value, currency: order.currency,
+          attributed_source: null, attributed_campaign: null,
         });
       }
 
-      // Send to Meta if applicable
-      if (META_EVENTS.has(marketingEvent)) {
+      // Send to Meta CAPI
+      if (marketingEvent && META_EVENTS.has(marketingEvent)) {
         try {
-          const { data: pixels } = await supabase
-            .from("meta_pixels")
+          const { data: pixels } = await supabase.from("meta_pixels")
             .select("id, pixel_id, access_token_encrypted, test_event_code")
-            .eq("workspace_id", workspaceId)
-            .eq("is_active", true);
+            .eq("workspace_id", workspaceId).eq("is_active", true);
 
           if (pixels?.length) {
             for (const pixel of pixels) {
@@ -329,37 +768,39 @@ Deno.serve(async (req) => {
                 data: [{
                   event_name: marketingEvent,
                   event_time: Math.floor(Date.now() / 1000),
-                  event_id: evt?.id || generateEventId(),
+                  event_id: evt?.id || crypto.randomUUID(),
                   action_source: "website",
                   user_data: {
-                    em: order.customer_email ? [await sha256(order.customer_email.toLowerCase().trim())] : undefined,
-                    ph: order.customer_phone ? [await sha256(order.customer_phone.trim())] : undefined,
+                    em: order.customer.email ? [await sha256(order.customer.email.toLowerCase().trim())] : undefined,
+                    ph: order.customer.phone ? [await sha256(order.customer.phone.replace(/\D/g, ""))] : undefined,
+                    fn: order.customer.name ? [await sha256(order.customer.name.split(" ")[0].toLowerCase())] : undefined,
+                    external_id: identityId ? [identityId] : undefined,
                   },
                   custom_data: {
                     value: order.total_value,
                     currency: order.currency,
-                    order_id: order.gateway_order_id,
+                    order_id: order.external_order_id,
+                    content_type: "product",
+                    num_items: order.items?.length || 1,
+                    contents: order.items?.map(i => ({ id: i.product_id || i.product_name || "item", quantity: i.quantity })),
+                    content_ids: order.items?.map(i => str(i.product_id || i.product_name)),
                   },
                 }],
                 ...(pixel.test_event_code ? { test_event_code: pixel.test_event_code } : {}),
               };
 
-              const metaRes = await fetch(
-                `https://graph.facebook.com/v21.0/${pixel.pixel_id}/events?access_token=${pixel.access_token_encrypted}`,
-                { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(metaPayload) }
-              );
+              const metaRes = await fetch(`https://graph.facebook.com/v21.0/${pixel.pixel_id}/events?access_token=${pixel.access_token_encrypted}`, {
+                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(metaPayload),
+              });
               const metaData = await metaRes.json();
 
               await supabase.from("event_deliveries").insert({
-                event_id: evt?.id || generateEventId(),
-                workspace_id: workspaceId,
-                provider: "meta",
+                event_id: evt?.id || crypto.randomUUID(),
+                workspace_id: workspaceId, provider: "meta",
                 destination: pixel.pixel_id,
                 status: metaRes.ok ? "delivered" : "failed",
-                attempt_count: 1,
-                last_attempt_at: new Date().toISOString(),
-                request_json: metaPayload,
-                response_json: metaData,
+                attempt_count: 1, last_attempt_at: new Date().toISOString(),
+                request_json: metaPayload, response_json: metaData,
                 error_message: metaRes.ok ? null : JSON.stringify(metaData),
               });
             }
@@ -370,31 +811,26 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Update webhook log
+    // Update webhook log status
     if (webhookLog?.id) {
-      await supabase.from("webhook_logs").update({
-        processing_status: "processed",
-        processed_at: new Date().toISOString(),
+      await supabase.from("gateway_webhook_logs").update({
+        processing_status: "processed", processed_at: new Date().toISOString(),
+        processing_attempts: 1,
       }).eq("id", webhookLog.id);
     }
 
     return new Response(JSON.stringify({
       status: "ok",
-      order_id: savedOrder?.id,
-      event_id: eventId,
+      provider, internal_event: internalEvent,
       marketing_event: marketingEvent,
-      provider,
+      order_id: savedOrder?.id, event_id: eventId,
     }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   } catch (err) {
     console.error("Gateway webhook error:", err);
-    return new Response(JSON.stringify({ error: "Internal server error" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ error: "Internal server error", details: String(err) }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });
-
-function generateEventId(): string {
-  return crypto.randomUUID();
-}
 
 async function sha256(value: string): Promise<string> {
   const data = new TextEncoder().encode(value);
