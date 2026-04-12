@@ -27,12 +27,15 @@ const TYPE_META: Record<IntegrationType, { label: string; icon: typeof Key; colo
   auto_token: { label: "Token Automático", icon: Zap, color: "bg-purple-500/15 text-purple-400 border-purple-500/30", desc: "Credenciais geradas automaticamente" },
 };
 
+const MIN_NAME_LENGTH = 3;
+
 export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, supabaseUrl, workspaceId }: IntegrationDialogProps) {
   const [provider, setProvider] = useState("stripe");
   const [name, setName] = useState("");
   const [credentials, setCredentials] = useState("");
   const [webhookSecret, setWebhookSecret] = useState("");
   const [environment, setEnvironment] = useState("production");
+  const [nameError, setNameError] = useState("");
 
   const config = PROVIDER_CONFIGS[provider];
   const brProviders = getProvidersByCountry("br");
@@ -43,9 +46,18 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
     setCredentials("");
     setWebhookSecret("");
     setEnvironment("production");
+    setNameError("");
   };
 
   const handleSubmit = () => {
+    const trimmedName = name.trim();
+    if (trimmedName.length < MIN_NAME_LENGTH) {
+      setNameError(`Nome deve ter pelo menos ${MIN_NAME_LENGTH} caracteres`);
+      toast.error(`Nome deve ter pelo menos ${MIN_NAME_LENGTH} caracteres`);
+      return;
+    }
+    setNameError("");
+
     if (config?.integrationType !== "webhook_only") {
       const missingRequired = config?.fields.filter(f => f.required && !fieldValues[f.key]);
       if (missingRequired && missingRequired.length > 0) {
@@ -53,7 +65,7 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
         return;
       }
     }
-    onSubmit({ provider, name: name || config?.label || provider, credentials, webhookSecret, environment });
+    onSubmit({ provider, name: trimmedName, credentials, webhookSecret, environment });
     reset();
   };
 
@@ -75,7 +87,7 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 text-lg">
             {config && <span className="text-2xl">{config.emoji}</span>}
             Adicionar Gateway de Pagamento
           </DialogTitle>
@@ -89,15 +101,15 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
           </TabsList>
           {(["br", "int"] as const).map(tab => (
             <TabsContent key={tab} value={tab}>
-              <div className="grid grid-cols-3 gap-2 mt-2 max-h-48 overflow-y-auto">
+              <div className="grid grid-cols-3 gap-2 mt-2 max-h-48 overflow-y-auto pr-1">
                 {(tab === "br" ? brProviders : intProviders).map(p => (
                   <button
                     key={p.value}
                     onClick={() => { setProvider(p.value); reset(); }}
-                    className={`p-2 rounded-lg border text-center text-xs transition-all ${provider === p.value ? "border-primary bg-primary/10 text-primary ring-1 ring-primary/30" : "border-border hover:border-muted-foreground/30 hover:bg-muted/30"}`}
+                    className={`p-2.5 rounded-lg border text-center text-xs transition-all ${provider === p.value ? "border-primary bg-primary/10 text-primary ring-1 ring-primary/30" : "border-border hover:border-muted-foreground/30 hover:bg-muted/30"}`}
                   >
-                    <span className="text-lg block">{p.emoji}</span>
-                    {p.label}
+                    <span className="text-lg block mb-0.5">{p.emoji}</span>
+                    <span className="truncate block">{p.label}</span>
                   </button>
                 ))}
               </div>
@@ -106,32 +118,31 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
         </Tabs>
 
         {config && (
-          <div className="space-y-4 mt-2">
+          <div className="space-y-4 mt-1">
             {/* Integration type badge */}
             {typeMeta && (
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className={`text-[11px] gap-1 ${typeMeta.color}`}>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge variant="outline" className={`text-[11px] gap-1 px-2 py-0.5 ${typeMeta.color}`}>
                   <TypeIcon className="w-3 h-3" />
                   {typeMeta.label}
                 </Badge>
-                <span className="text-[11px] text-muted-foreground">{typeMeta.desc}</span>
+                <span className="text-[11px] text-muted-foreground leading-tight">{typeMeta.desc}</span>
               </div>
             )}
 
             {/* Description */}
-            <p className="text-xs text-muted-foreground">{config.description}</p>
+            <p className="text-xs text-muted-foreground leading-relaxed">{config.description}</p>
 
             {/* Visual step flow */}
             {config.checklist.length > 0 && (
               <div className="rounded-lg border border-border bg-muted/20 p-3">
                 <p className="text-xs font-medium text-foreground mb-2.5 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-primary shrink-0" />
                   O que você precisa fazer:
                 </p>
                 <div className="space-y-0">
                   {config.checklist.map((step, i) => (
                     <div key={i} className="flex items-start gap-2.5 relative">
-                      {/* Vertical connector line */}
                       {i < config.checklist.length - 1 && (
                         <div className="absolute left-[9px] top-5 w-px h-[calc(100%-4px)] bg-border" />
                       )}
@@ -145,26 +156,35 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
               </div>
             )}
 
-            {/* Name field */}
+            {/* Name field — required with validation */}
             <div>
-              <Label className="text-xs">Nome interno</Label>
+              <div className="flex items-center gap-2 mb-1">
+                <Label className="text-xs">Nome interno</Label>
+                <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/30">
+                  Obrigatório
+                </Badge>
+              </div>
               <Input
-                placeholder={`Ex: ${config.label} Produção`}
+                placeholder={`Ex: ${config.label} Principal`}
                 value={name}
-                onChange={e => setName(e.target.value)}
-                className="mt-1"
+                onChange={e => { setName(e.target.value); if (nameError) setNameError(""); }}
+                className={`${nameError ? "border-destructive ring-1 ring-destructive/30" : ""}`}
               />
-              <p className="text-[11px] text-muted-foreground mt-1">Nome para identificar esta integração no painel.</p>
+              {nameError ? (
+                <p className="text-[11px] text-destructive mt-1">{nameError}</p>
+              ) : (
+                <p className="text-[11px] text-muted-foreground mt-1">Nome para identificar esta integração no painel (mín. {MIN_NAME_LENGTH} caracteres).</p>
+              )}
             </div>
 
             {/* Webhook-only message */}
             {config.integrationType === "webhook_only" && (
               <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
                 <div className="flex items-center gap-2 mb-1">
-                  <Zap className="w-4 h-4 text-emerald-400" />
+                  <Zap className="w-4 h-4 text-emerald-400 shrink-0" />
                   <p className="text-xs font-medium text-emerald-400">Integração automática</p>
                 </div>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
                   Esta integração não requer credenciais manuais. Basta criar a integração, copiar a URL de webhook gerada abaixo e cadastrar na plataforma.
                 </p>
               </div>
@@ -173,13 +193,13 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
             {/* Dynamic fields from config */}
             {config.fields.map(field => (
               <div key={field.key} className="space-y-1.5">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Label className="text-xs">{field.label}</Label>
-                  <Badge variant="outline" className={`text-[10px] ${field.required ? "bg-primary/10 text-primary border-primary/30" : "bg-muted text-muted-foreground"}`}>
+                  <Badge variant="outline" className={`text-[10px] px-1.5 ${field.required ? "bg-primary/10 text-primary border-primary/30" : "bg-muted text-muted-foreground"}`}>
                     {field.required ? "Obrigatório" : "Opcional"}
                   </Badge>
                   {field.direction === "paste_here" && (
-                    <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-400 border-blue-500/20 gap-0.5">
+                    <Badge variant="outline" className="text-[10px] px-1.5 bg-blue-500/10 text-blue-400 border-blue-500/20 gap-0.5">
                       <ArrowRight className="w-2.5 h-2.5" />
                       Colar aqui
                     </Badge>
@@ -193,7 +213,7 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
                 />
                 {field.securityWarning && (
                   <div className="flex items-center gap-1.5">
-                    <AlertTriangle className="w-3 h-3 text-amber-500" />
+                    <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />
                     <span className="text-[11px] text-amber-500">{field.securityWarning}</span>
                   </div>
                 )}
@@ -215,7 +235,7 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="production">Produção</SelectItem>
-                  <SelectItem value="sandbox">Sandbox</SelectItem>
+                  <SelectItem value="sandbox">Sandbox / Teste</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -224,7 +244,7 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
             {config.generatedOutputs.length > 0 && (
               <div className="space-y-3 pt-3 border-t border-border">
                 <p className="text-xs font-medium text-foreground flex items-center gap-1.5">
-                  <ChevronRight className="w-3.5 h-3.5 text-primary" />
+                  <ChevronRight className="w-3.5 h-3.5 text-primary shrink-0" />
                   {config.integrationType === "webhook_only"
                     ? "Copie esta URL e cadastre na plataforma"
                     : "Próximo passo: copiar e cadastrar na plataforma"}
@@ -233,17 +253,17 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
                   const value = out.buildValue({ supabaseUrl, workspaceId, provider, integrationId: "" });
                   return (
                     <div key={i} className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-xs font-medium text-foreground">{out.label}</p>
-                        <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20 gap-0.5">
+                        <Badge variant="outline" className="text-[10px] px-1.5 bg-emerald-500/10 text-emerald-400 border-emerald-500/20 gap-0.5">
                           <Copy className="w-2.5 h-2.5" />
                           Copiar daqui
                         </Badge>
                       </div>
-                      <p className="text-[11px] text-muted-foreground">{out.helpText}</p>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">{out.helpText}</p>
                       <div className="flex items-center gap-2">
-                        <Input readOnly value={value} className="text-xs font-mono bg-muted/50" />
-                        <Button variant="outline" size="sm" className="shrink-0" onClick={() => copyValue(value)}>
+                        <Input readOnly value={value} className="text-xs font-mono bg-muted/50 truncate" />
+                        <Button variant="outline" size="sm" className="shrink-0 h-9 w-9 p-0" onClick={() => copyValue(value)}>
                           <Copy className="w-3.5 h-3.5" />
                         </Button>
                       </div>
@@ -263,7 +283,7 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
             {config.nextSteps && config.nextSteps.length > 0 && (
               <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
                 <p className="text-xs font-semibold text-primary flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                   Após salvar a integração
                 </p>
                 <ol className="space-y-1.5">
@@ -272,7 +292,7 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
                       <span className="flex-shrink-0 w-4 h-4 rounded-full bg-primary/15 text-primary text-[9px] font-bold flex items-center justify-center mt-0.5">
                         {i + 1}
                       </span>
-                      {step}
+                      <span className="leading-relaxed">{step}</span>
                     </li>
                   ))}
                 </ol>
@@ -285,16 +305,16 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
                 href={config.docsLink.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline transition-colors"
               >
-                <ExternalLink className="w-3 h-3" />
+                <ExternalLink className="w-3.5 h-3.5" />
                 {config.docsLink.label}
               </a>
             )}
           </div>
         )}
 
-        <DialogFooter>
+        <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button onClick={handleSubmit} disabled={isPending}>
             {isPending ? "Criando..." : "Criar Integração"}
