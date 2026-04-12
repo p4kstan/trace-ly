@@ -2827,6 +2827,53 @@ export type Database = {
           },
         ]
       }
+      ml_attribution_models: {
+        Row: {
+          accuracy: number | null
+          channels: Json | null
+          created_at: string
+          id: string
+          model_data: Json
+          model_type: string
+          trained_at: string | null
+          training_samples: number | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          accuracy?: number | null
+          channels?: Json | null
+          created_at?: string
+          id?: string
+          model_data?: Json
+          model_type: string
+          trained_at?: string | null
+          training_samples?: number | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          accuracy?: number | null
+          channels?: Json | null
+          created_at?: string
+          id?: string
+          model_data?: Json
+          model_type?: string
+          trained_at?: string | null
+          training_samples?: number | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ml_attribution_models_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_items: {
         Row: {
           category: string | null
@@ -3211,6 +3258,53 @@ export type Database = {
         }
         Relationships: []
       }
+      prediction_results: {
+        Row: {
+          campaign: string | null
+          channel: string | null
+          confidence: number | null
+          created_at: string
+          features_json: Json | null
+          horizon_days: number | null
+          id: string
+          predicted_value: number | null
+          prediction_type: string
+          workspace_id: string
+        }
+        Insert: {
+          campaign?: string | null
+          channel?: string | null
+          confidence?: number | null
+          created_at?: string
+          features_json?: Json | null
+          horizon_days?: number | null
+          id?: string
+          predicted_value?: number | null
+          prediction_type: string
+          workspace_id: string
+        }
+        Update: {
+          campaign?: string | null
+          channel?: string | null
+          confidence?: number | null
+          created_at?: string
+          features_json?: Json | null
+          horizon_days?: number | null
+          id?: string
+          predicted_value?: number | null
+          prediction_type?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prediction_results_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -3237,6 +3331,41 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      realtime_metrics: {
+        Row: {
+          id: string
+          metadata_json: Json | null
+          metric_name: string
+          metric_value: number
+          recorded_at: string
+          workspace_id: string
+        }
+        Insert: {
+          id?: string
+          metadata_json?: Json | null
+          metric_name: string
+          metric_value?: number
+          recorded_at?: string
+          workspace_id: string
+        }
+        Update: {
+          id?: string
+          metadata_json?: Json | null
+          metric_name?: string
+          metric_value?: number
+          recorded_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "realtime_metrics_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       reconciliation_logs: {
         Row: {
