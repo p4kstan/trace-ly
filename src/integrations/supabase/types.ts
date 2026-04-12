@@ -14,7 +14,173 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      events: {
+        Row: {
+          cookies: Json | null
+          created_at: string
+          currency: string | null
+          event_id: string | null
+          event_name: string
+          id: string
+          ip: string | null
+          properties: Json | null
+          referrer: string | null
+          session_id: string | null
+          source: string | null
+          url: string | null
+          user_agent: string | null
+          user_identity_id: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+          value: number | null
+        }
+        Insert: {
+          cookies?: Json | null
+          created_at?: string
+          currency?: string | null
+          event_id?: string | null
+          event_name: string
+          id?: string
+          ip?: string | null
+          properties?: Json | null
+          referrer?: string | null
+          session_id?: string | null
+          source?: string | null
+          url?: string | null
+          user_agent?: string | null
+          user_identity_id?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          value?: number | null
+        }
+        Update: {
+          cookies?: Json | null
+          created_at?: string
+          currency?: string | null
+          event_id?: string | null
+          event_name?: string
+          id?: string
+          ip?: string | null
+          properties?: Json | null
+          referrer?: string | null
+          session_id?: string | null
+          source?: string | null
+          url?: string | null
+          user_agent?: string | null
+          user_identity_id?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_user_identity_id_fkey"
+            columns: ["user_identity_id"]
+            isOneToOne: false
+            referencedRelation: "user_identities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sessions: {
+        Row: {
+          created_at: string
+          id: string
+          ip: string | null
+          referrer: string | null
+          url: string | null
+          user_agent: string | null
+          user_identity_id: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ip?: string | null
+          referrer?: string | null
+          url?: string | null
+          user_agent?: string | null
+          user_identity_id?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ip?: string | null
+          referrer?: string | null
+          url?: string | null
+          user_agent?: string | null
+          user_identity_id?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sessions_user_identity_id_fkey"
+            columns: ["user_identity_id"]
+            isOneToOne: false
+            referencedRelation: "user_identities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_identities: {
+        Row: {
+          created_at: string
+          email: string | null
+          external_id: string | null
+          fingerprint: string | null
+          id: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          external_id?: string | null
+          fingerprint?: string | null
+          id?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          external_id?: string | null
+          fingerprint?: string | null
+          id?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
