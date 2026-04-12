@@ -23,6 +23,7 @@ import Orders from "@/pages/Orders";
 import WebhookLogs from "@/pages/WebhookLogs";
 import QueueMonitor from "@/pages/QueueMonitor";
 import Tutorials from "@/pages/Tutorials";
+import McpIntegration from "@/pages/McpIntegration";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -54,6 +55,7 @@ function ProtectedRoutes() {
         <Route path="/webhook-logs" element={<WebhookLogs />} />
         <Route path="/queue" element={<QueueMonitor />} />
         <Route path="/tutorials" element={<Tutorials />} />
+        <Route path="/mcp" element={<McpIntegration />} />
         <Route path="/plans" element={<Plans />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/system-diagnostic" element={<SystemDiagnostic />} />
