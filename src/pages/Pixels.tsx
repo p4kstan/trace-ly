@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MonitorDot, Plus, MoreVertical, CheckCircle, AlertCircle, Inbox, Pencil, Trash2, Copy, Globe, X } from "lucide-react";
+import { MonitorDot, Plus, CheckCircle, AlertCircle, Inbox, Pencil, Trash2, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { InlineHelp } from "@/components/InlineHelp";
 
 export default function Pixels() {
   const { data: workspace } = useWorkspace();
@@ -104,16 +105,73 @@ export default function Pixels() {
       </div>
 
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="bg-card border-border">
+        <DialogContent className="bg-card border-border max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-foreground">{editingId ? "Editar" : "Novo"} Pixel</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
-            <div><Label className="text-foreground">Nome</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="My Meta Pixel" /></div>
-            <div><Label className="text-foreground">Pixel ID</Label><Input value={form.pixel_id} onChange={e => setForm(f => ({ ...f, pixel_id: e.target.value }))} placeholder="123456789012345" /></div>
-            <div><Label className="text-foreground">Access Token {editingId && "(deixe vazio para manter)"}</Label><Input value={form.access_token} onChange={e => setForm(f => ({ ...f, access_token: e.target.value }))} type="password" placeholder="EAAxxxxxxx..." /></div>
-            <div><Label className="text-foreground">Test Event Code (opcional)</Label><Input value={form.test_event_code} onChange={e => setForm(f => ({ ...f, test_event_code: e.target.value }))} placeholder="TEST12345" /></div>
-            {!editingId && <div><Label className="text-foreground">Domínio (opcional)</Label><Input value={form.domain} onChange={e => setForm(f => ({ ...f, domain: e.target.value }))} placeholder="meusite.com.br" /></div>}
+          <div className="space-y-4">
+            <div>
+              <Label className="text-foreground">Nome</Label>
+              <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="My Meta Pixel" />
+            </div>
+
+            <div>
+              <Label className="text-foreground">Pixel ID</Label>
+              <Input value={form.pixel_id} onChange={e => setForm(f => ({ ...f, pixel_id: e.target.value }))} placeholder="123456789012345" />
+              <InlineHelp
+                label="Como encontrar o Pixel ID?"
+                steps={[
+                  { text: "Acesse o Meta Business Manager" },
+                  { text: "Vá para Gerenciador de Eventos (Events Manager)" },
+                  { text: "Selecione seu Pixel na lista" },
+                  { text: "Copie o Pixel ID exibido no topo da página" },
+                ]}
+                link={{ url: "https://business.facebook.com/events_manager2", label: "Abrir Meta Business Manager" }}
+              />
+            </div>
+
+            <div>
+              <Label className="text-foreground">Access Token {editingId && "(deixe vazio para manter)"}</Label>
+              <Input value={form.access_token} onChange={e => setForm(f => ({ ...f, access_token: e.target.value }))} type="password" placeholder="EAAxxxxxxx..." />
+              <InlineHelp
+                label="Como obter o Access Token?"
+                steps={[
+                  { text: "No Meta Business Manager, abra o Gerenciador de Eventos" },
+                  { text: "Clique em Configurações (Settings)" },
+                  { text: "Role até API de Conversões (Conversions API)" },
+                  { text: "Clique em Gerar Token (Generate Access Token)" },
+                  { text: "Copie o token gerado — ele só aparece uma vez" },
+                ]}
+                note="O Access Token é usado para enviar eventos server-side via Conversions API. Guarde-o com segurança."
+                link={{ url: "https://business.facebook.com/events_manager2", label: "Abrir Events Manager" }}
+              />
+            </div>
+
+            <div>
+              <Label className="text-foreground">Test Event Code (opcional)</Label>
+              <Input value={form.test_event_code} onChange={e => setForm(f => ({ ...f, test_event_code: e.target.value }))} placeholder="TEST12345" />
+              <InlineHelp
+                label="Onde encontrar o Test Event Code?"
+                steps={[
+                  { text: "No Events Manager, vá até Test Events" },
+                  { text: "O código de teste aparece no topo da seção" },
+                  { text: "Copie e cole aqui para testar sem afetar dados reais" },
+                ]}
+                note="Use o Test Event Code para validar seu tracking antes de ir para produção. Ele expira após algumas horas."
+              />
+            </div>
+
+            {!editingId && (
+              <div>
+                <Label className="text-foreground">Domínio (opcional)</Label>
+                <Input value={form.domain} onChange={e => setForm(f => ({ ...f, domain: e.target.value }))} placeholder="meusite.com.br" />
+                <InlineHelp
+                  label="O que é o domínio?"
+                  note="O domínio é o endereço do seu site onde o pixel será instalado. Exemplo: meusite.com.br — sem https:// ou www."
+                />
+              </div>
+            )}
+
             <Button onClick={handleSave} disabled={saving} className="w-full bg-primary text-primary-foreground">
               {saving ? "Salvando..." : editingId ? "Atualizar" : "Criar Pixel"}
             </Button>
