@@ -2434,6 +2434,89 @@ export type Database = {
         }
         Relationships: []
       }
+      mcp_logs: {
+        Row: {
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          id: string
+          request_json: Json | null
+          response_json: Json | null
+          status: string
+          token_id: string | null
+          tool: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          request_json?: Json | null
+          response_json?: Json | null
+          status?: string
+          token_id?: string | null
+          tool: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          request_json?: Json | null
+          response_json?: Json | null
+          status?: string
+          token_id?: string | null
+          tool?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_logs_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcp_tokens: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          id: string
+          last_used_at: string | null
+          name: string
+          permissions: string[]
+          revoked: boolean
+          token: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          last_used_at?: string | null
+          name?: string
+          permissions?: string[]
+          revoked?: boolean
+          token: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          last_used_at?: string | null
+          name?: string
+          permissions?: string[]
+          revoked?: boolean
+          token?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       meta_pixels: {
         Row: {
           access_token_encrypted: string | null
