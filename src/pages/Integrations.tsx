@@ -13,6 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Plus, Copy, CheckCircle, XCircle, Trash2, Webhook, Settings2, RefreshCw, ExternalLink } from "lucide-react";
+import { InlineHelp } from "@/components/InlineHelp";
 
 const PROVIDERS = [
   { value: "stripe", label: "Stripe", emoji: "💳", country: "int" },
@@ -253,10 +254,59 @@ export default function Integrations() {
             <div>
               <Label>API Key / Credenciais</Label>
               <Input type="password" placeholder="sk_live_..." value={form.credentials} onChange={e => setForm(f => ({ ...f, credentials: e.target.value }))} />
+              {form.provider === "stripe" && (
+                <InlineHelp
+                  label="Onde encontrar a API Key do Stripe?"
+                  steps={[
+                    { text: "Acesse o Dashboard do Stripe" },
+                    { text: "Vá em Developers → API Keys" },
+                    { text: "Copie a Secret Key (sk_live_... ou sk_test_...)" },
+                  ]}
+                  note="Use sk_test_ para testes e sk_live_ para produção."
+                  link={{ url: "https://dashboard.stripe.com/apikeys", label: "Abrir Stripe Dashboard" }}
+                />
+              )}
+              {form.provider === "mercadopago" && (
+                <InlineHelp
+                  label="Onde encontrar o Access Token?"
+                  steps={[
+                    { text: "Acesse Mercado Pago Developers" },
+                    { text: "Vá em Suas Integrações → Credenciais" },
+                    { text: "Copie o Access Token de produção" },
+                  ]}
+                  link={{ url: "https://www.mercadopago.com.br/developers/panel/app", label: "Abrir Mercado Pago Developers" }}
+                />
+              )}
+              {form.provider === "hotmart" && (
+                <InlineHelp
+                  label="Como configurar o Hotmart?"
+                  steps={[
+                    { text: "Acesse o painel da Hotmart" },
+                    { text: "Vá em Ferramentas → Webhooks" },
+                    { text: "Crie um novo webhook com o endpoint abaixo" },
+                  ]}
+                  snippet={`${supabaseUrl}/functions/v1/gateway-webhook`}
+                  link={{ url: "https://app-vlc.hotmart.com/tools/webhook", label: "Abrir Hotmart Webhooks" }}
+                />
+              )}
             </div>
             <div>
               <Label>Webhook Secret (opcional)</Label>
               <Input type="password" placeholder="whsec_..." value={form.webhookSecret} onChange={e => setForm(f => ({ ...f, webhookSecret: e.target.value }))} />
+              {form.provider === "stripe" && (
+                <InlineHelp
+                  label="Como obter o Webhook Secret?"
+                  steps={[
+                    { text: "No Stripe Dashboard, vá em Developers → Webhooks" },
+                    { text: "Clique em Add Endpoint" },
+                    { text: "Cole o endpoint do CapiTrack" },
+                    { text: "Selecione: checkout.session.completed, payment_intent.succeeded" },
+                    { text: "Copie o Signing Secret (whsec_...)" },
+                  ]}
+                  snippet={`${supabaseUrl}/functions/v1/gateway-webhook`}
+                  link={{ url: "https://dashboard.stripe.com/webhooks", label: "Abrir Stripe Webhooks" }}
+                />
+              )}
             </div>
             <div>
               <Label>Ambiente</Label>
