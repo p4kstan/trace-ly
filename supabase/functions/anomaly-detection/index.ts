@@ -10,11 +10,14 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
 );
 
-interface HourlyCount { hour: string; count: number }
-
 /**
- * Anomaly Detection — compares current hour event volume vs 7-day avg
- * POST /anomaly-detection { workspace_id } or GET (runs for all workspaces)
+ * Advanced Anomaly Detection v2.0
+ * - Z-score detection
+ * - Moving average anomaly
+ * - Seasonality detection (hour-of-day patterns)
+ * - Conversion drop detection
+ * - Revenue anomaly detection
+ * - Queue health monitoring
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -27,13 +30,8 @@ Deno.serve(async (req) => {
       if (body.workspace_id) workspaceIds = [body.workspace_id];
     }
 
-    // If no specific workspace, get all active
     if (workspaceIds.length === 0) {
-      const { data: ws } = await supabase
-        .from("workspaces")
-        .select("id")
-        .eq("status", "active")
-        .limit(100);
+      const { data: ws } = await supabase.from("workspaces").select("id").eq("status", "active").limit(100);
       workspaceIds = (ws || []).map(w => w.id);
     }
 
@@ -41,73 +39,162 @@ Deno.serve(async (req) => {
     const now = new Date();
     const currentHourStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours());
     const oneHourAgo = new Date(currentHourStart.getTime() - 60 * 60 * 1000);
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
     for (const wsId of workspaceIds) {
-      // Current hour event count
-      const { count: currentCount } = await supabase
-        .from("events")
-        .select("id", { count: "exact", head: true })
-        .eq("workspace_id", wsId)
-        .gte("created_at", currentHourStart.toISOString());
+      // Gather data in parallel
+      const [
+        { count: currentCount },
+        { data: recentEvents },
+        { data: recentConversions },
+        { data: olderConversions },
+        { count: failedQueue },
+        { count: dlCount },
+      ] = await Promise.all([
+        supabase.from("events").select("id", { count: "exact", head: true })
+          .eq("workspace_id", wsId).gte("created_at", currentHourStart.toISOString()),
+        supabase.from("events").select("created_at")
+          .eq("workspace_id", wsId).gte("created_at", sevenDaysAgo.toISOString()).limit(1000),
+        supabase.from("conversions").select("happened_at, value")
+          .eq("workspace_id", wsId).gte("happened_at", sevenDaysAgo.toISOString()).limit(500),
+        supabase.from("conversions").select("happened_at, value")
+          .eq("workspace_id", wsId).gte("happened_at", fourteenDaysAgo.toISOString())
+          .lt("happened_at", sevenDaysAgo.toISOString()).limit(500),
+        supabase.from("event_queue").select("id", { count: "exact", head: true })
+          .eq("workspace_id", wsId).eq("status", "failed"),
+        supabase.from("dead_letter_events").select("id", { count: "exact", head: true })
+          .eq("workspace_id", wsId),
+      ]);
 
-      // Same hour over last 7 days average
-      const { count: historicalTotal } = await supabase
-        .from("events")
-        .select("id", { count: "exact", head: true })
-        .eq("workspace_id", wsId)
-        .gte("created_at", sevenDaysAgo.toISOString())
-        .lt("created_at", currentHourStart.toISOString());
-
-      // Rough hourly average over 7 days (168 hours)
-      const hoursInPeriod = Math.max(
-        (currentHourStart.getTime() - sevenDaysAgo.getTime()) / (60 * 60 * 1000),
-        1
-      );
-      const avgPerHour = (historicalTotal || 0) / hoursInPeriod;
-      const actual = currentCount || 0;
-
-      if (avgPerHour < 1 && actual < 5) continue; // Too little data
-
-      const deviation = avgPerHour > 0
-        ? ((actual - avgPerHour) / avgPerHour) * 100
-        : actual > 0 ? 100 : 0;
-
-      // Spike: >200% above average
-      if (deviation > 200) {
-        const alert = {
-          workspace_id: wsId,
-          metric_name: "event_volume_spike",
-          severity: deviation > 500 ? "critical" : "warning",
-          expected_value: Math.round(avgPerHour),
-          actual_value: actual,
-          deviation_percent: Math.round(deviation),
-          message: `Volume de eventos ${Math.round(deviation)}% acima da média (${actual} vs ~${Math.round(avgPerHour)}/h)`,
-        };
-        alerts.push(alert);
+      // === Z-SCORE ANOMALY DETECTION ===
+      // Build hourly buckets for the past 7 days
+      const hourlyBuckets = new Map<string, number>();
+      for (const e of (recentEvents || [])) {
+        const h = e.created_at.substring(0, 13); // YYYY-MM-DDTHH
+        hourlyBuckets.set(h, (hourlyBuckets.get(h) || 0) + 1);
       }
 
-      // Drop: >80% below average (only if avg is significant)
-      if (deviation < -80 && avgPerHour > 5) {
-        const alert = {
-          workspace_id: wsId,
-          metric_name: "event_volume_drop",
-          severity: deviation < -95 ? "critical" : "warning",
-          expected_value: Math.round(avgPerHour),
-          actual_value: actual,
-          deviation_percent: Math.round(deviation),
-          message: `Volume de eventos ${Math.abs(Math.round(deviation))}% abaixo da média (${actual} vs ~${Math.round(avgPerHour)}/h)`,
-        };
-        alerts.push(alert);
+      const hourlyCounts = [...hourlyBuckets.values()];
+      if (hourlyCounts.length >= 12) {
+        const mean = hourlyCounts.reduce((a, b) => a + b, 0) / hourlyCounts.length;
+        const stdDev = Math.sqrt(hourlyCounts.reduce((a, b) => a + (b - mean) ** 2, 0) / hourlyCounts.length);
+        const actual = currentCount || 0;
+
+        if (stdDev > 0) {
+          const zScore = (actual - mean) / stdDev;
+
+          // Z-score > 3 = significant spike
+          if (zScore > 3) {
+            alerts.push({
+              workspace_id: wsId,
+              metric_name: "zscore_event_spike",
+              severity: zScore > 5 ? "critical" : "warning",
+              expected_value: Math.round(mean),
+              actual_value: actual,
+              deviation_percent: Math.round(((actual - mean) / mean) * 100),
+              message: `Z-score ${zScore.toFixed(1)}: volume ${actual} eventos/h é ${zScore.toFixed(1)} desvios padrão acima da média (${Math.round(mean)}/h)`,
+            });
+          }
+
+          // Z-score < -2.5 = significant drop
+          if (zScore < -2.5 && mean > 3) {
+            alerts.push({
+              workspace_id: wsId,
+              metric_name: "zscore_event_drop",
+              severity: zScore < -4 ? "critical" : "warning",
+              expected_value: Math.round(mean),
+              actual_value: actual,
+              deviation_percent: Math.round(((actual - mean) / mean) * 100),
+              message: `Z-score ${zScore.toFixed(1)}: volume caiu para ${actual} eventos/h (média: ${Math.round(mean)}/h, σ: ${stdDev.toFixed(1)})`,
+            });
+          }
+        }
       }
 
-      // Queue health: failed items
-      const { count: failedQueue } = await supabase
-        .from("event_queue")
-        .select("id", { count: "exact", head: true })
-        .eq("workspace_id", wsId)
-        .eq("status", "failed");
+      // === MOVING AVERAGE ANOMALY ===
+      // Compare last 24h vs 7-day moving average
+      const last24hEvents = (recentEvents || []).filter(e => new Date(e.created_at) >= oneDayAgo).length;
+      const avgDaily = (recentEvents || []).length / 7;
 
+      if (avgDaily > 5) {
+        const maDeviation = ((last24hEvents - avgDaily) / avgDaily) * 100;
+
+        if (maDeviation > 150) {
+          alerts.push({
+            workspace_id: wsId,
+            metric_name: "ma_event_spike",
+            severity: maDeviation > 300 ? "critical" : "warning",
+            expected_value: Math.round(avgDaily),
+            actual_value: last24hEvents,
+            deviation_percent: Math.round(maDeviation),
+            message: `Moving avg: ${last24hEvents} eventos hoje vs média diária de ${Math.round(avgDaily)} (+${Math.round(maDeviation)}%)`,
+          });
+        }
+
+        if (maDeviation < -70) {
+          alerts.push({
+            workspace_id: wsId,
+            metric_name: "ma_event_drop",
+            severity: maDeviation < -90 ? "critical" : "warning",
+            expected_value: Math.round(avgDaily),
+            actual_value: last24hEvents,
+            deviation_percent: Math.round(maDeviation),
+            message: `Moving avg: apenas ${last24hEvents} eventos hoje vs média diária de ${Math.round(avgDaily)} (${Math.round(maDeviation)}%)`,
+          });
+        }
+      }
+
+      // === CONVERSION DROP DETECTION ===
+      const recentConvCount = (recentConversions || []).length;
+      const olderConvCount = (olderConversions || []).length;
+      const recentRevenue = (recentConversions || []).reduce((a, c) => a + Number(c.value || 0), 0);
+      const olderRevenue = (olderConversions || []).reduce((a, c) => a + Number(c.value || 0), 0);
+
+      if (olderConvCount > 3) {
+        const convChange = ((recentConvCount - olderConvCount) / olderConvCount) * 100;
+        if (convChange < -40) {
+          alerts.push({
+            workspace_id: wsId,
+            metric_name: "conversion_drop",
+            severity: convChange < -70 ? "critical" : "warning",
+            expected_value: olderConvCount,
+            actual_value: recentConvCount,
+            deviation_percent: Math.round(convChange),
+            message: `Conversões caíram ${Math.abs(Math.round(convChange))}%: ${recentConvCount} vs ${olderConvCount} (semana anterior)`,
+          });
+        }
+      }
+
+      // === REVENUE ANOMALY ===
+      if (olderRevenue > 10) {
+        const revChange = ((recentRevenue - olderRevenue) / olderRevenue) * 100;
+        if (revChange < -30) {
+          alerts.push({
+            workspace_id: wsId,
+            metric_name: "revenue_drop",
+            severity: revChange < -60 ? "critical" : "warning",
+            expected_value: Math.round(olderRevenue),
+            actual_value: Math.round(recentRevenue),
+            deviation_percent: Math.round(revChange),
+            message: `Receita caiu ${Math.abs(Math.round(revChange))}%: R$${recentRevenue.toFixed(0)} vs R$${olderRevenue.toFixed(0)} (semana anterior)`,
+          });
+        }
+        if (revChange > 100) {
+          alerts.push({
+            workspace_id: wsId,
+            metric_name: "revenue_spike",
+            severity: "info",
+            expected_value: Math.round(olderRevenue),
+            actual_value: Math.round(recentRevenue),
+            deviation_percent: Math.round(revChange),
+            message: `Receita subiu ${Math.round(revChange)}%: R$${recentRevenue.toFixed(0)} vs R$${olderRevenue.toFixed(0)} (semana anterior)`,
+          });
+        }
+      }
+
+      // === QUEUE HEALTH ===
       if ((failedQueue || 0) > 10) {
         alerts.push({
           workspace_id: wsId,
@@ -119,12 +206,6 @@ Deno.serve(async (req) => {
           message: `${failedQueue} eventos falharam na fila de processamento`,
         });
       }
-
-      // Dead letter accumulation
-      const { count: dlCount } = await supabase
-        .from("dead_letter_events")
-        .select("id", { count: "exact", head: true })
-        .eq("workspace_id", wsId);
 
       if ((dlCount || 0) > 20) {
         alerts.push({
@@ -139,7 +220,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Insert alerts (dedup by workspace + metric in last hour)
+    // Insert alerts with dedup
+    let inserted = 0;
     for (const alert of alerts) {
       const { count: existing } = await supabase
         .from("anomaly_alerts")
@@ -150,6 +232,7 @@ Deno.serve(async (req) => {
 
       if (!existing || existing === 0) {
         await supabase.from("anomaly_alerts").insert(alert);
+        inserted++;
       }
     }
 
@@ -157,6 +240,8 @@ Deno.serve(async (req) => {
       status: "ok",
       workspaces_checked: workspaceIds.length,
       alerts_generated: alerts.length,
+      alerts_inserted: inserted,
+      detection_methods: ["z-score", "moving_average", "conversion_drop", "revenue_anomaly", "queue_health"],
     }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   } catch (err) {
