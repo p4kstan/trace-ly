@@ -10,26 +10,84 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
 );
 
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
 const GRAPH_API_VERSION = "v21.0";
 const GRAPH_API_BASE = "https://graph.facebook.com";
-const MAX_BATCH_SIZE = 1000; // Meta allows up to 1000 events per request
-const CONCURRENCY = 5; // parallel pixel batches
+const MAX_BATCH_SIZE = 1000;
+const CONCURRENCY = 5;
 
-// ── SHA-256 helper ──
+// ══════════════════════════════════════════════════════════════
+// SHARED HELPERS
+// ══════════════════════════════════════════════════════════════
+
 async function sha256(value: string): Promise<string> {
   const data = new TextEncoder().encode(value.trim().toLowerCase());
   const hash = await crypto.subtle.digest("SHA-256", data);
   return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
-// ── Exponential backoff: 30s, 2m, 8m, 30m, 2h ──
 function nextRetryDelay(attempt: number): number {
   const baseMs = 30_000;
-  const jitter = Math.random() * 5_000; // 0-5s jitter
+  const jitter = Math.random() * 5_000;
   return Math.min(baseMs * Math.pow(4, attempt), 2 * 60 * 60 * 1000) + jitter;
 }
 
-// ── Build Meta event payload from queue item ──
+async function handleFailure(item: any, errorMsg: string, stats: { failed: number; deadLettered: number }) {
+  const newAttempt = item.attempt_count + 1;
+  if (newAttempt >= item.max_attempts) {
+    await supabase.from("event_queue").update({
+      status: "dead_letter", attempt_count: newAttempt,
+      last_error: errorMsg, updated_at: new Date().toISOString(),
+    }).eq("id", item.id);
+    await supabase.from("dead_letter_events").insert({
+      workspace_id: item.workspace_id, source_type: "event_queue",
+      source_id: item.id, provider: item.provider, payload_json: item.payload_json,
+      error_message: errorMsg, retry_count: newAttempt,
+    });
+    if (item.event_id) {
+      await supabase.from("events").update({ processing_status: "failed" }).eq("id", item.event_id);
+    }
+    stats.deadLettered++;
+  } else {
+    const nextRetry = new Date(Date.now() + nextRetryDelay(newAttempt)).toISOString();
+    await supabase.from("event_queue").update({
+      status: "retry", attempt_count: newAttempt,
+      next_retry_at: nextRetry, last_error: errorMsg,
+      updated_at: new Date().toISOString(),
+    }).eq("id", item.id);
+    stats.failed++;
+  }
+}
+
+async function markDelivered(items: any[], stats: { delivered: number }) {
+  const ids = items.map(i => i.id);
+  const eventIds = items.map(i => i.event_id).filter(Boolean);
+  await supabase.from("event_queue")
+    .update({ status: "delivered", attempt_count: 1, updated_at: new Date().toISOString() })
+    .in("id", ids);
+  if (eventIds.length) {
+    await supabase.from("events").update({ processing_status: "delivered" }).in("id", eventIds);
+  }
+  stats.delivered += items.length;
+}
+
+async function processInParallel<T>(items: T[], concurrency: number, fn: (item: T) => Promise<void>) {
+  const queue = [...items];
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+    while (queue.length > 0) {
+      const item = queue.shift();
+      if (item) await fn(item);
+    }
+  });
+  await Promise.all(workers);
+}
+
+// ══════════════════════════════════════════════════════════════
+// META CAPI (existing logic, preserved)
+// ══════════════════════════════════════════════════════════════
+
 async function buildMetaEvent(item: any) {
   const p = item.payload_json;
   const customer = p.customer || {};
@@ -58,10 +116,8 @@ async function buildMetaEvent(item: any) {
     event_source_url: session.landing_page || undefined,
     user_data: userData,
     custom_data: {
-      value: order.total_value,
-      currency: order.currency,
-      order_id: order.external_order_id,
-      content_type: "product",
+      value: order.total_value, currency: order.currency,
+      order_id: order.external_order_id, content_type: "product",
       num_items: order.items?.length || 1,
       contents: order.items?.map((i: any) => ({ id: i.product_id || i.product_name || "item", quantity: i.quantity })),
       content_ids: order.items?.map((i: any) => String(i.product_id || i.product_name)),
@@ -69,174 +125,168 @@ async function buildMetaEvent(item: any) {
   };
 }
 
-// ── Send batch of events to Meta CAPI ──
-async function sendBatchToMeta(
-  pixelId: string, accessToken: string, testEventCode: string | null,
-  metaEvents: any[]
-): Promise<{ ok: boolean; response: any }> {
+async function sendBatchToMeta(pixelId: string, accessToken: string, testEventCode: string | null, metaEvents: any[]) {
   const url = `${GRAPH_API_BASE}/${GRAPH_API_VERSION}/${pixelId}/events`;
   const body: Record<string, unknown> = { data: metaEvents, access_token: accessToken };
   if (testEventCode) body.test_event_code = testEventCode;
-
   const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+    method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   const data = await res.json();
   return { ok: res.ok, response: data };
 }
 
-// ── Handle failed item (retry or dead letter) ──
-async function handleFailure(item: any, errorMsg: string, stats: { failed: number; deadLettered: number }) {
-  const newAttempt = item.attempt_count + 1;
-
-  if (newAttempt >= item.max_attempts) {
-    await supabase.from("event_queue").update({
-      status: "dead_letter", attempt_count: newAttempt,
-      last_error: errorMsg, updated_at: new Date().toISOString(),
-    }).eq("id", item.id);
-
-    await supabase.from("dead_letter_events").insert({
-      workspace_id: item.workspace_id, source_type: "event_queue",
-      source_id: item.id, provider: "meta", payload_json: item.payload_json,
-      error_message: errorMsg, retry_count: newAttempt,
-    });
-
-    if (item.event_id) {
-      await supabase.from("events").update({ processing_status: "failed" }).eq("id", item.event_id);
-    }
-    stats.deadLettered++;
-  } else {
-    const nextRetry = new Date(Date.now() + nextRetryDelay(newAttempt)).toISOString();
-    await supabase.from("event_queue").update({
-      status: "retry", attempt_count: newAttempt,
-      next_retry_at: nextRetry, last_error: errorMsg,
-      updated_at: new Date().toISOString(),
-    }).eq("id", item.id);
-    stats.failed++;
-  }
-}
-
-// ── Process a batch of items for a single pixel ──
-async function processPixelBatch(
-  pixelKey: string,
-  items: any[],
-  pixelCache: Map<string, any>,
+async function processMetaBatch(
+  pixelKey: string, items: any[], pixelCache: Map<string, any>,
   stats: { delivered: number; failed: number; deadLettered: number }
 ) {
-  // Resolve pixel credentials (cached)
   let pixel = pixelCache.get(pixelKey);
   if (!pixel) {
     const [workspaceId, pixelId] = pixelKey.split("::");
     const { data } = await supabase.from("meta_pixels")
       .select("pixel_id, access_token_encrypted, test_event_code")
-      .eq("pixel_id", pixelId)
-      .eq("workspace_id", workspaceId)
-      .eq("is_active", true)
-      .single();
+      .eq("pixel_id", pixelId).eq("workspace_id", workspaceId).eq("is_active", true).single();
     pixel = data;
     pixelCache.set(pixelKey, pixel || null);
   }
-
   if (!pixel?.access_token_encrypted) {
-    // Dead letter all items in this batch
-    for (const item of items) {
-      await handleFailure(item, "Pixel not found or no access token", stats);
-    }
+    for (const item of items) await handleFailure(item, "Pixel not found or no access token", stats);
     return;
   }
 
-  // Build all Meta events for this batch
   const metaEvents: any[] = [];
-  const itemMap: Map<number, any> = new Map(); // index → queue item
-
+  const itemMap: Map<number, any> = new Map();
   for (let i = 0; i < items.length; i++) {
     try {
-      const metaEvt = await buildMetaEvent(items[i]);
-      metaEvents.push(metaEvt);
+      const evt = await buildMetaEvent(items[i]);
+      metaEvents.push(evt);
       itemMap.set(metaEvents.length - 1, items[i]);
     } catch (err) {
       await handleFailure(items[i], `Build error: ${String(err)}`, stats);
     }
   }
-
   if (metaEvents.length === 0) return;
 
-  // Send in sub-batches of MAX_BATCH_SIZE
   for (let offset = 0; offset < metaEvents.length; offset += MAX_BATCH_SIZE) {
     const chunk = metaEvents.slice(offset, offset + MAX_BATCH_SIZE);
     const chunkItems = Array.from({ length: chunk.length }, (_, i) => itemMap.get(offset + i)!);
-
     try {
-      const result = await sendBatchToMeta(
-        pixel.pixel_id, pixel.access_token_encrypted, pixel.test_event_code, chunk
-      );
-
-      // Log single delivery record for the batch
+      const result = await sendBatchToMeta(pixel.pixel_id, pixel.access_token_encrypted, pixel.test_event_code, chunk);
       await supabase.from("event_deliveries").insert({
         event_id: chunkItems[0]?.event_id || crypto.randomUUID(),
-        workspace_id: chunkItems[0]?.workspace_id,
-        provider: "meta",
+        workspace_id: chunkItems[0]?.workspace_id, provider: "meta",
         destination: pixel.pixel_id,
-        status: result.ok ? "delivered" : "failed",
-        attempt_count: 1,
+        status: result.ok ? "delivered" : "failed", attempt_count: 1,
         last_attempt_at: new Date().toISOString(),
         request_json: { pixel_id: pixel.pixel_id, batch_size: chunk.length, event_names: chunk.map((e: any) => e.event_name) },
         response_json: result.response,
         error_message: result.ok ? null : JSON.stringify(result.response),
       });
-
       if (result.ok) {
-        // Mark all items as delivered
-        const ids = chunkItems.map(i => i.id);
-        const eventIds = chunkItems.map(i => i.event_id).filter(Boolean);
-
-        await supabase.from("event_queue")
-          .update({ status: "delivered", attempt_count: 1, updated_at: new Date().toISOString() })
-          .in("id", ids);
-
-        if (eventIds.length) {
-          await supabase.from("events")
-            .update({ processing_status: "delivered" })
-            .in("id", eventIds);
-        }
-
-        stats.delivered += chunkItems.length;
+        await markDelivered(chunkItems, stats);
       } else {
-        // Retry/dead-letter each item individually
-        const errMsg = JSON.stringify(result.response);
-        for (const item of chunkItems) {
-          await handleFailure(item, errMsg, stats);
-        }
+        for (const item of chunkItems) await handleFailure(item, JSON.stringify(result.response), stats);
       }
     } catch (err) {
-      const errMsg = String(err);
-      for (const item of chunkItems) {
-        await handleFailure(item, errMsg, stats);
-      }
+      for (const item of chunkItems) await handleFailure(item, String(err), stats);
     }
   }
 }
 
-// ── Parallel chunk processor ──
-async function processInParallel<T>(items: T[], concurrency: number, fn: (item: T) => Promise<void>) {
-  const queue = [...items];
-  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
-    while (queue.length > 0) {
-      const item = queue.shift();
-      if (item) await fn(item);
+// ══════════════════════════════════════════════════════════════
+// MULTI-PROVIDER DISPATCH (Google Ads, TikTok, GA4)
+// Delegates to dedicated edge functions via internal HTTP call
+// ══════════════════════════════════════════════════════════════
+
+const PROVIDER_FUNCTIONS: Record<string, string> = {
+  google_ads: "google-ads-capi",
+  tiktok: "tiktok-events",
+  ga4: "ga4-events",
+};
+
+async function dispatchToProvider(
+  provider: string, items: any[], destination: any,
+  stats: { delivered: number; failed: number; deadLettered: number }
+) {
+  const fnName = PROVIDER_FUNCTIONS[provider];
+  if (!fnName) {
+    for (const item of items) await handleFailure(item, `Unknown provider: ${provider}`, stats);
+    return;
+  }
+
+  try {
+    const url = `${SUPABASE_URL}/functions/v1/${fnName}`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      },
+      body: JSON.stringify({ items, destination }),
+    });
+
+    const result = await res.json();
+
+    if (res.ok && (result.status === "ok" || result.status === "partial")) {
+      // Mark delivered items
+      const deliveredCount = result.delivered || 0;
+      if (deliveredCount > 0) {
+        const deliveredItems = items.slice(0, deliveredCount);
+        await markDelivered(deliveredItems, stats);
+      }
+      // Mark failed items for retry
+      const failedCount = result.failed || 0;
+      if (failedCount > 0) {
+        const failedItems = items.slice(items.length - failedCount);
+        for (const item of failedItems) {
+          await handleFailure(item, `${provider} dispatch failed`, stats);
+        }
+      }
+    } else {
+      const errMsg = JSON.stringify(result);
+      for (const item of items) await handleFailure(item, errMsg, stats);
     }
-  });
-  await Promise.all(workers);
+  } catch (err) {
+    for (const item of items) await handleFailure(item, `${provider} call error: ${String(err)}`, stats);
+  }
 }
 
-/**
- * Process queued events with batch sending, parallel processing, and exponential backoff.
- * 
- * POST /process-events
- * Body: { workspace_id?: string, limit?: number }
- */
+async function processNonMetaBatch(
+  provider: string, workspaceId: string, items: any[],
+  destCache: Map<string, any>,
+  stats: { delivered: number; failed: number; deadLettered: number }
+) {
+  // Lookup destination from integration_destinations
+  const cacheKey = `${workspaceId}::${provider}`;
+  let destinations = destCache.get(cacheKey);
+  if (!destinations) {
+    const { data } = await supabase.from("integration_destinations")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .eq("provider", provider)
+      .eq("is_active", true);
+    destinations = data || [];
+    destCache.set(cacheKey, destinations);
+  }
+
+  if (!destinations.length) {
+    for (const item of items) {
+      await handleFailure(item, `No active ${provider} destination configured`, stats);
+    }
+    return;
+  }
+
+  // Dispatch to each active destination
+  for (const dest of destinations) {
+    await dispatchToProvider(provider, items, dest, stats);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// MAIN HANDLER
+// ══════════════════════════════════════════════════════════════
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") {
@@ -270,31 +320,56 @@ Deno.serve(async (req) => {
       }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Mark all as processing atomically
+    // Mark all as processing
     const allIds = queueItems.map(i => i.id);
     await supabase.from("event_queue")
       .update({ status: "processing", updated_at: new Date().toISOString() })
       .in("id", allIds);
 
-    // Group items by workspace+pixel (destination) for batching
-    const pixelBatches = new Map<string, any[]>();
+    // Group items by provider → workspace → destination
+    const metaBatches = new Map<string, any[]>();
+    const nonMetaBatches = new Map<string, { provider: string; workspaceId: string; items: any[] }>();
+
     for (const item of queueItems) {
-      const key = `${item.workspace_id}::${item.destination}`;
-      if (!pixelBatches.has(key)) pixelBatches.set(key, []);
-      pixelBatches.get(key)!.push(item);
+      const provider = item.provider || "meta";
+
+      if (provider === "meta") {
+        // Existing Meta logic: group by workspace::pixel_id
+        const key = `${item.workspace_id}::${item.destination}`;
+        if (!metaBatches.has(key)) metaBatches.set(key, []);
+        metaBatches.get(key)!.push(item);
+      } else {
+        // Non-Meta: group by provider::workspace
+        const key = `${provider}::${item.workspace_id}`;
+        if (!nonMetaBatches.has(key)) {
+          nonMetaBatches.set(key, { provider, workspaceId: item.workspace_id, items: [] });
+        }
+        nonMetaBatches.get(key)!.items.push(item);
+      }
     }
 
     const stats = { delivered: 0, failed: 0, deadLettered: 0 };
     const pixelCache = new Map<string, any>();
+    const destCache = new Map<string, any>();
 
-    // Process pixel batches in parallel (up to CONCURRENCY)
-    const batchEntries = Array.from(pixelBatches.entries());
-    await processInParallel(batchEntries, CONCURRENCY, async ([pixelKey, items]) => {
-      await processPixelBatch(pixelKey, items, pixelCache, stats);
-    });
+    // Process Meta batches in parallel (existing logic)
+    const metaEntries = Array.from(metaBatches.entries());
+    const nonMetaEntries = Array.from(nonMetaBatches.values());
+
+    await Promise.all([
+      // Meta parallel processing
+      processInParallel(metaEntries, CONCURRENCY, async ([pixelKey, items]) => {
+        await processMetaBatch(pixelKey, items, pixelCache, stats);
+      }),
+      // Non-Meta parallel processing
+      processInParallel(nonMetaEntries, CONCURRENCY, async ({ provider, workspaceId, items }) => {
+        await processNonMetaBatch(provider, workspaceId, items, destCache, stats);
+      }),
+    ]);
 
     const duration = Date.now() - startTime;
-    console.log(`Processed ${queueItems.length} items: ${stats.delivered} delivered, ${stats.failed} retry, ${stats.deadLettered} dead_letter (${duration}ms)`);
+    const totalBatches = metaBatches.size + nonMetaBatches.size;
+    console.log(`Processed ${queueItems.length} items (${totalBatches} batches): ${stats.delivered} delivered, ${stats.failed} retry, ${stats.deadLettered} dead_letter (${duration}ms)`);
 
     return new Response(JSON.stringify({
       status: "ok",
@@ -302,7 +377,11 @@ Deno.serve(async (req) => {
       delivered: stats.delivered,
       failed: stats.failed,
       dead_lettered: stats.deadLettered,
-      batches: pixelBatches.size,
+      batches: totalBatches,
+      providers: {
+        meta: metaBatches.size,
+        others: nonMetaBatches.size,
+      },
       duration_ms: duration,
     }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
