@@ -13,6 +13,7 @@ import AIAnalytics from "@/pages/AIAnalytics";
 import Integrations from "@/pages/Integrations";
 import Plans from "@/pages/Plans";
 import SettingsPage from "@/pages/SettingsPage";
+import SystemDiagnostic from "@/pages/SystemDiagnostic";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -36,6 +37,7 @@ const App = () => (
                 <Route path="/integrations" element={<Integrations />} />
                 <Route path="/plans" element={<Plans />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/system-diagnostic" element={<SystemDiagnostic />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </DashboardLayout>

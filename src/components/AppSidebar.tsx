@@ -8,6 +8,7 @@ import {
   Zap,
   Brain,
   CreditCard,
+  HeartPulse,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -38,6 +39,7 @@ const settingsItems = [
   { title: "Integrations", url: "/integrations", icon: Zap },
   { title: "Plans", url: "/plans", icon: CreditCard },
   { title: "Settings", url: "/settings", icon: Settings },
+  { title: "System Health", url: "/system-diagnostic", icon: HeartPulse },
 ];
 
 export function AppSidebar() {
