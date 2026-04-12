@@ -2374,6 +2374,54 @@ export type Database = {
           },
         ]
       }
+      integration_destinations: {
+        Row: {
+          access_token_encrypted: string | null
+          config_json: Json | null
+          created_at: string
+          destination_id: string
+          display_name: string
+          events_sent_count: number
+          id: string
+          is_active: boolean
+          last_event_at: string | null
+          provider: string
+          test_event_code: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          access_token_encrypted?: string | null
+          config_json?: Json | null
+          created_at?: string
+          destination_id: string
+          display_name?: string
+          events_sent_count?: number
+          id?: string
+          is_active?: boolean
+          last_event_at?: string | null
+          provider: string
+          test_event_code?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          access_token_encrypted?: string | null
+          config_json?: Json | null
+          created_at?: string
+          destination_id?: string
+          display_name?: string
+          events_sent_count?: number
+          id?: string
+          is_active?: boolean
+          last_event_at?: string | null
+          provider?: string
+          test_event_code?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       leads: {
         Row: {
           created_at: string
