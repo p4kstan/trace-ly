@@ -8,20 +8,6 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-// ── MCP Tools registry ──────────────────────────────────────────────
-const MCP_TOOLS = [
-  { name: "analytics.get_events", description: "Retorna eventos recentes do workspace", permissions: ["read"] },
-  { name: "analytics.get_conversions", description: "Retorna conversões e receita", permissions: ["read"] },
-  { name: "tracking.get_sessions", description: "Retorna sessões ativas", permissions: ["read"] },
-  { name: "tracking.get_pixels", description: "Retorna pixels configurados", permissions: ["read"] },
-  { name: "system.get_logs", description: "Retorna logs do sistema", permissions: ["read"] },
-  { name: "system.get_errors", description: "Retorna erros e falhas recentes", permissions: ["read"] },
-  { name: "system.get_performance", description: "Retorna métricas de performance", permissions: ["read", "analyze"] },
-  { name: "workspace.get_settings", description: "Retorna configurações do workspace", permissions: ["read"] },
-  { name: "queue.get_status", description: "Retorna status da fila de eventos", permissions: ["read"] },
-  { name: "deliveries.get_failed", description: "Retorna entregas com falha", permissions: ["read"] },
-];
-
 // ── Helpers ──────────────────────────────────────────────────────────
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -39,11 +25,20 @@ function generateMcpToken(): string {
   return result;
 }
 
+async function hashToken(token: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(token);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
 async function validateToken(supabase: ReturnType<typeof createClient>, token: string) {
+  const tokenHash = await hashToken(token);
   const { data, error } = await supabase
     .from("mcp_tokens")
     .select("*")
-    .eq("token", token)
+    .eq("token_hash", tokenHash)
     .eq("revoked", false)
     .maybeSingle();
 
@@ -59,6 +54,20 @@ function hasPermission(tokenPerms: string[], required: string[]): boolean {
   if (tokenPerms.includes("admin")) return true;
   return required.every((r) => tokenPerms.includes(r));
 }
+
+// ── MCP Tools registry ──────────────────────────────────────────────
+const MCP_TOOLS = [
+  { name: "analytics.get_events", description: "Retorna eventos recentes do workspace", permissions: ["read"] },
+  { name: "analytics.get_conversions", description: "Retorna conversões e receita", permissions: ["read"] },
+  { name: "tracking.get_sessions", description: "Retorna sessões ativas", permissions: ["read"] },
+  { name: "tracking.get_pixels", description: "Retorna pixels configurados", permissions: ["read"] },
+  { name: "system.get_logs", description: "Retorna logs do sistema", permissions: ["read"] },
+  { name: "system.get_errors", description: "Retorna erros e falhas recentes", permissions: ["read"] },
+  { name: "system.get_performance", description: "Retorna métricas de performance", permissions: ["read", "analyze"] },
+  { name: "workspace.get_settings", description: "Retorna configurações do workspace", permissions: ["read"] },
+  { name: "queue.get_status", description: "Retorna status da fila de eventos", permissions: ["read"] },
+  { name: "deliveries.get_failed", description: "Retorna entregas com falha", permissions: ["read"] },
+];
 
 // ── Tool executors ───────────────────────────────────────────────────
 async function executeTool(
@@ -188,7 +197,6 @@ Deno.serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
   const url = new URL(req.url);
   const path = url.pathname.split("/").filter(Boolean);
-  // path after /functions/v1/mcp → e.g. ["token"], ["tools"], ["context"], ["execute"]
   const action = path[path.length - 1] || "mcp";
 
   try {
@@ -210,7 +218,9 @@ Deno.serve(async (req) => {
       });
       if (!member) return json({ error: "Not a workspace member" }, 403);
 
-      const token = generateMcpToken();
+      // Generate token and hash
+      const tokenPlain = generateMcpToken();
+      const tokenHash = await hashToken(tokenPlain);
       const permissions = body.permissions || ["read"];
       const expiresAt = body.expires_in_days
         ? new Date(Date.now() + body.expires_in_days * 86400000).toISOString()
@@ -220,7 +230,7 @@ Deno.serve(async (req) => {
         .from("mcp_tokens")
         .insert({
           workspace_id: workspaceId,
-          token,
+          token_hash: tokenHash,
           name: body.name || "MCP Token",
           permissions,
           expires_at: expiresAt,
@@ -229,7 +239,8 @@ Deno.serve(async (req) => {
         .single();
 
       if (insertErr) return json({ error: insertErr.message }, 500);
-      return json({ token: created.token, id: created.id, expires_at: created.expires_at, permissions });
+      // Return plaintext token ONLY once — it's never stored
+      return json({ token: tokenPlain, id: created.id, expires_at: created.expires_at, permissions });
     }
 
     // ── POST /mcp/revoke → revoke token (requires auth) ──
