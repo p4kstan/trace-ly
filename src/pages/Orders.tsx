@@ -24,19 +24,25 @@ export default function Orders() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [gatewayFilter, setGatewayFilter] = useState("all");
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 50;
 
-  const { data: orders, isLoading, refetch } = useQuery({
-    queryKey: ["orders", workspace?.id, statusFilter, gatewayFilter],
+  const { data: ordersResult, isLoading, refetch } = useQuery({
+    queryKey: ["orders", workspace?.id, statusFilter, gatewayFilter, page],
     queryFn: async () => {
-      if (!workspace?.id) return [];
-      let q = supabase.from("orders").select("*").eq("workspace_id", workspace.id).order("created_at", { ascending: false }).limit(200);
+      if (!workspace?.id) return { data: [], count: 0 };
+      let q = supabase.from("orders").select("*", { count: "exact" }).eq("workspace_id", workspace.id).order("created_at", { ascending: false }).range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
       if (statusFilter !== "all") q = q.eq("status", statusFilter);
       if (gatewayFilter !== "all") q = q.eq("gateway", gatewayFilter);
-      const { data } = await q;
-      return data || [];
+      const { data, count } = await q;
+      return { data: data || [], count: count || 0 };
     },
     enabled: !!workspace?.id,
   });
+
+  const orders = ordersResult?.data || [];
+  const totalCount = ordersResult?.count || 0;
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   const filtered = (orders || []).filter(o =>
     !search || o.customer_email?.toLowerCase().includes(search.toLowerCase()) ||

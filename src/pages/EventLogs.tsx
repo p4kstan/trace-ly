@@ -7,14 +7,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function EventLogs() {
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 50;
   const { data: workspace } = useWorkspace();
-  const { data: events, isLoading } = useEvents(workspace?.id, 100);
+  const { data: events, isLoading } = useEvents(workspace?.id, 500);
 
   const filtered = (events || []).filter(
     (e) =>
       e.event_name.toLowerCase().includes(search.toLowerCase()) ||
       (e.source || "").toLowerCase().includes(search.toLowerCase())
   );
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paginatedEvents = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
     <div className="space-y-6 animate-fade-in">
