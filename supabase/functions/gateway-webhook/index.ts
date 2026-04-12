@@ -524,6 +524,55 @@ function buildDeduplicationKey(provider: string, eventType: string, externalId: 
   return `${provider}:${eventType}:${externalId}`;
 }
 
+// ─── HMAC Signature Verification ───
+async function verifySignature(provider: string, rawBody: string, req: Request, webhookSecret: string | null): Promise<{ valid: boolean; reason: string }> {
+  if (!webhookSecret) return { valid: true, reason: "no_secret_configured" };
+
+  try {
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey("raw", encoder.encode(webhookSecret), { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
+
+    switch (provider) {
+      case "stripe": {
+        // Stripe uses t=timestamp,v1=signature format in Stripe-Signature header
+        const sigHeader = req.headers.get("stripe-signature") || "";
+        const parts = sigHeader.split(",").reduce((acc: Record<string, string>, part) => {
+          const [k, v] = part.split("=");
+          if (k && v) acc[k] = v;
+          return acc;
+        }, {});
+        if (!parts.t || !parts.v1) return { valid: false, reason: "missing_stripe_signature" };
+        const signedPayload = `${parts.t}.${rawBody}`;
+        const expectedSig = new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(signedPayload)));
+        const expectedHex = Array.from(expectedSig).map(b => b.toString(16).padStart(2, "0")).join("");
+        return { valid: expectedHex === parts.v1, reason: expectedHex === parts.v1 ? "stripe_verified" : "stripe_mismatch" };
+      }
+      case "pagarme": {
+        const sig = req.headers.get("x-hub-signature") || "";
+        const computed = new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody)));
+        const computedHex = "sha256=" + Array.from(computed).map(b => b.toString(16).padStart(2, "0")).join("");
+        return { valid: computedHex === sig, reason: computedHex === sig ? "pagarme_verified" : "pagarme_mismatch" };
+      }
+      case "hotmart": {
+        const hottok = req.headers.get("x-hotmart-hottok") || "";
+        return { valid: hottok === webhookSecret, reason: hottok === webhookSecret ? "hotmart_verified" : "hotmart_mismatch" };
+      }
+      default: {
+        // Generic HMAC-SHA256 check on common header patterns
+        const sig = req.headers.get("x-webhook-signature") || req.headers.get("x-signature") || req.headers.get("x-hub-signature-256") || "";
+        if (!sig) return { valid: true, reason: "no_signature_header_generic" };
+        const computed = new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody)));
+        const computedHex = Array.from(computed).map(b => b.toString(16).padStart(2, "0")).join("");
+        const normalizedSig = sig.replace(/^sha256=/, "");
+        return { valid: computedHex === normalizedSig, reason: computedHex === normalizedSig ? "generic_verified" : "generic_mismatch" };
+      }
+    }
+  } catch (err) {
+    console.error("Signature verification error:", err);
+    return { valid: false, reason: "verification_error" };
+  }
+}
+
 // ─── Main handler ───
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -542,6 +591,35 @@ Deno.serve(async (req) => {
     }
 
     const rawBody = await req.text();
+
+    // ─── Webhook Signature Validation ───
+    let webhookSecret: string | null = null;
+    if (integrationId) {
+      const { data: integration } = await supabase
+        .from("gateway_integrations")
+        .select("webhook_secret_encrypted")
+        .eq("id", integrationId)
+        .single();
+      webhookSecret = integration?.webhook_secret_encrypted || null;
+    }
+
+    const sigResult = await verifySignature(provider, rawBody, req, webhookSecret);
+
+    if (!sigResult.valid) {
+      console.error(`Webhook signature invalid for ${provider}: ${sigResult.reason}`);
+      // Log the rejected webhook
+      await supabase.from("gateway_webhook_logs").insert({
+        workspace_id: workspaceId,
+        gateway_integration_id: integrationId,
+        provider,
+        signature_valid: false,
+        processing_status: "rejected",
+        error_message: `Signature validation failed: ${sigResult.reason}`,
+        payload_json: { body_length: rawBody.length },
+      });
+      return new Response(JSON.stringify({ error: "Invalid webhook signature", reason: sigResult.reason }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     let payload: any;
     try { payload = JSON.parse(rawBody); } catch { payload = { raw: rawBody }; }
 
@@ -563,7 +641,7 @@ Deno.serve(async (req) => {
       provider,
       external_event_id: externalEventId,
       event_type: eventType,
-      signature_valid: true,
+      signature_valid: sigResult.valid,
       http_headers_json: headers_json,
       query_params_json: Object.fromEntries(url.searchParams.entries()),
       payload_json: payload,
@@ -842,8 +920,10 @@ Deno.serve(async (req) => {
                 ...(pixel.test_event_code ? { test_event_code: pixel.test_event_code } : {}),
               };
 
-              const metaRes = await fetch(`https://graph.facebook.com/v21.0/${pixel.pixel_id}/events?access_token=${pixel.access_token_encrypted}`, {
-                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(metaPayload),
+              // Send token in POST body (not query string) to avoid log exposure
+              const metaRes = await fetch(`https://graph.facebook.com/v21.0/${pixel.pixel_id}/events`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ...metaPayload, access_token: pixel.access_token_encrypted }),
               });
               const metaData = await metaRes.json();
 

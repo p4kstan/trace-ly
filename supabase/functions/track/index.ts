@@ -10,14 +10,13 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
 );
 
-function hashValue(val: string): string {
-  let hash = 0;
-  for (let i = 0; i < val.length; i++) {
-    const char = val.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash |= 0;
-  }
-  return Math.abs(hash).toString(16);
+// SHA-256 hashing aligned with Meta CAPI requirements
+async function hashSHA256(value: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(value.trim().toLowerCase());
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 Deno.serve(async (req) => {
@@ -117,7 +116,7 @@ Deno.serve(async (req) => {
 
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
     const userAgent = req.headers.get("user-agent") || "unknown";
-    const ipHash = hashValue(ip);
+    const ipHash = await hashSHA256(ip);
 
     // Deduplication
     if (body.event_id) {
@@ -136,12 +135,12 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Resolve identity
+    // Resolve identity using SHA-256 hashes (aligned with Meta CAPI)
     let identityId: string | null = null;
-    const emailHash = body.email ? hashValue(body.email.toLowerCase()) : 
-                      body.user_data?.email ? hashValue(String(body.user_data.email).toLowerCase()) : null;
-    const phoneHash = body.phone ? hashValue(body.phone) :
-                      body.user_data?.phone ? hashValue(String(body.user_data.phone)) : null;
+    const rawEmail = body.email || body.user_data?.email;
+    const rawPhone = body.phone || body.user_data?.phone;
+    const emailHash = rawEmail ? await hashSHA256(String(rawEmail).toLowerCase()) : null;
+    const phoneHash = rawPhone ? await hashSHA256(String(rawPhone)) : null;
 
     if (emailHash || phoneHash || body.external_id || body.fingerprint) {
       let query = supabase.from("identities").select("id").eq("workspace_id", workspaceId);
@@ -160,6 +159,8 @@ Deno.serve(async (req) => {
           .from("identities")
           .insert({
             workspace_id: workspaceId,
+            email: rawEmail ? String(rawEmail).toLowerCase() : null,
+            phone: rawPhone ? String(rawPhone) : null,
             email_hash: emailHash,
             phone_hash: phoneHash,
             external_id: body.external_id || null,

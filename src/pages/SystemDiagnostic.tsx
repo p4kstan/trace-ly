@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useWorkspace } from "@/hooks/use-tracking-data";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 type DiagnosticStatus = "healthy" | "degraded" | "offline" | "warnings" | "configured" | "not_configured" | "error" | "info" | "online" | "unknown";
 
@@ -138,16 +138,16 @@ export default function SystemDiagnostic() {
       const { data, error } = await supabase.functions.invoke("system-diagnostic");
       if (error) throw error;
       setResult(data as DiagnosticResult);
-      toast({ title: "Diagnostic complete", description: `Status: ${(data as DiagnosticResult).status}` });
+      toast.success(`Diagnostic complete: ${(data as DiagnosticResult).status}`);
     } catch (e: unknown) {
-      toast({ title: "Diagnostic failed", description: String(e), variant: "destructive" });
+      toast.error(`Diagnostic failed: ${String(e)}`);
     } finally { setLoading(false); }
   }, []);
 
   const copyDiagnostic = useCallback(() => {
     if (!result) return;
     navigator.clipboard.writeText(JSON.stringify({ ...result, local: localDiag }, null, 2));
-    toast({ title: "Copied to clipboard" });
+    toast.success("Copied to clipboard");
   }, [result, localDiag]);
 
   const exportDiagnostic = useCallback(() => {

@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Plus, Copy, CheckCircle, XCircle, Trash2, Webhook, Settings2, RefreshCw, ExternalLink } from "lucide-react";
 
 const PROVIDERS = [
@@ -72,9 +72,9 @@ export default function Integrations() {
       queryClient.invalidateQueries({ queryKey: ["gateway_integrations"] });
       setDialogOpen(false);
       setForm({ provider: "stripe", name: "", credentials: "", webhookSecret: "", environment: "production" });
-      toast({ title: "Integração criada com sucesso!" });
+      toast.success("Integração criada com sucesso!");
     },
-    onError: (e) => toast({ title: "Erro", description: String(e), variant: "destructive" }),
+    onError: (e) => toast.error(String(e)),
   });
 
   const toggleMutation = useMutation({
@@ -85,7 +85,7 @@ export default function Integrations() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["gateway_integrations"] });
-      toast({ title: "Status atualizado" });
+      toast.success("Status atualizado");
     },
   });
 
@@ -96,7 +96,7 @@ export default function Integrations() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["gateway_integrations"] });
-      toast({ title: "Integração removida" });
+      toast.success("Integração removida");
     },
   });
 
@@ -107,7 +107,7 @@ export default function Integrations() {
 
   const copyWebhookUrl = (integrationId: string, provider: string) => {
     navigator.clipboard.writeText(getWebhookUrl(integrationId, provider));
-    toast({ title: "URL do webhook copiada!", description: "Cole no painel do gateway." });
+    toast.success("URL do webhook copiada!");
   };
 
   const brProviders = PROVIDERS.filter(p => p.country === "br");
