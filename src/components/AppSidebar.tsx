@@ -25,8 +25,8 @@ const settingsItems = [
   { title: "API Keys", url: "/api-keys", icon: Key },
   { title: "Integrations", url: "/integrations", icon: Zap },
   { title: "Webhook Logs", url: "/webhook-logs", icon: Webhook },
-  { title: "Fila / Queue", url: "/queue", icon: Inbox },
-  { title: "Tutoriais", url: "/tutorials", icon: BookOpen },
+  { title: "Queue", url: "/queue", icon: Inbox },
+  { title: "Tutorials", url: "/tutorials", icon: BookOpen },
   { title: "MCP", url: "/mcp", icon: Cpu },
   { title: "Plans", url: "/plans", icon: CreditCard },
   { title: "Settings", url: "/settings", icon: Settings },
@@ -48,18 +48,22 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="p-4 border-b border-sidebar-border">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center glow-primary">
-            <Zap className="w-4 h-4 text-primary-foreground" />
+      <SidebarHeader className="p-4 border-b border-sidebar-border/60">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
+            <Zap className="w-4 h-4 text-primary" />
           </div>
-          {!collapsed && <span className="text-lg font-bold gradient-text">CapiTrack AI</span>}
+          {!collapsed && (
+            <span className="text-base font-semibold tracking-tight text-gradient-primary">
+              CapiTrack AI
+            </span>
+          )}
         </div>
       </SidebarHeader>
 
-      <SidebarContent>
+      <SidebarContent className="px-2 py-3">
         <SidebarGroup>
-          <SidebarGroupLabel className="text-muted-foreground/60 text-xs uppercase tracking-wider">
+          <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/50 px-3 mb-1">
             {!collapsed && "Analytics"}
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -67,8 +71,13 @@ export function AppSidebar() {
               {mainItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                    <NavLink to={item.url} end={item.url === "/"} className="transition-colors" activeClassName="bg-sidebar-accent text-primary font-medium">
-                      <item.icon className="w-4 h-4" />
+                    <NavLink
+                      to={item.url}
+                      end={item.url === "/"}
+                      className="group flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-all duration-150 text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent/60"
+                      activeClassName="!bg-primary/10 !text-primary font-medium"
+                    >
+                      <item.icon className="w-4 h-4 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity" />
                       {!collapsed && <span>{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
@@ -78,17 +87,21 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-muted-foreground/60 text-xs uppercase tracking-wider">
-            {!collapsed && "Config"}
+        <SidebarGroup className="mt-4">
+          <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/50 px-3 mb-1">
+            {!collapsed && "Settings"}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {settingsItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                    <NavLink to={item.url} className="transition-colors" activeClassName="bg-sidebar-accent text-primary font-medium">
-                      <item.icon className="w-4 h-4" />
+                    <NavLink
+                      to={item.url}
+                      className="group flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-all duration-150 text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent/60"
+                      activeClassName="!bg-primary/10 !text-primary font-medium"
+                    >
+                      <item.icon className="w-4 h-4 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity" />
                       {!collapsed && <span>{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
@@ -99,20 +112,30 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4 border-t border-sidebar-border space-y-3">
+      <SidebarFooter className="p-3 border-t border-sidebar-border/60 space-y-2.5">
         {!collapsed && (
-          <div className="glass-card p-3 text-center">
-            <p className="text-xs text-muted-foreground">Free Plan</p>
-            <p className="text-xs text-primary font-medium">{eventCount.toLocaleString()} / {eventLimit.toLocaleString()} events</p>
-            <div className="w-full h-1 bg-muted rounded-full mt-2">
-              <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${eventPct}%` }} />
+          <div className="rounded-lg bg-sidebar-accent/50 border border-border/30 p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-medium text-muted-foreground">Free Plan</span>
+              <span className="text-[11px] font-semibold text-primary tabular-nums">
+                {eventCount.toLocaleString()}/{eventLimit.toLocaleString()}
+              </span>
+            </div>
+            <div className="w-full h-1 bg-muted/60 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full bg-primary/80 transition-all duration-500"
+                style={{ width: `${eventPct}%` }}
+              />
             </div>
           </div>
         )}
         {user && !collapsed && (
-          <button onClick={signOut} className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground w-full px-2">
+          <button
+            onClick={signOut}
+            className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full px-2 py-1 rounded-md hover:bg-sidebar-accent/40"
+          >
             <LogOut className="w-3.5 h-3.5" />
-            <span>Sair ({user.email?.split("@")[0]})</span>
+            <span className="truncate">Sair ({user.email?.split("@")[0]})</span>
           </button>
         )}
       </SidebarFooter>
