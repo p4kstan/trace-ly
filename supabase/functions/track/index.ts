@@ -1,41 +1,16 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.103.0";
-import { corsHeaders } from "npm:@supabase/supabase-js@2.103.0/cors";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-api-key",
+};
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
 );
 
-interface TrackPayload {
-  event_name: string;
-  event_id?: string;
-  source?: string;
-  action_source?: string;
-  url?: string;
-  page_path?: string;
-  referrer?: string;
-  utm_source?: string;
-  utm_medium?: string;
-  utm_campaign?: string;
-  utm_content?: string;
-  utm_term?: string;
-  value?: number;
-  currency?: string;
-  payload?: Record<string, unknown>;
-  user_data?: Record<string, unknown>;
-  custom_data?: Record<string, unknown>;
-  // Identity
-  email?: string;
-  phone?: string;
-  external_id?: string;
-  fingerprint?: string;
-  // Facebook
-  fbp?: string;
-  fbc?: string;
-}
-
 function hashValue(val: string): string {
-  // Simple hash for demo - in production use SHA256
   let hash = 0;
   for (let i = 0; i < val.length; i++) {
     const char = val.charCodeAt(i);
@@ -58,7 +33,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Validate API key from header
     const apiKey = req.headers.get("x-api-key");
     if (!apiKey) {
       return new Response(
@@ -84,12 +58,56 @@ Deno.serve(async (req) => {
 
     const workspaceId = keyData.workspace_id;
 
-    // Update last_used_at
-    await supabase.from("api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", keyData.id);
+    // Update last_used_at (fire-and-forget)
+    supabase.from("api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", keyData.id).then(() => {});
 
-    const body: TrackPayload = await req.json();
+    // Domain validation
+    const origin = req.headers.get("origin") || req.headers.get("referer") || "";
+    let originHost = "";
+    try {
+      originHost = new URL(origin).hostname;
+    } catch {
+      originHost = origin.replace(/^https?:\/\//, "").split("/")[0].split(":")[0];
+    }
 
-    // Validate
+    // Get workspace's pixels and their allowed domains
+    const { data: pixels } = await supabase
+      .from("meta_pixels")
+      .select("id, allow_all_domains")
+      .eq("workspace_id", workspaceId)
+      .eq("is_active", true);
+
+    if (pixels && pixels.length > 0) {
+      const pixelIds = pixels.map(p => p.id);
+      const allDomainsAllowed = pixels.some(p => p.allow_all_domains);
+
+      if (!allDomainsAllowed && originHost) {
+        const { data: domains } = await supabase
+          .from("allowed_domains")
+          .select("domain")
+          .in("meta_pixel_id", pixelIds);
+
+        const allowedDomains = domains?.map(d => d.domain) || [];
+        
+        if (allowedDomains.length > 0) {
+          const isAllowed = allowedDomains.some(d => {
+            if (d === "*") return true;
+            if (d.startsWith("*.")) return originHost.endsWith(d.substring(2)) || originHost === d.substring(2);
+            return originHost === d || originHost === "www." + d;
+          });
+
+          if (!isAllowed) {
+            return new Response(
+              JSON.stringify({ error: "Domain not allowed", domain: originHost }),
+              { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        }
+      }
+    }
+
+    const body = await req.json();
+
     if (!body.event_name || typeof body.event_name !== "string" || body.event_name.length > 255) {
       return new Response(
         JSON.stringify({ error: "event_name is required (max 255 chars)" }),
@@ -120,8 +138,10 @@ Deno.serve(async (req) => {
 
     // Resolve identity
     let identityId: string | null = null;
-    const emailHash = body.email ? hashValue(body.email.toLowerCase()) : null;
-    const phoneHash = body.phone ? hashValue(body.phone) : null;
+    const emailHash = body.email ? hashValue(body.email.toLowerCase()) : 
+                      body.user_data?.email ? hashValue(String(body.user_data.email).toLowerCase()) : null;
+    const phoneHash = body.phone ? hashValue(body.phone) :
+                      body.user_data?.phone ? hashValue(String(body.user_data.phone)) : null;
 
     if (emailHash || phoneHash || body.external_id || body.fingerprint) {
       let query = supabase.from("identities").select("id").eq("workspace_id", workspaceId);
@@ -134,7 +154,7 @@ Deno.serve(async (req) => {
 
       if (identity) {
         identityId = identity.id;
-        await supabase.from("identities").update({ last_seen_at: new Date().toISOString() }).eq("id", identityId);
+        supabase.from("identities").update({ last_seen_at: new Date().toISOString() }).eq("id", identityId).then(() => {});
       } else {
         const { data: newIdentity } = await supabase
           .from("identities")
@@ -209,7 +229,7 @@ Deno.serve(async (req) => {
         page_path: body.page_path || null,
         payload_json: body.payload || null,
         user_data_json: body.user_data || null,
-        custom_data_json: body.custom_data || { value: body.value, currency: body.currency },
+        custom_data_json: body.custom_data || (body.value ? { value: body.value, currency: body.currency } : null),
         deduplication_key: deduplicationKey,
         processing_status: "pending",
       })
@@ -224,9 +244,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Create attribution touch
+    // Attribution touch
     if (body.utm_source || body.referrer) {
-      await supabase.from("attribution_touches").insert({
+      supabase.from("attribution_touches").insert({
         workspace_id: workspaceId,
         session_id: sessionId,
         identity_id: identityId,
@@ -237,7 +257,7 @@ Deno.serve(async (req) => {
         term: body.utm_term || null,
         touch_type: body.utm_source ? "paid" : "organic",
         touch_time: new Date().toISOString(),
-      });
+      }).then(() => {});
     }
 
     return new Response(
