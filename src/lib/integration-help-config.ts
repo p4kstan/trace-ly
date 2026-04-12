@@ -380,6 +380,12 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
       },
     ],
     generatedOutputs: [webhookOutput(["No Asaas, acesse Integrações → Webhooks", "Cadastre esta URL"])],
+    nextSteps: [
+      "Copie a URL de webhook gerada acima",
+      "Cadastre no Asaas → Integrações → Webhooks",
+      "Salve a integração",
+      "Teste com uma cobrança para validar",
+    ],
   },
 
   appmax: {
@@ -404,6 +410,12 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
       },
     ],
     generatedOutputs: [webhookOutput(["Na Appmax, acesse Configurações → Webhooks", "Cadastre esta URL"])],
+    nextSteps: [
+      "Copie a URL de webhook gerada acima",
+      "Cadastre na Appmax → Configurações → Webhooks",
+      "Salve a integração",
+      "Teste com um pedido para validar",
+    ],
   },
 
   monetizze: {
@@ -428,6 +440,12 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
       },
     ],
     generatedOutputs: [webhookOutput(["Na Monetizze, acesse Integrações → Webhooks", "Cadastre esta URL"])],
+    nextSteps: [
+      "Copie a URL de webhook gerada acima",
+      "Cadastre na Monetizze → Integrações → Webhooks",
+      "Salve a integração",
+      "Teste com uma transação para validar",
+    ],
   },
 
   eduzz: {
@@ -452,6 +470,12 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
       },
     ],
     generatedOutputs: [webhookOutput(["Na Eduzz, acesse Configurações → Webhooks", "Cadastre esta URL"])],
+    nextSteps: [
+      "Copie a URL de webhook gerada acima",
+      "Cadastre na Eduzz → Configurações → Webhooks",
+      "Salve a integração",
+      "Teste com uma transação para validar",
+    ],
   },
 
   cakto: {
@@ -473,6 +497,12 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
       },
     ],
     generatedOutputs: [webhookOutput(["Na Cakto, acesse Integrações → Webhooks", "Cadastre esta URL"])],
+    nextSteps: [
+      "Copie a URL de webhook gerada acima",
+      "Cadastre na Cakto → Integrações → Webhooks",
+      "Salve a integração",
+      "Teste com uma transação para validar",
+    ],
   },
 
   kirvano: {
@@ -494,6 +524,12 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
       },
     ],
     generatedOutputs: [webhookOutput(["Na Kirvano, acesse Configurações → Webhooks", "Cadastre esta URL"])],
+    nextSteps: [
+      "Copie a URL de webhook gerada acima",
+      "Cadastre na Kirvano → Configurações → Webhooks",
+      "Salve a integração",
+      "Teste com uma transação para validar",
+    ],
   },
 
   pagseguro: {
@@ -519,6 +555,12 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
       },
     ],
     generatedOutputs: [webhookOutput(["No PagSeguro, acesse Integrações → Notificações", "Cadastre esta URL"])],
+    nextSteps: [
+      "Copie a URL de webhook gerada acima",
+      "Cadastre no PagSeguro → Integrações → Notificações",
+      "Salve a integração",
+      "Teste com uma transação para validar",
+    ],
   },
 
   pushinpay: {
@@ -540,6 +582,12 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
       },
     ],
     generatedOutputs: [webhookOutput(["Na PushinPay, acesse Configurações → Webhooks", "Cadastre esta URL"])],
+    nextSteps: [
+      "Copie a URL de webhook gerada acima",
+      "Cadastre na PushinPay → Configurações → Webhooks",
+      "Salve a integração",
+      "Teste com um pagamento Pix para validar",
+    ],
   },
 
   perfectpay: {
@@ -561,6 +609,12 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
       },
     ],
     generatedOutputs: [webhookOutput(["Na Perfect Pay, acesse Integrações → Webhooks", "Cadastre esta URL"])],
+    nextSteps: [
+      "Copie a URL de webhook gerada acima",
+      "Cadastre na Perfect Pay → Integrações → Webhooks",
+      "Salve a integração",
+      "Teste com uma transação para validar",
+    ],
   },
 
   greenn: {
@@ -582,6 +636,12 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
       },
     ],
     generatedOutputs: [webhookOutput(["Na Greenn, acesse Configurações → Webhooks", "Cadastre esta URL"])],
+    nextSteps: [
+      "Copie a URL de webhook gerada acima",
+      "Cadastre na Greenn → Configurações → Webhooks",
+      "Salve a integração",
+      "Teste com uma transação para validar",
+    ],
   },
 
   ticto: {
@@ -603,6 +663,12 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
       },
     ],
     generatedOutputs: [webhookOutput(["Na Ticto, acesse Configurações → Webhooks", "Cadastre esta URL"])],
+    nextSteps: [
+      "Copie a URL de webhook gerada acima",
+      "Cadastre na Ticto → Configurações → Webhooks",
+      "Salve a integração",
+      "Teste com uma transação para validar",
+    ],
   },
 
   yampi: {
@@ -624,6 +690,12 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
       },
     ],
     generatedOutputs: [webhookOutput(["Na Yampi, acesse Configurações → Webhooks", "Cadastre esta URL"])],
+    nextSteps: [
+      "Copie a URL de webhook gerada acima",
+      "Cadastre na Yampi → Configurações → Webhooks",
+      "Salve a integração",
+      "Teste com um pedido para validar",
+    ],
   },
 
   vindi: {
@@ -649,6 +721,12 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
       },
     ],
     generatedOutputs: [webhookOutput(["Na Vindi, acesse Configurações → Webhooks", "Cadastre esta URL"])],
+    nextSteps: [
+      "Copie a URL de webhook gerada acima",
+      "Cadastre na Vindi → Configurações → Webhooks",
+      "Salve a integração",
+      "Teste com uma cobrança para validar",
+    ],
   },
 
   iugu: {
@@ -674,6 +752,12 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
       },
     ],
     generatedOutputs: [webhookOutput(["Na Iugu, acesse Configurações → Gatilhos / Webhooks", "Cadastre esta URL"])],
+    nextSteps: [
+      "Copie a URL de webhook gerada acima",
+      "Cadastre na Iugu → Configurações → Gatilhos / Webhooks",
+      "Salve a integração",
+      "Teste com uma cobrança para validar",
+    ],
   },
 
   efi: {
@@ -698,6 +782,12 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
       },
     ],
     generatedOutputs: [webhookOutput(["Na Efí, acesse API → Webhooks", "Cadastre esta URL"])],
+    nextSteps: [
+      "Copie a URL de webhook gerada acima",
+      "Cadastre na Efí → API → Webhooks",
+      "Salve a integração",
+      "Teste com uma transação para validar",
+    ],
   },
 
   abacatepay: {
@@ -719,6 +809,12 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
       },
     ],
     generatedOutputs: [webhookOutput(["Na AbacatePay, acesse Configurações → Webhooks", "Cadastre esta URL"])],
+    nextSteps: [
+      "Copie a URL de webhook gerada acima",
+      "Cadastre na AbacatePay → Configurações → Webhooks",
+      "Salve a integração",
+      "Teste com um pagamento Pix para validar",
+    ],
   },
 
   hubla: {
@@ -740,6 +836,12 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
       },
     ],
     generatedOutputs: [webhookOutput(["Na Hubla, acesse Configurações → Webhooks", "Cadastre esta URL"])],
+    nextSteps: [
+      "Copie a URL de webhook gerada acima",
+      "Cadastre na Hubla → Configurações → Webhooks",
+      "Salve a integração",
+      "Teste com uma transação para validar",
+    ],
   },
 };
 
