@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, GitBranch, MonitorDot, ScrollText, Bug, Settings,
-  Zap, Brain, CreditCard, HeartPulse, Key, LogOut, ShoppingCart, Webhook, Inbox,
+  Zap, Brain, CreditCard, HeartPulse, Key, LogOut, ShoppingCart, Webhook, Inbox, BookOpen,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -26,6 +26,7 @@ const settingsItems = [
   { title: "Integrations", url: "/integrations", icon: Zap },
   { title: "Webhook Logs", url: "/webhook-logs", icon: Webhook },
   { title: "Fila / Queue", url: "/queue", icon: Inbox },
+  { title: "Tutoriais", url: "/tutorials", icon: BookOpen },
   { title: "Plans", url: "/plans", icon: CreditCard },
   { title: "Settings", url: "/settings", icon: Settings },
   { title: "System Health", url: "/system-diagnostic", icon: HeartPulse },
