@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Search, Filter, Download, Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,14 +8,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function EventLogs() {
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 50;
   const { data: workspace } = useWorkspace();
-  const { data: events, isLoading } = useEvents(workspace?.id, 100);
+  const { data: events, isLoading } = useEvents(workspace?.id, 500);
 
   const filtered = (events || []).filter(
     (e) =>
       e.event_name.toLowerCase().includes(search.toLowerCase()) ||
       (e.source || "").toLowerCase().includes(search.toLowerCase())
   );
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paginatedEvents = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -70,7 +76,7 @@ export default function EventLogs() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((evt) => {
+                {paginatedEvents.map((evt) => {
                   const customData = evt.custom_data_json as Record<string, unknown> | null;
                   const value = customData?.value;
                   const hasDedupKey = !!evt.deduplication_key;
@@ -103,6 +109,20 @@ export default function EventLogs() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+            <span className="text-xs text-muted-foreground">{filtered.length} eventos • Página {page + 1} de {totalPages}</span>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         )}
       </div>
