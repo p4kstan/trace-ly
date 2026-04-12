@@ -244,7 +244,7 @@ function DestinationDialog({ open, onOpenChange, workspaceId }: { open: boolean;
           </div>
 
           {config.fields.map(f => (
-            <div key={f.key} className="space-y-2">
+            <div key={f.key} className="space-y-1.5">
               <Label>{f.label}</Label>
               <Input
                 type={f.secret ? "password" : "text"}
@@ -252,6 +252,12 @@ function DestinationDialog({ open, onOpenChange, workspaceId }: { open: boolean;
                 value={fields[f.key] || ""}
                 onChange={(e) => setFields(prev => ({ ...prev, [f.key]: e.target.value }))}
               />
+              {f.help && (
+                <p className="text-[11px] text-muted-foreground leading-relaxed flex items-start gap-1.5">
+                  <span className="text-primary mt-0.5">📍</span>
+                  {f.help}
+                </p>
+              )}
             </div>
           ))}
         </div>
