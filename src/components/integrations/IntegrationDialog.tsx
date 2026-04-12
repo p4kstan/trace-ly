@@ -7,8 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { InlineHelp } from "@/components/InlineHelp";
-import { PROVIDER_CONFIGS, getProvidersByCountry } from "@/lib/integration-help-config";
-import { CheckCircle, Copy, ExternalLink, AlertTriangle, ChevronRight } from "lucide-react";
+import { PROVIDER_CONFIGS, getProvidersByCountry, type IntegrationType } from "@/lib/integration-help-config";
+import { Copy, ExternalLink, AlertTriangle, ChevronRight, Zap, Globe, Key, Webhook } from "lucide-react";
 import { toast } from "sonner";
 
 interface IntegrationDialogProps {
@@ -19,6 +19,13 @@ interface IntegrationDialogProps {
   supabaseUrl: string;
   workspaceId: string;
 }
+
+const TYPE_META: Record<IntegrationType, { label: string; icon: typeof Key; color: string; desc: string }> = {
+  external_api: { label: "API Externa", icon: Key, color: "bg-blue-500/15 text-blue-400 border-blue-500/30", desc: "Você fornece credenciais da plataforma externa" },
+  webhook_only: { label: "Webhook Automático", icon: Webhook, color: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30", desc: "Apenas copie a URL gerada e cadastre na plataforma" },
+  hybrid: { label: "Híbrido", icon: Globe, color: "bg-amber-500/15 text-amber-400 border-amber-500/30", desc: "Você fornece credenciais e recebe uma URL de webhook" },
+  auto_token: { label: "Token Automático", icon: Zap, color: "bg-purple-500/15 text-purple-400 border-purple-500/30", desc: "Credenciais geradas automaticamente" },
+};
 
 export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, supabaseUrl, workspaceId }: IntegrationDialogProps) {
   const [provider, setProvider] = useState("stripe");
@@ -39,6 +46,14 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
   };
 
   const handleSubmit = () => {
+    // Validate required fields for non-webhook-only types
+    if (config?.integrationType !== "webhook_only") {
+      const missingRequired = config?.fields.filter(f => f.required && !fieldValues[f.key]);
+      if (missingRequired && missingRequired.length > 0) {
+        toast.error(`Preencha o campo obrigatório: ${missingRequired[0].label}`);
+        return;
+      }
+    }
     onSubmit({ provider, name: name || config?.label || provider, credentials, webhookSecret, environment });
     reset();
   };
@@ -53,6 +68,9 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
     credentials: setCredentials,
     webhookSecret: setWebhookSecret,
   };
+
+  const typeMeta = config ? TYPE_META[config.integrationType] : null;
+  const TypeIcon = typeMeta?.icon || Key;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -70,38 +88,37 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
             <TabsTrigger value="br" className="flex-1">🇧🇷 Brasil ({brProviders.length})</TabsTrigger>
             <TabsTrigger value="int" className="flex-1">🌎 Internacional ({intProviders.length})</TabsTrigger>
           </TabsList>
-          <TabsContent value="br">
-            <div className="grid grid-cols-3 gap-2 mt-2 max-h-48 overflow-y-auto">
-              {brProviders.map(p => (
-                <button
-                  key={p.value}
-                  onClick={() => { setProvider(p.value); reset(); }}
-                  className={`p-2 rounded-lg border text-center text-xs transition-colors ${provider === p.value ? "border-primary bg-primary/10 text-primary" : "border-border hover:border-muted-foreground/30"}`}
-                >
-                  <span className="text-lg block">{p.emoji}</span>
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </TabsContent>
-          <TabsContent value="int">
-            <div className="grid grid-cols-3 gap-2 mt-2">
-              {intProviders.map(p => (
-                <button
-                  key={p.value}
-                  onClick={() => { setProvider(p.value); reset(); }}
-                  className={`p-2 rounded-lg border text-center text-xs transition-colors ${provider === p.value ? "border-primary bg-primary/10 text-primary" : "border-border hover:border-muted-foreground/30"}`}
-                >
-                  <span className="text-lg block">{p.emoji}</span>
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </TabsContent>
+          {(["br", "int"] as const).map(tab => (
+            <TabsContent key={tab} value={tab}>
+              <div className="grid grid-cols-3 gap-2 mt-2 max-h-48 overflow-y-auto">
+                {(tab === "br" ? brProviders : intProviders).map(p => (
+                  <button
+                    key={p.value}
+                    onClick={() => { setProvider(p.value); reset(); }}
+                    className={`p-2 rounded-lg border text-center text-xs transition-colors ${provider === p.value ? "border-primary bg-primary/10 text-primary" : "border-border hover:border-muted-foreground/30"}`}
+                  >
+                    <span className="text-lg block">{p.emoji}</span>
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </TabsContent>
+          ))}
         </Tabs>
 
         {config && (
           <div className="space-y-4 mt-2">
+            {/* Integration type badge */}
+            {typeMeta && (
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className={`text-[11px] gap-1 ${typeMeta.color}`}>
+                  <TypeIcon className="w-3 h-3" />
+                  {typeMeta.label}
+                </Badge>
+                <span className="text-[11px] text-muted-foreground">{typeMeta.desc}</span>
+              </div>
+            )}
+
             {/* Description */}
             <p className="text-xs text-muted-foreground">{config.description}</p>
 
@@ -133,6 +150,19 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
               <p className="text-[11px] text-muted-foreground mt-1">Nome para identificar esta integração no painel.</p>
             </div>
 
+            {/* Webhook-only message */}
+            {config.integrationType === "webhook_only" && (
+              <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <Zap className="w-4 h-4 text-emerald-400" />
+                  <p className="text-xs font-medium text-emerald-400">Integração automática</p>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Esta integração não requer credenciais manuais. Basta criar a integração, copiar a URL de webhook gerada abaixo e cadastrar na plataforma.
+                </p>
+              </div>
+            )}
+
             {/* Dynamic fields from config */}
             {config.fields.map(field => (
               <div key={field.key}>
@@ -141,6 +171,11 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
                   <Badge variant="outline" className={`text-[10px] ${field.required ? "bg-primary/10 text-primary border-primary/30" : ""}`}>
                     {field.required ? "Obrigatório" : "Opcional"}
                   </Badge>
+                  {field.direction === "paste_here" && (
+                    <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-400 border-blue-500/20">
+                      Colar aqui
+                    </Badge>
+                  )}
                 </div>
                 <Input
                   type={field.type}
@@ -182,13 +217,20 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
               <div className="space-y-3 pt-2 border-t border-border">
                 <p className="text-xs font-medium text-foreground flex items-center gap-1.5">
                   <ChevronRight className="w-3.5 h-3.5 text-primary" />
-                  Próximo passo: copiar e cadastrar na plataforma
+                  {config.integrationType === "webhook_only"
+                    ? "Copie esta URL e cadastre na plataforma"
+                    : "Próximo passo: copiar e cadastrar na plataforma"}
                 </p>
                 {config.generatedOutputs.map((out, i) => {
                   const value = out.buildValue({ supabaseUrl, workspaceId, provider, integrationId: "" });
                   return (
                     <div key={i} className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
-                      <p className="text-xs font-medium text-foreground">{out.label}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs font-medium text-foreground">{out.label}</p>
+                        <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                          Copiar daqui
+                        </Badge>
+                      </div>
                       <p className="text-[11px] text-muted-foreground">{out.helpText}</p>
                       <div className="flex items-center gap-2">
                         <Input readOnly value={value} className="text-xs font-mono bg-muted/50" />
