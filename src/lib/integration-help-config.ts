@@ -355,6 +355,12 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         "Adicione um novo endpoint com esta URL",
       ]),
     ],
+    nextSteps: [
+      "Copie a URL de webhook gerada acima",
+      "Cadastre no Pagar.me → Configurações → Webhooks",
+      "Salve a integração",
+      "Faça uma transação de teste para validar",
+    ],
   },
 
   asaas: {
