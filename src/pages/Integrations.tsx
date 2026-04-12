@@ -24,37 +24,37 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 // ── Provider display config ──
-const AD_PROVIDERS: Record<string, { label: string; emoji: string; desc: string; fields: { key: string; label: string; placeholder: string; secret?: boolean }[] }> = {
+const AD_PROVIDERS: Record<string, { label: string; emoji: string; desc: string; fields: { key: string; label: string; placeholder: string; secret?: boolean; help?: string }[] }> = {
   meta: {
     label: "Meta Ads", emoji: "📘", desc: "Conversions API (CAPI)",
     fields: [
-      { key: "destination_id", label: "Pixel ID", placeholder: "123456789012345" },
-      { key: "access_token", label: "Access Token", placeholder: "EAAxxxxxxx...", secret: true },
-      { key: "test_event_code", label: "Test Event Code (opcional)", placeholder: "TEST12345" },
+      { key: "destination_id", label: "Pixel ID", placeholder: "123456789012345", help: "Meta Events Manager → Fontes de dados → Selecione o Pixel → O ID aparece no topo da página" },
+      { key: "access_token", label: "Access Token", placeholder: "EAAxxxxxxx...", secret: true, help: "Meta Events Manager → Configurações → Gerar Token de Acesso (ou via Graph API Explorer)" },
+      { key: "test_event_code", label: "Test Event Code (opcional)", placeholder: "TEST12345", help: "Meta Events Manager → Testar Eventos → O código aparece no topo da aba de teste" },
     ],
   },
   google_ads: {
     label: "Google Ads", emoji: "🔍", desc: "Offline Conversions API",
     fields: [
-      { key: "destination_id", label: "Conversion Action ID", placeholder: "123456789" },
-      { key: "access_token", label: "OAuth Access Token", placeholder: "ya29.xxxxxxx...", secret: true },
-      { key: "customer_id", label: "Customer ID", placeholder: "123-456-7890" },
-      { key: "developer_token", label: "Developer Token", placeholder: "xxxxxxxxxxxxxxxx", secret: true },
+      { key: "destination_id", label: "Conversion Action ID", placeholder: "123456789", help: "Google Ads → Metas → Ações de conversão → Clique na conversão → O ID numérico aparece na URL (ex: conversionId=123456789)" },
+      { key: "access_token", label: "OAuth Access Token", placeholder: "ya29.xxxxxxx...", secret: true, help: "Google Cloud Console → APIs e Serviços → Credenciais → OAuth 2.0 → Gere um token via OAuth Playground (developers.google.com/oauthplayground)" },
+      { key: "customer_id", label: "Customer ID", placeholder: "123-456-7890", help: "Google Ads → Canto superior direito → O ID do cliente aparece no formato XXX-XXX-XXXX" },
+      { key: "developer_token", label: "Developer Token", placeholder: "xxxxxxxxxxxxxxxx", secret: true, help: "Google Ads → Ferramentas → Centro de API → Token de desenvolvedor (requer conta de gerente MCC)" },
     ],
   },
   tiktok: {
     label: "TikTok Ads", emoji: "🎵", desc: "Events API",
     fields: [
-      { key: "destination_id", label: "Pixel Code", placeholder: "CXXXXXXXXXXXXXXXXX" },
-      { key: "access_token", label: "Access Token", placeholder: "xxxxxxxxxxxxxxxx", secret: true },
-      { key: "test_event_code", label: "Test Event Code (opcional)", placeholder: "TEST12345" },
+      { key: "destination_id", label: "Pixel Code", placeholder: "CXXXXXXXXXXXXXXXXX", help: "TikTok Ads Manager → Ativos → Eventos → Gerenciamento de Eventos Web → Selecione o pixel → O código aparece no topo" },
+      { key: "access_token", label: "Access Token", placeholder: "xxxxxxxxxxxxxxxx", secret: true, help: "TikTok for Business → Painel de Desenvolvedor → Meus Apps → Selecione o app → Gerar Token de Acesso" },
+      { key: "test_event_code", label: "Test Event Code (opcional)", placeholder: "TEST12345", help: "TikTok Events Manager → Testar Eventos → O código de teste é gerado automaticamente" },
     ],
   },
   ga4: {
     label: "Google Analytics 4", emoji: "📊", desc: "Measurement Protocol",
     fields: [
-      { key: "destination_id", label: "Measurement ID", placeholder: "G-XXXXXXXXXX" },
-      { key: "access_token", label: "API Secret", placeholder: "xxxxxxxxxxxxxxxx", secret: true },
+      { key: "destination_id", label: "Measurement ID", placeholder: "G-XXXXXXXXXX", help: "Google Analytics → Administração → Fluxos de dados → Selecione o fluxo web → O ID de medição (G-XXXXXXX) aparece no topo" },
+      { key: "access_token", label: "API Secret", placeholder: "xxxxxxxxxxxxxxxx", secret: true, help: "Google Analytics → Administração → Fluxos de dados → Selecione o fluxo → Segredos da API do Measurement Protocol → Criar" },
     ],
   },
 };
