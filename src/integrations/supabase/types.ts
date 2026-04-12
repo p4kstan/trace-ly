@@ -14,6 +14,84 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_conversations: {
+        Row: {
+          created_at: string
+          id: string
+          messages_json: Json
+          title: string | null
+          updated_at: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          messages_json?: Json
+          title?: string | null
+          updated_at?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          messages_json?: Json
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      ai_insights: {
+        Row: {
+          action: string | null
+          channel: string | null
+          created_at: string
+          description: string
+          dismissed: boolean
+          expires_at: string | null
+          id: string
+          metric: string | null
+          severity: string
+          title: string
+          type: string
+          value_change: number | null
+          workspace_id: string
+        }
+        Insert: {
+          action?: string | null
+          channel?: string | null
+          created_at?: string
+          description: string
+          dismissed?: boolean
+          expires_at?: string | null
+          id?: string
+          metric?: string | null
+          severity?: string
+          title: string
+          type?: string
+          value_change?: number | null
+          workspace_id: string
+        }
+        Update: {
+          action?: string | null
+          channel?: string | null
+          created_at?: string
+          description?: string
+          dismissed?: boolean
+          expires_at?: string | null
+          id?: string
+          metric?: string | null
+          severity?: string
+          title?: string
+          type?: string
+          value_change?: number | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       allowed_domains: {
         Row: {
           created_at: string
@@ -128,6 +206,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      attribution_hybrid: {
+        Row: {
+          campaign: string | null
+          conversion_id: string | null
+          conversion_value: number | null
+          created_at: string
+          hybrid_credit: number | null
+          hybrid_value: number | null
+          id: string
+          identity_id: string | null
+          linear_credit: number | null
+          markov_credit: number | null
+          medium: string | null
+          shapley_credit: number | null
+          source: string | null
+          time_decay_credit: number | null
+          workspace_id: string
+        }
+        Insert: {
+          campaign?: string | null
+          conversion_id?: string | null
+          conversion_value?: number | null
+          created_at?: string
+          hybrid_credit?: number | null
+          hybrid_value?: number | null
+          id?: string
+          identity_id?: string | null
+          linear_credit?: number | null
+          markov_credit?: number | null
+          medium?: string | null
+          shapley_credit?: number | null
+          source?: string | null
+          time_decay_credit?: number | null
+          workspace_id: string
+        }
+        Update: {
+          campaign?: string | null
+          conversion_id?: string | null
+          conversion_value?: number | null
+          created_at?: string
+          hybrid_credit?: number | null
+          hybrid_value?: number | null
+          id?: string
+          identity_id?: string | null
+          linear_credit?: number | null
+          markov_credit?: number | null
+          medium?: string | null
+          shapley_credit?: number | null
+          source?: string | null
+          time_decay_credit?: number | null
+          workspace_id?: string
+        }
+        Relationships: []
       }
       attribution_results: {
         Row: {
@@ -438,6 +570,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      event_discovery: {
+        Row: {
+          created_at: string
+          discovery_type: string
+          event_name: string | null
+          first_seen_at: string
+          id: string
+          occurrence_count: number
+          parameters_json: Json | null
+          status: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          discovery_type?: string
+          event_name?: string | null
+          first_seen_at?: string
+          id?: string
+          occurrence_count?: number
+          parameters_json?: Json | null
+          status?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          discovery_type?: string
+          event_name?: string | null
+          first_seen_at?: string
+          id?: string
+          occurrence_count?: number
+          parameters_json?: Json | null
+          status?: string
+          workspace_id?: string
+        }
+        Relationships: []
       }
       event_mappings: {
         Row: {
@@ -2873,6 +3041,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      optimization_recommendations: {
+        Row: {
+          action: string
+          applied_at: string | null
+          channel: string
+          created_at: string
+          current_value: number | null
+          estimated_impact: number | null
+          id: string
+          priority: string
+          reason: string
+          recommended_value: number | null
+          status: string
+          workspace_id: string
+        }
+        Insert: {
+          action: string
+          applied_at?: string | null
+          channel: string
+          created_at?: string
+          current_value?: number | null
+          estimated_impact?: number | null
+          id?: string
+          priority?: string
+          reason: string
+          recommended_value?: number | null
+          status?: string
+          workspace_id: string
+        }
+        Update: {
+          action?: string
+          applied_at?: string | null
+          channel?: string
+          created_at?: string
+          current_value?: number | null
+          estimated_impact?: number | null
+          id?: string
+          priority?: string
+          reason?: string
+          recommended_value?: number | null
+          status?: string
+          workspace_id?: string
+        }
+        Relationships: []
       }
       order_items: {
         Row: {
