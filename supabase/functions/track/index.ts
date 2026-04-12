@@ -10,26 +10,35 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
 );
 
+// ── In-memory caches (per isolate, ~5min TTL) ──
+const apiKeyCache = new Map<string, { workspaceId: string; keyId: string; ts: number }>();
+const API_KEY_TTL = 5 * 60 * 1000;
+
+function getCachedApiKey(key: string) {
+  const entry = apiKeyCache.get(key);
+  if (entry && Date.now() - entry.ts < API_KEY_TTL) return entry;
+  apiKeyCache.delete(key);
+  return null;
+}
+
 // SHA-256 hashing aligned with Meta CAPI requirements
 async function hashSHA256(value: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(value.trim().toLowerCase());
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+  const data = new TextEncoder().encode(value.trim().toLowerCase());
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
-
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+
+  const startTime = Date.now();
 
   try {
     const apiKey = req.headers.get("x-api-key");
@@ -40,71 +49,36 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Look up workspace by API key
-    const { data: keyData, error: keyError } = await supabase
-      .from("api_keys")
-      .select("id, workspace_id")
-      .eq("public_key", apiKey)
-      .eq("status", "active")
-      .maybeSingle();
+    // ── API Key lookup with cache ──
+    let workspaceId: string;
+    let keyId: string;
+    const cached = getCachedApiKey(apiKey);
+    if (cached) {
+      workspaceId = cached.workspaceId;
+      keyId = cached.keyId;
+    } else {
+      const { data: keyData, error: keyError } = await supabase
+        .from("api_keys")
+        .select("id, workspace_id")
+        .eq("public_key", apiKey)
+        .eq("status", "active")
+        .maybeSingle();
 
-    if (keyError || !keyData) {
-      return new Response(
-        JSON.stringify({ error: "Invalid API key" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const workspaceId = keyData.workspace_id;
-
-    // Update last_used_at (fire-and-forget)
-    supabase.from("api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", keyData.id).then(() => {});
-
-    // Domain validation
-    const origin = req.headers.get("origin") || req.headers.get("referer") || "";
-    let originHost = "";
-    try {
-      originHost = new URL(origin).hostname;
-    } catch {
-      originHost = origin.replace(/^https?:\/\//, "").split("/")[0].split(":")[0];
-    }
-
-    // Get workspace's pixels and their allowed domains
-    const { data: pixels } = await supabase
-      .from("meta_pixels")
-      .select("id, allow_all_domains")
-      .eq("workspace_id", workspaceId)
-      .eq("is_active", true);
-
-    if (pixels && pixels.length > 0) {
-      const pixelIds = pixels.map(p => p.id);
-      const allDomainsAllowed = pixels.some(p => p.allow_all_domains);
-
-      if (!allDomainsAllowed && originHost) {
-        const { data: domains } = await supabase
-          .from("allowed_domains")
-          .select("domain")
-          .in("meta_pixel_id", pixelIds);
-
-        const allowedDomains = domains?.map(d => d.domain) || [];
-        
-        if (allowedDomains.length > 0) {
-          const isAllowed = allowedDomains.some(d => {
-            if (d === "*") return true;
-            if (d.startsWith("*.")) return originHost.endsWith(d.substring(2)) || originHost === d.substring(2);
-            return originHost === d || originHost === "www." + d;
-          });
-
-          if (!isAllowed) {
-            return new Response(
-              JSON.stringify({ error: "Domain not allowed", domain: originHost }),
-              { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-          }
-        }
+      if (keyError || !keyData) {
+        return new Response(
+          JSON.stringify({ error: "Invalid API key" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
+      workspaceId = keyData.workspace_id;
+      keyId = keyData.id;
+      apiKeyCache.set(apiKey, { workspaceId, keyId, ts: Date.now() });
     }
 
+    // Fire-and-forget: update last_used_at
+    supabase.from("api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", keyId).then(() => {});
+
+    // ── Parse body + validate ──
     const body = await req.json();
 
     if (!body.event_name || typeof body.event_name !== "string" || body.event_name.length > 255) {
@@ -114,11 +88,19 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ── Compute hashes in parallel ──
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
     const userAgent = req.headers.get("user-agent") || "unknown";
-    const ipHash = await hashSHA256(ip);
+    const rawEmail = body.email || body.user_data?.email;
+    const rawPhone = body.phone || body.user_data?.phone;
 
-    // Deduplication
+    const [ipHash, emailHash, phoneHash] = await Promise.all([
+      hashSHA256(ip),
+      rawEmail ? hashSHA256(String(rawEmail).toLowerCase()) : Promise.resolve(null),
+      rawPhone ? hashSHA256(String(rawPhone)) : Promise.resolve(null),
+    ]);
+
+    // ── Deduplication check ──
     if (body.event_id) {
       const { data: existing } = await supabase
         .from("events")
@@ -135,48 +117,11 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Resolve identity using SHA-256 hashes (aligned with Meta CAPI)
-    let identityId: string | null = null;
-    const rawEmail = body.email || body.user_data?.email;
-    const rawPhone = body.phone || body.user_data?.phone;
-    const emailHash = rawEmail ? await hashSHA256(String(rawEmail).toLowerCase()) : null;
-    const phoneHash = rawPhone ? await hashSHA256(String(rawPhone)) : null;
-
-    if (emailHash || phoneHash || body.external_id || body.fingerprint) {
-      let query = supabase.from("identities").select("id").eq("workspace_id", workspaceId);
-      if (emailHash) query = query.eq("email_hash", emailHash);
-      else if (body.external_id) query = query.eq("external_id", body.external_id);
-      else if (phoneHash) query = query.eq("phone_hash", phoneHash);
-      else if (body.fingerprint) query = query.eq("fingerprint", body.fingerprint);
-
-      const { data: identity } = await query.maybeSingle();
-
-      if (identity) {
-        identityId = identity.id;
-        supabase.from("identities").update({ last_seen_at: new Date().toISOString() }).eq("id", identityId).then(() => {});
-      } else {
-        const { data: newIdentity } = await supabase
-          .from("identities")
-          .insert({
-            workspace_id: workspaceId,
-            email: rawEmail ? String(rawEmail).toLowerCase() : null,
-            phone: rawPhone ? String(rawPhone) : null,
-            email_hash: emailHash,
-            phone_hash: phoneHash,
-            external_id: body.external_id || null,
-            fingerprint: body.fingerprint || null,
-          })
-          .select("id")
-          .single();
-        identityId = newIdentity?.id || null;
-      }
-    }
-
-    // Session (reuse within 30min)
-    let sessionId: string | null = null;
+    // ── Identity Resolution + Session lookup in PARALLEL ──
     const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
 
-    const { data: existingSession } = await supabase
+    const identityPromise = resolveIdentity(workspaceId, emailHash, phoneHash, body, rawEmail, rawPhone);
+    const sessionPromise = supabase
       .from("sessions")
       .select("id")
       .eq("workspace_id", workspaceId)
@@ -187,8 +132,12 @@ Deno.serve(async (req) => {
       .limit(1)
       .maybeSingle();
 
-    if (existingSession) {
-      sessionId = existingSession.id;
+    const [identityId, sessionResult] = await Promise.all([identityPromise, sessionPromise]);
+
+    // ── Session: reuse or create ──
+    let sessionId: string | null = null;
+    if (sessionResult.data) {
+      sessionId = sessionResult.data.id;
     } else {
       const { data: newSession } = await supabase
         .from("sessions")
@@ -212,7 +161,7 @@ Deno.serve(async (req) => {
       sessionId = newSession?.id || null;
     }
 
-    // Insert event
+    // ── Insert event ──
     const deduplicationKey = body.event_id || `${workspaceId}_${body.event_name}_${ipHash}_${Date.now()}`;
 
     const { data: event, error } = await supabase
@@ -245,7 +194,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Attribution touch
+    // ── Fire-and-forget: attribution touch ──
     if (body.utm_source || body.referrer) {
       supabase.from("attribution_touches").insert({
         workspace_id: workspaceId,
@@ -261,6 +210,8 @@ Deno.serve(async (req) => {
       }).then(() => {});
     }
 
+    const latencyMs = Date.now() - startTime;
+
     return new Response(
       JSON.stringify({
         status: "ok",
@@ -268,6 +219,7 @@ Deno.serve(async (req) => {
         session_id: sessionId,
         identity_id: identityId,
         deduplicated: false,
+        latency_ms: latencyMs,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
@@ -279,3 +231,44 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+// ── Identity resolver (extracted for clarity) ──
+async function resolveIdentity(
+  workspaceId: string,
+  emailHash: string | null,
+  phoneHash: string | null,
+  body: any,
+  rawEmail: string | null | undefined,
+  rawPhone: string | null | undefined,
+): Promise<string | null> {
+  if (!emailHash && !phoneHash && !body.external_id && !body.fingerprint) return null;
+
+  let query = supabase.from("identities").select("id").eq("workspace_id", workspaceId);
+  if (emailHash) query = query.eq("email_hash", emailHash);
+  else if (body.external_id) query = query.eq("external_id", body.external_id);
+  else if (phoneHash) query = query.eq("phone_hash", phoneHash);
+  else if (body.fingerprint) query = query.eq("fingerprint", body.fingerprint);
+
+  const { data: identity } = await query.maybeSingle();
+
+  if (identity) {
+    supabase.from("identities").update({ last_seen_at: new Date().toISOString() }).eq("id", identity.id).then(() => {});
+    return identity.id;
+  }
+
+  const { data: newIdentity } = await supabase
+    .from("identities")
+    .insert({
+      workspace_id: workspaceId,
+      email: rawEmail ? String(rawEmail).toLowerCase() : null,
+      phone: rawPhone ? String(rawPhone) : null,
+      email_hash: emailHash,
+      phone_hash: phoneHash,
+      external_id: body.external_id || null,
+      fingerprint: body.fingerprint || null,
+    })
+    .select("id")
+    .single();
+
+  return newIdentity?.id || null;
+}

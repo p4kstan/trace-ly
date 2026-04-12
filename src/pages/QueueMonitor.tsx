@@ -9,9 +9,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   RefreshCw, Play, Inbox, CheckCircle2, AlertTriangle, XCircle,
-  Clock, Zap, RotateCcw, Skull, Loader2,
+  Clock, Zap, RotateCcw, Skull, Loader2, Activity, Timer, TrendingUp, Gauge,
 } from "lucide-react";
 import { toast } from "sonner";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { CHART_TOOLTIP_STYLE, CHART_COLORS } from "@/lib/constants";
 
 const statusConfig: Record<string, { color: string; icon: typeof CheckCircle2; label: string }> = {
   queued: { color: "bg-sky-500/20 text-sky-400 border-sky-500/30", icon: Clock, label: "Na Fila" },
@@ -46,6 +48,24 @@ export default function QueueMonitor() {
     },
     enabled: !!workspace?.id,
     refetchInterval: 15000,
+  });
+
+  // Pipeline metrics (last 24h)
+  const { data: metrics } = useQuery({
+    queryKey: ["pipeline_metrics", workspace?.id],
+    queryFn: async () => {
+      if (!workspace?.id) return null;
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { data } = await supabase
+        .from("pipeline_metrics")
+        .select("*")
+        .eq("workspace_id", workspace.id)
+        .gte("recorded_at", twentyFourHoursAgo)
+        .order("recorded_at", { ascending: true });
+      return data || [];
+    },
+    enabled: !!workspace?.id,
+    refetchInterval: 30000,
   });
 
   // Queue items
@@ -92,7 +112,7 @@ export default function QueueMonitor() {
         body: { workspace_id: workspace.id },
       });
       if (error) throw error;
-      toast.success(`Worker executado: ${data.delivered || 0} entregues, ${data.failed || 0} retry, ${data.dead_lettered || 0} dead letter`);
+      toast.success(`Worker executado: ${data.delivered || 0} entregues, ${data.failed || 0} retry, ${data.dead_lettered || 0} dead letter (${data.duration_ms}ms)`);
       refetchAll();
     } catch (err) {
       toast.error("Erro ao executar worker: " + String(err));
@@ -105,83 +125,170 @@ export default function QueueMonitor() {
   const totalProcessed = stats?.delivered || 0;
   const totalDead = stats?.dead_letter || 0;
 
+  // Compute metric summaries
+  const throughputMetrics = (metrics || []).filter(m => m.metric_type === "batch_throughput");
+  const latencyMetrics = (metrics || []).filter(m => m.metric_type === "batch_latency_ms");
+  const deliveredMetrics = (metrics || []).filter(m => m.metric_type === "batch_delivered");
+
+  const avgThroughput = throughputMetrics.length > 0
+    ? (throughputMetrics.reduce((s, m) => s + Number(m.value), 0) / throughputMetrics.length).toFixed(1)
+    : "0";
+  const avgLatency = latencyMetrics.length > 0
+    ? Math.round(latencyMetrics.reduce((s, m) => s + Number(m.value), 0) / latencyMetrics.length)
+    : 0;
+  const totalDelivered24h = deliveredMetrics.reduce((s, m) => s + Number(m.value), 0);
+
+  // Chart data from throughput metrics
+  const chartData = throughputMetrics.map(m => ({
+    time: new Date(m.recorded_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+    throughput: Number(Number(m.value).toFixed(1)),
+    latency: Number(((m.metadata_json as any)?.duration_ms || 0)),
+  }));
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Fila de Processamento</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Monitoramento da fila de envio Meta CAPI com retry e dead letter
+            Pipeline de alta performance com 5 workers paralelos e batch processing
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={refetchAll} className="gap-2">
+          <Button variant="outline" size="sm" onClick={refetchAll} className="gap-2" aria-label="Atualizar dados">
             <RefreshCw className="w-4 h-4" /> Atualizar
           </Button>
-          <Button size="sm" onClick={triggerWorker} disabled={isProcessing} className="gap-2">
+          <Button size="sm" onClick={triggerWorker} disabled={isProcessing} className="gap-2" aria-label="Executar worker manualmente">
             {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
             Executar Worker
           </Button>
         </div>
       </div>
 
-      {/* Stats cards */}
+      {/* Performance Metrics */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card className="surface-elevated">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Gauge className="w-4 h-4 text-primary" />
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Throughput</p>
+            </div>
+            <p className="text-2xl font-bold tabular-nums text-primary mt-1">{avgThroughput} <span className="text-xs font-normal text-muted-foreground">evt/s</span></p>
+          </CardContent>
+        </Card>
+        <Card className="surface-elevated">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Timer className="w-4 h-4 text-amber-400" />
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Latência Média</p>
+            </div>
+            <p className="text-2xl font-bold tabular-nums text-amber-400 mt-1">{avgLatency} <span className="text-xs font-normal text-muted-foreground">ms</span></p>
+          </CardContent>
+        </Card>
+        <Card className="surface-elevated">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-emerald-400" />
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Entregues 24h</p>
+            </div>
+            <p className="text-2xl font-bold tabular-nums text-emerald-400 mt-1">{totalDelivered24h}</p>
+          </CardContent>
+        </Card>
+        <Card className="surface-elevated">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4 text-purple-400" />
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Batches 24h</p>
+            </div>
+            <p className="text-2xl font-bold tabular-nums text-purple-400 mt-1">{throughputMetrics.length}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Throughput Chart */}
+      {chartData.length > 1 && (
+        <Card className="surface-elevated">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Activity className="w-4 h-4" /> Throughput (eventos/segundo)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="throughputGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={CHART_COLORS[0]} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={CHART_COLORS[0]} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="time" tick={{ fontSize: 10, fill: "hsl(210,10%,50%)" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: "hsl(210,10%,50%)" }} axisLine={false} tickLine={false} width={40} />
+                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+                <Area type="monotone" dataKey="throughput" stroke={CHART_COLORS[0]} fill="url(#throughputGrad)" strokeWidth={2} name="evt/s" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Queue Stats cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <Card className="glass-card">
+        <Card className="surface-elevated">
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
               <Inbox className="w-4 h-4 text-sky-400" />
               <p className="text-xs text-muted-foreground">Na Fila</p>
             </div>
-            <p className="text-2xl font-bold text-sky-400 mt-1">{stats?.queued || 0}</p>
+            <p className="text-2xl font-bold tabular-nums text-sky-400 mt-1">{stats?.queued || 0}</p>
           </CardContent>
         </Card>
-        <Card className="glass-card">
+        <Card className="surface-elevated">
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
               <RotateCcw className="w-4 h-4 text-orange-400" />
               <p className="text-xs text-muted-foreground">Retry</p>
             </div>
-            <p className="text-2xl font-bold text-orange-400 mt-1">{stats?.retry || 0}</p>
+            <p className="text-2xl font-bold tabular-nums text-orange-400 mt-1">{stats?.retry || 0}</p>
           </CardContent>
         </Card>
-        <Card className="glass-card">
+        <Card className="surface-elevated">
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
               <Zap className="w-4 h-4 text-amber-400" />
               <p className="text-xs text-muted-foreground">Processando</p>
             </div>
-            <p className="text-2xl font-bold text-amber-400 mt-1">{stats?.processing || 0}</p>
+            <p className="text-2xl font-bold tabular-nums text-amber-400 mt-1">{stats?.processing || 0}</p>
           </CardContent>
         </Card>
-        <Card className="glass-card">
+        <Card className="surface-elevated">
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
               <p className="text-xs text-muted-foreground">Entregues</p>
             </div>
-            <p className="text-2xl font-bold text-emerald-400 mt-1">{totalProcessed}</p>
+            <p className="text-2xl font-bold tabular-nums text-emerald-400 mt-1">{totalProcessed}</p>
           </CardContent>
         </Card>
-        <Card className="glass-card">
+        <Card className="surface-elevated">
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
               <Skull className="w-4 h-4 text-red-400" />
               <p className="text-xs text-muted-foreground">Dead Letter</p>
             </div>
-            <p className="text-2xl font-bold text-red-400 mt-1">{totalDead}</p>
+            <p className="text-2xl font-bold tabular-nums text-red-400 mt-1">{totalDead}</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Queue throughput info */}
       {totalQueued > 0 && (
-        <Card className="glass-card border-sky-500/30">
+        <Card className="surface-elevated border-sky-500/30">
           <CardContent className="p-4 flex items-center gap-3">
             <Clock className="w-5 h-5 text-sky-400" />
             <div>
               <p className="text-sm font-medium text-foreground">{totalQueued} evento(s) aguardando processamento</p>
-              <p className="text-xs text-muted-foreground">Worker automático roda a cada 1 minuto via pg_cron • Backoff: 30s → 2m → 8m → 30m → 2h</p>
+              <p className="text-xs text-muted-foreground">Worker automático roda a cada 1 minuto via pg_cron • 5 workers paralelos • Batch até 1000 • Backoff: 30s → 2m → 8m → 30m → 2h</p>
             </div>
           </CardContent>
         </Card>
@@ -202,7 +309,7 @@ export default function QueueMonitor() {
         </Select>
       </div>
 
-      <Card className="glass-card">
+      <Card className="surface-elevated">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground">Itens da Fila</CardTitle>
         </CardHeader>
@@ -261,7 +368,7 @@ export default function QueueMonitor() {
 
       {/* Dead Letter Section */}
       {(deadLetters || []).length > 0 && (
-        <Card className="glass-card border-red-500/20">
+        <Card className="surface-elevated border-red-500/20">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-red-400 flex items-center gap-2">
               <Skull className="w-4 h-4" /> Dead Letter Queue ({deadLetters?.length})
