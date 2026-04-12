@@ -21,6 +21,7 @@ import ResetPassword from "@/pages/ResetPassword";
 import Setup from "@/pages/Setup";
 import Orders from "@/pages/Orders";
 import WebhookLogs from "@/pages/WebhookLogs";
+import QueueMonitor from "@/pages/QueueMonitor";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -50,6 +51,7 @@ function ProtectedRoutes() {
         <Route path="/integrations" element={<Integrations />} />
         <Route path="/orders" element={<Orders />} />
         <Route path="/webhook-logs" element={<WebhookLogs />} />
+        <Route path="/queue" element={<QueueMonitor />} />
         <Route path="/plans" element={<Plans />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/system-diagnostic" element={<SystemDiagnostic />} />
