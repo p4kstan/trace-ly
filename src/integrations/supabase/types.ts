@@ -84,6 +84,71 @@ export type Database = {
           },
         ]
       }
+      attribution_results: {
+        Row: {
+          attributed_value: number | null
+          campaign: string | null
+          content: string | null
+          conversion_id: string | null
+          conversion_value: number | null
+          created_at: string
+          credit: number
+          id: string
+          identity_id: string | null
+          medium: string | null
+          model: string
+          source: string | null
+          term: string | null
+          touch_id: string | null
+          touch_time: string | null
+          workspace_id: string
+        }
+        Insert: {
+          attributed_value?: number | null
+          campaign?: string | null
+          content?: string | null
+          conversion_id?: string | null
+          conversion_value?: number | null
+          created_at?: string
+          credit?: number
+          id?: string
+          identity_id?: string | null
+          medium?: string | null
+          model: string
+          source?: string | null
+          term?: string | null
+          touch_id?: string | null
+          touch_time?: string | null
+          workspace_id: string
+        }
+        Update: {
+          attributed_value?: number | null
+          campaign?: string | null
+          content?: string | null
+          conversion_id?: string | null
+          conversion_value?: number | null
+          created_at?: string
+          credit?: number
+          id?: string
+          identity_id?: string | null
+          medium?: string | null
+          model?: string
+          source?: string | null
+          term?: string | null
+          touch_id?: string | null
+          touch_time?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attribution_results_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attribution_touches: {
         Row: {
           campaign: string | null
@@ -3434,6 +3499,16 @@ export type Database = {
       }
     }
     Functions: {
+      compute_attribution: {
+        Args: {
+          _conversion_id: string
+          _conversion_value: number
+          _identity_id: string
+          _model?: string
+          _workspace_id: string
+        }
+        Returns: undefined
+      }
       get_integration_metadata: {
         Args: { _workspace_id: string }
         Returns: {
