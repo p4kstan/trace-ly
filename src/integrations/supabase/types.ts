@@ -2984,6 +2984,39 @@ export type Database = {
         }
         Relationships: []
       }
+      plan_limits: {
+        Row: {
+          created_at: string
+          features_json: Json | null
+          id: string
+          max_api_keys: number
+          max_destinations: number
+          max_events_per_month: number
+          max_pixels: number
+          plan_name: string
+        }
+        Insert: {
+          created_at?: string
+          features_json?: Json | null
+          id?: string
+          max_api_keys?: number
+          max_destinations?: number
+          max_events_per_month?: number
+          max_pixels?: number
+          plan_name: string
+        }
+        Update: {
+          created_at?: string
+          features_json?: Json | null
+          id?: string
+          max_api_keys?: number
+          max_destinations?: number
+          max_events_per_month?: number
+          max_pixels?: number
+          plan_name?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -3289,6 +3322,36 @@ export type Database = {
           },
         ]
       }
+      workspace_usage: {
+        Row: {
+          created_at: string
+          event_count: number
+          id: string
+          limit_reached: boolean
+          month: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_count?: number
+          id?: string
+          limit_reached?: boolean
+          month: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          event_count?: number
+          id?: string
+          limit_reached?: boolean
+          month?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       workspaces: {
         Row: {
           created_at: string
@@ -3387,6 +3450,10 @@ export type Database = {
           updated_at: string
           workspace_id: string
         }[]
+      }
+      increment_workspace_usage: {
+        Args: { _workspace_id: string }
+        Returns: Json
       }
       is_workspace_member: {
         Args: { _user_id: string; _workspace_id: string }
