@@ -353,6 +353,205 @@ const pagseguroHandler: GatewayHandler = {
   },
 };
 
+// ── Kiwify ──
+const kiwifyHandler: GatewayHandler = {
+  extractEventType: (p) => str(p.webhook_event_type || p.order_status || p.event),
+  resolveInternalEvent: (e) => ({
+    "order_approved": "order_paid", "order_completed": "order_paid",
+    "order_refunded": "order_refunded", "order_chargedback": "order_chargeback",
+    "subscription_created": "subscription_started", "subscription_renewed": "subscription_renewed",
+    "subscription_canceled": "subscription_canceled", "waiting_payment": "payment_pending",
+    "pix_created": "pix_generated", "billet_created": "boleto_generated",
+  } as Record<string, InternalEvent>)[e] || "order_created",
+  normalize: (p) => {
+    const c = p.Customer || p.customer || {};
+    return {
+      gateway: "kiwify", external_order_id: str(p.order_id || p.subscription_id),
+      external_payment_id: str(p.order_id),
+      customer: { email: str(c.email), name: str(c.full_name || c.name), phone: str(c.mobile), document: str(c.CPF || c.cpf) },
+      status: str(p.order_status || p.webhook_event_type),
+      total_value: num(p.Commissions?.charge_amount || p.product_price || p.approved_value),
+      currency: "BRL", payment_method: str(p.payment_method), raw_payload: p,
+    };
+  },
+};
+
+// ── Ticto ──
+const tictoHandler: GatewayHandler = {
+  extractEventType: (p) => str(p.event || p.status || p.type),
+  resolveInternalEvent: (e) => {
+    const l = e.toLowerCase();
+    if (l.includes("approved") || l.includes("paid")) return "order_paid";
+    if (l.includes("refund")) return "order_refunded";
+    if (l.includes("chargeback")) return "order_chargeback";
+    if (l.includes("cancel")) return "order_canceled";
+    if (l.includes("pending") || l.includes("waiting")) return "payment_pending";
+    if (l.includes("pix")) return "pix_generated";
+    return "order_created";
+  },
+  normalize: (p) => {
+    const d = p.data || p; const c = d.customer || d.buyer || {};
+    return {
+      gateway: "ticto", external_order_id: str(d.transaction_id || d.id),
+      external_payment_id: str(d.transaction_id || d.id),
+      customer: { email: str(c.email), name: str(c.name), phone: str(c.phone), document: str(c.document || c.cpf) },
+      status: str(d.status), total_value: num(d.amount || d.value),
+      currency: "BRL", payment_method: str(d.payment_method), raw_payload: p,
+    };
+  },
+};
+
+// ── Greenn ──
+const greennHandler: GatewayHandler = {
+  extractEventType: (p) => str(p.event || p.type),
+  resolveInternalEvent: (e) => ({
+    "purchase_approved": "order_paid", "purchase_complete": "order_paid",
+    "purchase_refunded": "order_refunded", "purchase_canceled": "order_canceled",
+    "purchase_chargeback": "order_chargeback", "subscription_created": "subscription_started",
+    "subscription_canceled": "subscription_canceled",
+  } as Record<string, InternalEvent>)[e] || "order_created",
+  normalize: (p) => {
+    const d = p.data || p; const c = d.buyer || d.customer || {};
+    return {
+      gateway: "greenn", external_order_id: str(d.transaction || d.id),
+      external_payment_id: str(d.transaction || d.id),
+      customer: { email: str(c.email), name: str(c.name), phone: str(c.phone || c.cellphone), document: str(c.doc || c.cpf) },
+      status: str(d.status), total_value: num(d.price || d.value),
+      currency: "BRL", payment_method: str(d.payment_method), raw_payload: p,
+    };
+  },
+};
+
+// ── Shopify ──
+const shopifyHandler: GatewayHandler = {
+  extractEventType: (p) => str(p.topic || p.event),
+  resolveInternalEvent: (e) => ({
+    "orders/create": "order_created", "orders/paid": "order_paid",
+    "orders/fulfilled": "order_approved", "orders/cancelled": "order_canceled",
+    "refunds/create": "order_refunded", "checkouts/create": "checkout_created",
+  } as Record<string, InternalEvent>)[e] || "order_created",
+  normalize: (p) => {
+    const c = p.customer || p.billing_address || {};
+    return {
+      gateway: "shopify", external_order_id: str(p.id || p.order_number),
+      external_checkout_id: str(p.checkout_id || p.checkout_token),
+      customer: { email: str(p.email || p.contact_email || c.email), name: str(`${c.first_name || ""} ${c.last_name || ""}`.trim()), phone: str(p.phone || c.phone) },
+      status: str(p.financial_status || p.fulfillment_status || "pending"),
+      total_value: num(p.total_price || p.subtotal_price),
+      currency: str(p.currency || "USD"), payment_method: str(dig(p, "payment_gateway_names", 0)),
+      items: (p.line_items || []).map((i: any) => ({ product_name: str(i.title), product_id: str(i.product_id), quantity: num(i.quantity), unit_price: num(i.price) })),
+      raw_payload: p,
+    };
+  },
+};
+
+// ── PayPal ──
+const paypalHandler: GatewayHandler = {
+  extractEventType: (p) => str(p.event_type),
+  resolveInternalEvent: (e) => ({
+    "CHECKOUT.ORDER.APPROVED": "order_paid", "PAYMENT.CAPTURE.COMPLETED": "payment_paid",
+    "PAYMENT.CAPTURE.DENIED": "payment_failed", "PAYMENT.CAPTURE.REFUNDED": "payment_refunded",
+    "CUSTOMER.DISPUTE.CREATED": "order_chargeback",
+    "BILLING.SUBSCRIPTION.CREATED": "subscription_started",
+    "BILLING.SUBSCRIPTION.CANCELLED": "subscription_canceled",
+  } as Record<string, InternalEvent>)[e] || "order_created",
+  normalize: (p) => {
+    const res = p.resource || {}; const payer = res.payer || {};
+    const amount = res.amount || dig(res, "purchase_units", 0, "amount") || {};
+    return {
+      gateway: "paypal", external_order_id: str(res.id || p.id),
+      external_payment_id: str(res.id),
+      customer: { email: str(dig(payer, "email_address")), name: str(`${dig(payer, "name", "given_name") || ""} ${dig(payer, "name", "surname") || ""}`.trim()) },
+      status: str(res.status), total_value: num(amount.value),
+      currency: str(amount.currency_code || "USD"), raw_payload: p,
+    };
+  },
+};
+
+// ── Paddle ──
+const paddleHandler: GatewayHandler = {
+  extractEventType: (p) => str(p.event_type || p.alert_name),
+  resolveInternalEvent: (e) => ({
+    "transaction.completed": "order_paid", "transaction.payment_failed": "payment_failed",
+    "subscription.created": "subscription_started", "subscription.canceled": "subscription_canceled",
+    "subscription.updated": "subscription_renewed", "adjustment.created": "order_refunded",
+    "payment_succeeded": "payment_paid", "payment_refunded": "payment_refunded",
+    "subscription_created": "subscription_started", "subscription_cancelled": "subscription_canceled",
+  } as Record<string, InternalEvent>)[e] || "order_created",
+  normalize: (p) => {
+    const d = p.data || p;
+    return {
+      gateway: "paddle", external_order_id: str(d.id || d.order_id || p.order_id),
+      external_payment_id: str(d.transaction_id || d.id),
+      customer: { email: str(d.customer?.email || p.email || d.email), name: str(d.customer?.name || p.passthrough) },
+      status: str(d.status), total_value: num(dig(d, "details", "totals", "total") || d.sale_gross || d.total) / 100,
+      currency: str(d.currency_code || d.currency || "USD"), raw_payload: p,
+    };
+  },
+};
+
+// ── FortPay ──
+const fortpayHandler: GatewayHandler = {
+  extractEventType: (p) => str(p.event || p.status || p.type),
+  resolveInternalEvent: (e) => {
+    const l = e.toLowerCase();
+    if (l.includes("approved") || l.includes("paid")) return "order_paid";
+    if (l.includes("refund")) return "order_refunded";
+    if (l.includes("chargeback")) return "order_chargeback";
+    if (l.includes("cancel")) return "order_canceled";
+    return "order_created";
+  },
+  normalize: (p) => {
+    const d = p.data || p; const c = d.customer || d.buyer || {};
+    return {
+      gateway: "fortpay", external_order_id: str(d.transaction_id || d.id),
+      external_payment_id: str(d.transaction_id || d.id),
+      customer: { email: str(c.email), name: str(c.name), phone: str(c.phone), document: str(c.document) },
+      status: str(d.status), total_value: num(d.amount || d.value),
+      currency: "BRL", payment_method: str(d.payment_method), raw_payload: p,
+    };
+  },
+};
+
+// ── Cloudfy ──
+const cloudfyHandler: GatewayHandler = {
+  extractEventType: (p) => str(p.event || p.type || p.status),
+  resolveInternalEvent: (e) => {
+    const l = e.toLowerCase();
+    if (l.includes("paid") || l.includes("approved")) return "order_paid";
+    if (l.includes("refund")) return "order_refunded";
+    if (l.includes("cancel")) return "order_canceled";
+    return "order_created";
+  },
+  normalize: (p) => {
+    const d = p.data || p; const c = d.customer || d.buyer || {};
+    return {
+      gateway: "cloudfy", external_order_id: str(d.order_id || d.id),
+      external_payment_id: str(d.payment_id || d.id),
+      customer: { email: str(c.email), name: str(c.name), phone: str(c.phone) },
+      status: str(d.status), total_value: num(d.amount || d.value),
+      currency: "BRL", payment_method: str(d.payment_method), raw_payload: p,
+    };
+  },
+};
+
+// ── Gumroad ──
+const gumroadHandler: GatewayHandler = {
+  extractEventType: (p) => str(p.resource_name || "sale"),
+  resolveInternalEvent: (e) => ({
+    "sale": "order_paid", "refund": "order_refunded",
+    "cancellation": "subscription_canceled", "subscription_updated": "subscription_renewed",
+    "subscription_ended": "subscription_canceled", "subscription_restarted": "subscription_started",
+  } as Record<string, InternalEvent>)[e] || "order_created",
+  normalize: (p) => ({
+    gateway: "gumroad", external_order_id: str(p.sale_id || p.subscription_id || p.id),
+    external_payment_id: str(p.sale_id || p.id),
+    customer: { email: str(p.email || p.purchaser_id), name: str(p.full_name) },
+    status: str(p.resource_name || "paid"), total_value: num(String(p.price || 0).replace(/[^0-9.]/g, "")),
+    currency: str(p.currency || "usd").toUpperCase(), raw_payload: p,
+  }),
+};
+
 // ── Generic fallback ──
 const genericHandler: GatewayHandler = {
   extractEventType: (p) => str(p.event || p.type || p.action || "unknown"),
@@ -386,7 +585,36 @@ const HANDLERS: Record<string, GatewayHandler> = {
   asaas: asaasHandler, hotmart: hotmartHandler, monetizze: monetizzeHandler,
   eduzz: eduzzHandler, appmax: appmaxHandler, cakto: caktoHandler,
   kirvano: kirvanoHandler, pagseguro: pagseguroHandler,
+  kiwify: kiwifyHandler, ticto: tictoHandler, greenn: greennHandler,
+  shopify: shopifyHandler, paypal: paypalHandler, paddle: paddleHandler,
+  fortpay: fortpayHandler, cloudfy: cloudfyHandler, gumroad: gumroadHandler,
 };
+
+// ── Auto-detection by headers/payload ──
+function detectProvider(req: Request, payload: any): string {
+  // Header-based detection
+  if (req.headers.get("stripe-signature")) return "stripe";
+  if (req.headers.get("x-hotmart-hottok")) return "hotmart";
+  if (req.headers.get("x-shopify-hmac-sha256") || req.headers.get("x-shopify-topic")) return "shopify";
+  if (req.headers.get("paypal-transmission-id")) return "paypal";
+  if (req.headers.get("paddle-signature")) return "paddle";
+
+  // Payload-based detection
+  if (payload?.hottok || payload?.data?.buyer?.hotmart_id) return "hotmart";
+  if (payload?.type && payload?.data?.object && payload?.api_version) return "stripe";
+  if (payload?.webhook_event_type && (payload?.Customer || payload?.product_type)) return "kiwify";
+  if (payload?.event_type && payload?.resource?.id && payload?.summary) return "paypal";
+  if (payload?.tipoPostback || payload?.venda?.codigo) return "monetizze";
+  if (payload?.sale?.sale_id || payload?.trans_cod) return "eduzz";
+  if (payload?.action && payload?.data?.id && (payload?.type === "payment" || payload?.action?.startsWith("payment."))) return "mercadopago";
+  if (payload?.event && payload?.payment?.id && payload?.payment?.billingType) return "asaas";
+  if (payload?.type && payload?.data?.charges && payload?.data?.customer?.document) return "pagarme";
+  if (payload?.notificationType === "transaction" || payload?.transaction?.code) return "pagseguro";
+  if (payload?.resource_name && (payload?.sale_id || payload?.seller_id)) return "gumroad";
+  if (payload?.line_items && payload?.total_price && payload?.order_number) return "shopify";
+
+  return "generic";
+}
 
 function getHandler(provider: string): GatewayHandler {
   return HANDLERS[provider] || { ...genericHandler, normalize: (p: any) => ({ ...genericHandler.normalize(p), gateway: provider }) };
