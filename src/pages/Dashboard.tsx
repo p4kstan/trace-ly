@@ -1,4 +1,4 @@
-import { DollarSign, Target, TrendingUp, Users, Inbox, ShoppingCart, BarChart3 } from "lucide-react";
+import { DollarSign, Target, TrendingUp, TrendingDown, Users, Inbox, ShoppingCart, BarChart3, Sparkles, AlertTriangle, Lightbulb, Zap, Brain } from "lucide-react";
 import { MetricCard } from "@/components/MetricCard";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from "recharts";
 import { useWorkspace, useEventStats, useRecentEvents } from "@/hooks/use-tracking-data";
@@ -7,6 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent } from "@/components/ui/card";
+import { useNavigate } from "react-router-dom";
 
 function formatCurrency(val: number) {
   return "R$ " + val.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
