@@ -50,6 +50,8 @@ export interface ProviderConfig {
   generatedOutputs: GeneratedOutput[];
   /** Link principal da plataforma */
   docsLink?: { url: string; label: string };
+  /** Passos finais após preencher / gerar tudo */
+  nextSteps?: string[];
 }
 
 const webhookOutput = (pasteSteps: string[]): GeneratedOutput => ({
@@ -124,6 +126,12 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
       ]),
     ],
     docsLink: { url: "https://stripe.com/docs/webhooks", label: "Documentação Stripe Webhooks" },
+    nextSteps: [
+      "Copie a URL de webhook gerada acima",
+      "Cadastre no Stripe → Developers → Webhooks → Add Endpoint",
+      "Cole o Signing Secret gerado pelo Stripe no campo acima",
+      "Envie um pagamento de teste para validar a integração",
+    ],
   },
 
   mercadopago: {
@@ -163,6 +171,11 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         "Clique em Configurar notificações",
         "Cole esta URL no campo de URL de notificação",
       ]),
+    ],
+    nextSteps: [
+      "Copie a URL de webhook gerada acima",
+      "Cadastre no Mercado Pago → Integrações → Webhooks",
+      "Faça uma compra de teste para validar",
     ],
   },
 
@@ -224,6 +237,12 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         "Selecione os eventos desejados (ex: PURCHASE_COMPLETE)",
       ]),
     ],
+    nextSteps: [
+      "Copie a URL de webhook gerada acima",
+      "Cadastre na Hotmart → Ferramentas → Webhooks",
+      "Selecione os eventos (PURCHASE_COMPLETE, etc.)",
+      "Faça uma compra de teste para validar",
+    ],
   },
 
   kiwify: {
@@ -263,6 +282,11 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         "Cole esta URL no campo de URL",
       ]),
     ],
+    nextSteps: [
+      "Copie a URL de webhook gerada acima",
+      "Cadastre na Kiwify → Integrações → Webhooks",
+      "Teste com uma transação para validar",
+    ],
   },
 
   fortpay: {
@@ -287,6 +311,11 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         ]),
         helpText: "A FortPay requer apenas a URL de webhook. Não é necessário preencher token manualmente.",
       },
+    ],
+    nextSteps: [
+      "Copie a URL de webhook gerada acima",
+      "No painel da FortPay, cadastre como endpoint de notificação",
+      "Salve e teste com uma transação",
     ],
   },
 
