@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { useAuth } from "@/hooks/use-auth";
 import Dashboard from "@/pages/Dashboard";
 import Attribution from "@/pages/Attribution";
 import Pixels from "@/pages/Pixels";
@@ -14,9 +15,46 @@ import Integrations from "@/pages/Integrations";
 import Plans from "@/pages/Plans";
 import SettingsPage from "@/pages/SettingsPage";
 import SystemDiagnostic from "@/pages/SystemDiagnostic";
+import ApiKeys from "@/pages/ApiKeys";
+import Auth from "@/pages/Auth";
+import ResetPassword from "@/pages/ResetPassword";
+import Setup from "@/pages/Setup";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
+
+function ProtectedRoutes() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) return <Navigate to="/auth" replace />;
+
+  return (
+    <DashboardLayout>
+      <Routes>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/attribution" element={<Attribution />} />
+        <Route path="/pixels" element={<Pixels />} />
+        <Route path="/logs" element={<EventLogs />} />
+        <Route path="/debugger" element={<Debugger />} />
+        <Route path="/ai-analytics" element={<AIAnalytics />} />
+        <Route path="/integrations" element={<Integrations />} />
+        <Route path="/plans" element={<Plans />} />
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/system-diagnostic" element={<SystemDiagnostic />} />
+        <Route path="/api-keys" element={<ApiKeys />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </DashboardLayout>
+  );
+}
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -25,23 +63,10 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="*" element={
-            <DashboardLayout>
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/attribution" element={<Attribution />} />
-                <Route path="/pixels" element={<Pixels />} />
-                <Route path="/logs" element={<EventLogs />} />
-                <Route path="/debugger" element={<Debugger />} />
-                <Route path="/ai-analytics" element={<AIAnalytics />} />
-                <Route path="/integrations" element={<Integrations />} />
-                <Route path="/plans" element={<Plans />} />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/system-diagnostic" element={<SystemDiagnostic />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </DashboardLayout>
-          } />
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/setup" element={<Setup />} />
+          <Route path="/*" element={<ProtectedRoutes />} />
         </Routes>
       </BrowserRouter>
     </TooltipProvider>

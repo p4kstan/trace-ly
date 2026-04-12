@@ -1,193 +1,97 @@
 /**
- * CapiTrack AI SDK v1.0
- * Universal tracking script for server-side event collection
- * 
- * Usage:
- *   <script src="https://cdn.capitrack.ai/sdk.js"></script>
- *   <script>
- *     capitrack('init', 'CT-XXXXXX');
- *     capitrack('page');
- *   </script>
+ * CapiTrack AI SDK v1.1
+ * Lightweight server-side event tracking
  */
-(function (window: Window & { capitrack?: CapiTrackFn }, document: Document) {
+(function(window, document) {
   'use strict';
 
-  const SDK_VERSION = '1.0.0';
-  const BATCH_INTERVAL = 2000; // 2s batch window
-  const MAX_BATCH_SIZE = 20;
-  const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
-  const RETRY_DELAYS = [1000, 2000, 4000, 8000, 16000]; // exponential backoff
+  var SDK_VERSION = '1.1.0';
+  var BATCH_INTERVAL = 2000;
+  var MAX_BATCH_SIZE = 20;
+  var SESSION_TIMEOUT = 30 * 60 * 1000;
 
-  interface Config {
-    apiKey: string;
-    endpoint: string;
-    debug: boolean;
-    batchEnabled: boolean;
-  }
+  var config = { apiKey: '', endpoint: '', debug: false };
+  var eventQueue = [];
+  var batchTimer = null;
+  var identifiedUser = {};
 
-  interface EventPayload {
-    event_name: string;
-    event_id: string;
-    url: string;
-    page_path: string;
-    referrer: string;
-    utm_source?: string;
-    utm_medium?: string;
-    utm_campaign?: string;
-    utm_content?: string;
-    utm_term?: string;
-    fingerprint: string;
-    fbp?: string;
-    fbc?: string;
-    value?: number;
-    currency?: string;
-    source: string;
-    action_source: string;
-    user_data?: Record<string, unknown>;
-    custom_data?: Record<string, unknown>;
-    [key: string]: unknown;
-  }
-
-  type CapiTrackFn = {
-    (...args: unknown[]): void;
-    q?: unknown[][];
-  };
-
-  let config: Config = {
-    apiKey: '',
-    endpoint: '',
-    debug: false,
-    batchEnabled: true,
-  };
-
-  let eventQueue: EventPayload[] = [];
-  let batchTimer: ReturnType<typeof setTimeout> | null = null;
-  let sessionId: string | null = null;
-  let identifiedUser: Record<string, string> = {};
-
-  // ==========================================
-  // UTILITIES
-  // ==========================================
-
-  function generateId(): string {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-      const r = (Math.random() * 16) | 0;
-      const v = c === 'x' ? r : (r & 0x3) | 0x8;
+  function generateId() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      var r = (Math.random() * 16) | 0;
+      var v = c === 'x' ? r : (r & 0x3) | 0x8;
       return v.toString(16);
     });
   }
 
-  function log(...args: unknown[]): void {
+  function log() {
     if (config.debug) {
-      console.log('[CapiTrack]', ...args);
+      var args = ['[CapiTrack]'].concat(Array.prototype.slice.call(arguments));
+      console.log.apply(console, args);
     }
   }
 
-  function getUTMParams(): Record<string, string> {
-    const params = new URLSearchParams(window.location.search);
-    const utms: Record<string, string> = {};
-    ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'].forEach((key) => {
-      const val = params.get(key);
+  function getUTMParams() {
+    var params = new URLSearchParams(window.location.search);
+    var utms = {};
+    ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'].forEach(function(key) {
+      var val = params.get(key);
       if (val) {
         utms[key] = val;
-        // Persist UTMs for session
-        try { sessionStorage.setItem(`ct_${key}`, val); } catch (_e) { /* noop */ }
+        try { sessionStorage.setItem('ct_' + key, val); } catch(e) {}
       } else {
-        try {
-          const stored = sessionStorage.getItem(`ct_${key}`);
-          if (stored) utms[key] = stored;
-        } catch (_e) { /* noop */ }
+        try { var s = sessionStorage.getItem('ct_' + key); if (s) utms[key] = s; } catch(e) {}
       }
     });
     return utms;
   }
 
-  function getCookie(name: string): string | undefined {
-    const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  function getCookie(name) {
+    var match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
     return match ? decodeURIComponent(match[2]) : undefined;
   }
 
-  function setCookie(name: string, value: string, days: number): void {
-    const expires = new Date(Date.now() + days * 864e5).toUTCString();
-    document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires};path=/;SameSite=Lax`;
+  function setCookie(name, value, days) {
+    var expires = new Date(Date.now() + days * 864e5).toUTCString();
+    document.cookie = name + '=' + encodeURIComponent(value) + ';expires=' + expires + ';path=/;SameSite=Lax';
   }
 
-  function getFingerprint(): string {
-    // Simple fingerprint based on available browser data
-    const canvas = [
-      navigator.userAgent,
-      navigator.language,
-      screen.width + 'x' + screen.height,
-      screen.colorDepth,
-      new Date().getTimezoneOffset(),
-      navigator.hardwareConcurrency || '',
+  function getFingerprint() {
+    var canvas = [
+      navigator.userAgent, navigator.language,
+      screen.width + 'x' + screen.height, screen.colorDepth,
+      new Date().getTimezoneOffset(), navigator.hardwareConcurrency || ''
     ].join('|');
-
-    let hash = 0;
-    for (let i = 0; i < canvas.length; i++) {
-      const char = canvas.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+    var hash = 0;
+    for (var i = 0; i < canvas.length; i++) {
+      hash = ((hash << 5) - hash) + canvas.charCodeAt(i);
       hash |= 0;
     }
     return 'fp_' + Math.abs(hash).toString(36);
   }
 
-  function getFbp(): string {
-    let fbp = getCookie('_fbp');
+  function getFbp() {
+    var fbp = getCookie('_fbp');
     if (!fbp) {
-      // Generate fbp cookie format: fb.1.{timestamp}.{random}
-      fbp = `fb.1.${Date.now()}.${Math.floor(Math.random() * 2147483648)}`;
-      setCookie('_fbp', fbp, 390); // 13 months
+      fbp = 'fb.1.' + Date.now() + '.' + Math.floor(Math.random() * 2147483648);
+      setCookie('_fbp', fbp, 390);
     }
     return fbp;
   }
 
-  function getFbc(): string | undefined {
-    // Check URL for fbclid first
-    const params = new URLSearchParams(window.location.search);
-    const fbclid = params.get('fbclid');
+  function getFbc() {
+    var params = new URLSearchParams(window.location.search);
+    var fbclid = params.get('fbclid');
     if (fbclid) {
-      const fbc = `fb.1.${Date.now()}.${fbclid}`;
+      var fbc = 'fb.1.' + Date.now() + '.' + fbclid;
       setCookie('_fbc', fbc, 90);
       return fbc;
     }
     return getCookie('_fbc');
   }
 
-  function getOrCreateSession(): string {
-    const SESSION_KEY = 'ct_session';
-    const SESSION_TS_KEY = 'ct_session_ts';
-
-    try {
-      const existingSession = sessionStorage.getItem(SESSION_KEY);
-      const lastActivity = sessionStorage.getItem(SESSION_TS_KEY);
-
-      if (existingSession && lastActivity) {
-        const elapsed = Date.now() - parseInt(lastActivity, 10);
-        if (elapsed < SESSION_TIMEOUT) {
-          sessionStorage.setItem(SESSION_TS_KEY, Date.now().toString());
-          return existingSession;
-        }
-      }
-
-      const newSession = generateId();
-      sessionStorage.setItem(SESSION_KEY, newSession);
-      sessionStorage.setItem(SESSION_TS_KEY, Date.now().toString());
-      return newSession;
-    } catch (_e) {
-      return generateId();
-    }
-  }
-
-  // ==========================================
-  // EVENT TRACKING
-  // ==========================================
-
-  function buildEvent(eventName: string, data?: Record<string, unknown>): EventPayload {
-    const utms = getUTMParams();
-    sessionId = getOrCreateSession();
-
-    const event: EventPayload = {
+  function buildEvent(eventName, data) {
+    var utms = getUTMParams();
+    var event = {
       event_name: eventName,
       event_id: generateId(),
       url: window.location.href,
@@ -197,31 +101,30 @@
       fbp: getFbp(),
       fbc: getFbc(),
       source: 'sdk',
-      action_source: 'website',
-      ...utms,
+      action_source: 'website'
     };
 
-    // Add identified user data
+    // Merge UTMs
+    for (var k in utms) event[k] = utms[k];
+
+    // User data
     if (Object.keys(identifiedUser).length > 0) {
-      event.user_data = { ...identifiedUser };
+      event.user_data = {};
+      for (var u in identifiedUser) event.user_data[u] = identifiedUser[u];
     }
 
-    // Add custom data
+    // Custom data
     if (data) {
       if (data.value !== undefined) event.value = Number(data.value);
       if (data.currency) event.currency = String(data.currency);
 
-      // Separate user_data from custom_data
-      const userFields = ['email', 'phone', 'first_name', 'last_name', 'city', 'state', 'zip', 'country', 'external_id'];
-      const userData: Record<string, unknown> = event.user_data || {};
-      const customData: Record<string, unknown> = {};
+      var userFields = ['email', 'phone', 'first_name', 'last_name', 'city', 'state', 'zip', 'country', 'external_id'];
+      var userData = event.user_data || {};
+      var customData = {};
 
-      for (const [key, val] of Object.entries(data)) {
-        if (userFields.includes(key)) {
-          userData[key] = val;
-        } else if (key !== 'value' && key !== 'currency') {
-          customData[key] = val;
-        }
+      for (var key in data) {
+        if (userFields.indexOf(key) !== -1) userData[key] = data[key];
+        else if (key !== 'value' && key !== 'currency') customData[key] = data[key];
       }
 
       if (Object.keys(userData).length > 0) event.user_data = userData;
@@ -231,211 +134,118 @@
     return event;
   }
 
-  async function sendBatch(events: EventPayload[]): Promise<void> {
+  function sendEvents(events) {
     if (!events.length || !config.apiKey) return;
 
-    for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
+    events.forEach(function(event) {
       try {
-        const responses = await Promise.allSettled(
-          events.map((event) =>
-            fetch(config.endpoint, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Api-Key': config.apiKey,
-              },
-              body: JSON.stringify(event),
-              keepalive: true,
-            })
-          )
-        );
-
-        const failed = responses.filter((r) => r.status === 'rejected');
-        if (failed.length > 0) {
-          log(`${failed.length}/${events.length} events failed`);
-        } else {
-          log(`Sent ${events.length} events successfully`);
-        }
-        return;
-      } catch (err) {
-        if (attempt < RETRY_DELAYS.length) {
-          const delay = RETRY_DELAYS[attempt] + Math.random() * 500;
-          log(`Retry ${attempt + 1} in ${delay}ms`);
-          await new Promise((r) => setTimeout(r, delay));
-        } else {
-          console.error('[CapiTrack] Failed to send events after retries:', err);
-        }
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', config.endpoint, true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.setRequestHeader('X-Api-Key', config.apiKey);
+        xhr.send(JSON.stringify(event));
+      } catch(e) {
+        log('Send error:', e);
       }
-    }
+    });
+
+    log('Sent ' + events.length + ' events');
   }
 
-  function flushQueue(): void {
+  function flushQueue() {
     if (eventQueue.length === 0) return;
-    const batch = eventQueue.splice(0, MAX_BATCH_SIZE);
-    sendBatch(batch);
+    var batch = eventQueue.splice(0, MAX_BATCH_SIZE);
+    sendEvents(batch);
   }
 
-  function enqueueEvent(event: EventPayload): void {
+  function enqueueEvent(event) {
     eventQueue.push(event);
-
-    if (!config.batchEnabled || eventQueue.length >= MAX_BATCH_SIZE) {
+    if (eventQueue.length >= MAX_BATCH_SIZE) {
       flushQueue();
     } else if (!batchTimer) {
-      batchTimer = setTimeout(() => {
+      batchTimer = setTimeout(function() {
         batchTimer = null;
         flushQueue();
       }, BATCH_INTERVAL);
     }
   }
 
-  // ==========================================
-  // AUTO-TRACKING
-  // ==========================================
-
-  function setupAutoTracking(): void {
-    // Track scroll depth
-    let maxScroll = 0;
-    let scrollTracked = false;
-    window.addEventListener('scroll', () => {
-      const scrollPercent = Math.round(
-        ((window.scrollY + window.innerHeight) / document.documentElement.scrollHeight) * 100
-      );
-      maxScroll = Math.max(maxScroll, scrollPercent);
-
-      if (!scrollTracked && maxScroll >= 90) {
-        scrollTracked = true;
-        enqueueEvent(buildEvent('ScrollDepth', { depth: 90 }));
-      }
-    }, { passive: true });
-
-    // Track time on page
-    const pageLoadTime = Date.now();
-    const timeThresholds = [30, 60, 120, 300]; // seconds
-    const trackedThresholds = new Set<number>();
-
-    setInterval(() => {
-      const elapsed = Math.floor((Date.now() - pageLoadTime) / 1000);
-      for (const threshold of timeThresholds) {
-        if (elapsed >= threshold && !trackedThresholds.has(threshold)) {
-          trackedThresholds.add(threshold);
-          enqueueEvent(buildEvent('TimeOnPage', { seconds: threshold }));
-        }
-      }
-    }, 5000);
-
-    // Track form submissions
-    document.addEventListener('submit', (e) => {
-      const form = e.target as HTMLFormElement;
-      enqueueEvent(buildEvent('FormSubmit', {
-        form_id: form.id || undefined,
-        form_action: form.action || undefined,
-      }));
-    });
-
+  // Auto-tracking setup
+  function setupAutoTracking() {
     // Flush on page unload
-    window.addEventListener('beforeunload', () => {
-      if (eventQueue.length > 0) {
-        // Use sendBeacon for reliability
-        const payload = JSON.stringify(eventQueue[0]);
-        navigator.sendBeacon?.(config.endpoint + '?key=' + config.apiKey, payload);
-      }
-    });
-
-    // Track outbound link clicks
-    document.addEventListener('click', (e) => {
-      const target = (e.target as HTMLElement).closest('a');
-      if (target && target.hostname !== window.location.hostname) {
-        enqueueEvent(buildEvent('OutboundClick', {
-          url: target.href,
-          text: target.textContent?.trim()?.substring(0, 100),
-        }));
+    window.addEventListener('beforeunload', function() {
+      if (eventQueue.length > 0 && navigator.sendBeacon) {
+        eventQueue.forEach(function(event) {
+          navigator.sendBeacon(
+            config.endpoint + '?key=' + config.apiKey,
+            JSON.stringify(event)
+          );
+        });
       }
     });
   }
 
-  // ==========================================
-  // PUBLIC API
-  // ==========================================
-
-  function processCommand(command: string, ...args: unknown[]): void {
+  // Public API
+  function processCommand(command) {
+    var args = Array.prototype.slice.call(arguments, 1);
     switch (command) {
-      case 'init': {
-        const apiKey = args[0] as string;
-        const options = (args[1] || {}) as Partial<Config>;
-
-        if (!apiKey) {
-          console.error('[CapiTrack] API key required');
-          return;
-        }
-
+      case 'init':
+        var apiKey = args[0];
+        var options = args[1] || {};
+        if (!apiKey) { console.error('[CapiTrack] API key required'); return; }
         config.apiKey = apiKey;
-        config.endpoint = options.endpoint || `https://${window.location.hostname}/functions/v1/track`;
-        config.debug = options.debug || false;
-        config.batchEnabled = options.batchEnabled !== false;
-
+        config.endpoint = options.endpoint || (window.location.origin + '/functions/v1/track');
+        config.debug = !!options.debug;
         setupAutoTracking();
-        log('Initialized with key:', apiKey.substring(0, 8) + '...');
+        log('Initialized v' + SDK_VERSION);
         break;
-      }
 
-      case 'page': {
-        const data = (args[0] || {}) as Record<string, unknown>;
-        enqueueEvent(buildEvent('PageView', data));
+      case 'page':
+        enqueueEvent(buildEvent('PageView', args[0]));
         log('PageView tracked');
         break;
-      }
 
-      case 'track': {
-        const eventName = args[0] as string;
-        const data = (args[1] || {}) as Record<string, unknown>;
-        if (!eventName) {
-          console.error('[CapiTrack] Event name required');
-          return;
-        }
-        enqueueEvent(buildEvent(eventName, data));
-        log('Event tracked:', eventName, data);
+      case 'track':
+        var eventName = args[0];
+        if (!eventName) { console.error('[CapiTrack] Event name required'); return; }
+        enqueueEvent(buildEvent(eventName, args[1]));
+        log('Event:', eventName);
         break;
-      }
 
-      case 'identify': {
-        const userData = args[0] as Record<string, string>;
+      case 'identify':
+        var userData = args[0];
         if (userData) {
-          identifiedUser = { ...identifiedUser, ...userData };
-          log('User identified:', Object.keys(userData));
+          for (var k in userData) identifiedUser[k] = userData[k];
+          log('Identified:', Object.keys(userData));
         }
         break;
-      }
 
-      case 'purchase': {
-        const purchaseData = (args[0] || {}) as Record<string, unknown>;
-        enqueueEvent(buildEvent('Purchase', purchaseData));
-        log('Purchase tracked:', purchaseData);
+      case 'purchase':
+        enqueueEvent(buildEvent('Purchase', args[0]));
+        log('Purchase tracked');
         break;
-      }
 
-      case 'lead': {
-        const leadData = (args[0] || {}) as Record<string, unknown>;
-        enqueueEvent(buildEvent('Lead', leadData));
-        log('Lead tracked:', leadData);
+      case 'lead':
+        enqueueEvent(buildEvent('Lead', args[0]));
+        log('Lead tracked');
         break;
-      }
 
       default:
         console.warn('[CapiTrack] Unknown command:', command);
     }
   }
 
-  // Process any queued commands from before SDK loaded
-  const existingQueue = window.capitrack?.q || [];
-
-  window.capitrack = function (...args: unknown[]) {
-    processCommand(args[0] as string, ...args.slice(1));
-  };
-
   // Process pre-init queue
-  for (const args of existingQueue) {
-    processCommand(args[0] as string, ...args.slice(1));
+  var existingQueue = (window.capitrack && window.capitrack.q) || [];
+
+  window.capitrack = function() {
+    processCommand.apply(null, arguments);
+  };
+  window.capitrack.q = [];
+
+  for (var i = 0; i < existingQueue.length; i++) {
+    processCommand.apply(null, existingQueue[i]);
   }
 
-  log(`SDK v${SDK_VERSION} loaded`);
+  log('SDK v' + SDK_VERSION + ' loaded');
 })(window, document);

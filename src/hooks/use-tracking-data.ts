@@ -1,17 +1,33 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-// Temporary: first workspace found. Replace with auth-based workspace selection.
 export function useWorkspace() {
   return useQuery({
     queryKey: ["workspace"],
     queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
       const { data } = await supabase
         .from("workspaces")
         .select("*")
         .limit(1)
         .maybeSingle();
       return data;
+    },
+  });
+}
+
+export function useApiKeys(workspaceId?: string) {
+  return useQuery({
+    queryKey: ["api-keys", workspaceId],
+    enabled: !!workspaceId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("api_keys")
+        .select("*")
+        .eq("workspace_id", workspaceId!)
+        .order("created_at", { ascending: false });
+      return data || [];
     },
   });
 }
@@ -40,8 +56,6 @@ export function useEventStats(workspaceId?: string) {
     queryFn: async () => {
       const now = new Date();
       const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-
-      // Get events in last 30 days
       const { data: events } = await supabase
         .from("events")
         .select("event_name, custom_data_json, created_at, source")
@@ -50,18 +64,14 @@ export function useEventStats(workspaceId?: string) {
         .order("created_at", { ascending: true });
 
       const allEvents = events || [];
-
-      // Calculate metrics
       const purchases = allEvents.filter(e => e.event_name === "Purchase");
       const totalRevenue = purchases.reduce((sum, e) => {
         const val = (e.custom_data_json as Record<string, unknown>)?.value;
         return sum + (typeof val === "number" ? val : 0);
       }, 0);
-
       const totalConversions = purchases.length;
       const cpa = totalConversions > 0 ? totalRevenue / totalConversions : 0;
 
-      // Revenue by day for chart
       const revenueByDay = new Map<string, { revenue: number; conversions: number }>();
       for (const evt of allEvents) {
         const day = evt.created_at.substring(0, 10);
@@ -78,7 +88,6 @@ export function useEventStats(workspaceId?: string) {
         .map(([date, data]) => ({ date, ...data }))
         .sort((a, b) => a.date.localeCompare(b.date));
 
-      // Events by channel/source
       const channelMap = new Map<string, { conversions: number; revenue: number }>();
       for (const evt of purchases) {
         const source = evt.source || "Direct";
