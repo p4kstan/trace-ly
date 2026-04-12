@@ -234,6 +234,45 @@ export type Database = {
           },
         ]
       }
+      dead_letter_events: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          last_retry_at: string | null
+          payload_json: Json | null
+          provider: string | null
+          retry_count: number
+          source_id: string | null
+          source_type: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          last_retry_at?: string | null
+          payload_json?: Json | null
+          provider?: string | null
+          retry_count?: number
+          source_id?: string | null
+          source_type: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          last_retry_at?: string | null
+          payload_json?: Json | null
+          provider?: string | null
+          retry_count?: number
+          source_id?: string | null
+          source_type?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       event_deliveries: {
         Row: {
           attempt_count: number
@@ -292,33 +331,51 @@ export type Database = {
       }
       event_mappings: {
         Row: {
+          conditions_json: Json | null
           config_json: Json | null
           created_at: string
+          enabled: boolean
+          external_event_name: string | null
+          external_platform: string | null
           gateway: string
           gateway_event: string
           id: string
+          internal_event_name: string | null
           is_active: boolean
           marketing_event: string
+          provider: string | null
           workspace_id: string
         }
         Insert: {
+          conditions_json?: Json | null
           config_json?: Json | null
           created_at?: string
+          enabled?: boolean
+          external_event_name?: string | null
+          external_platform?: string | null
           gateway: string
           gateway_event: string
           id?: string
+          internal_event_name?: string | null
           is_active?: boolean
           marketing_event: string
+          provider?: string | null
           workspace_id: string
         }
         Update: {
+          conditions_json?: Json | null
           config_json?: Json | null
           created_at?: string
+          enabled?: boolean
+          external_event_name?: string | null
+          external_platform?: string | null
           gateway?: string
           gateway_event?: string
           id?: string
+          internal_event_name?: string | null
           is_active?: boolean
           marketing_event?: string
+          provider?: string | null
           workspace_id?: string
         }
         Relationships: []
@@ -1973,6 +2030,112 @@ export type Database = {
         }
         Relationships: []
       }
+      gateway_api_sync_logs: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          finished_at: string | null
+          gateway_integration_id: string | null
+          id: string
+          provider: string
+          request_json: Json | null
+          response_json: Json | null
+          started_at: string
+          status: string
+          sync_type: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          finished_at?: string | null
+          gateway_integration_id?: string | null
+          id?: string
+          provider: string
+          request_json?: Json | null
+          response_json?: Json | null
+          started_at?: string
+          status?: string
+          sync_type: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          finished_at?: string | null
+          gateway_integration_id?: string | null
+          id?: string
+          provider?: string
+          request_json?: Json | null
+          response_json?: Json | null
+          started_at?: string
+          status?: string
+          sync_type?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gateway_api_sync_logs_gateway_integration_id_fkey"
+            columns: ["gateway_integration_id"]
+            isOneToOne: false
+            referencedRelation: "gateway_integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gateway_customers: {
+        Row: {
+          created_at: string
+          document: string | null
+          email: string | null
+          external_customer_id: string | null
+          gateway_integration_id: string | null
+          id: string
+          identity_id: string | null
+          name: string | null
+          phone: string | null
+          provider: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          document?: string | null
+          email?: string | null
+          external_customer_id?: string | null
+          gateway_integration_id?: string | null
+          id?: string
+          identity_id?: string | null
+          name?: string | null
+          phone?: string | null
+          provider: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          document?: string | null
+          email?: string | null
+          external_customer_id?: string | null
+          gateway_integration_id?: string | null
+          id?: string
+          identity_id?: string | null
+          name?: string | null
+          phone?: string | null
+          provider?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gateway_customers_gateway_integration_id_fkey"
+            columns: ["gateway_integration_id"]
+            isOneToOne: false
+            referencedRelation: "gateway_integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gateway_integrations: {
         Row: {
           api_base_url: string | null
@@ -1980,8 +2143,11 @@ export type Database = {
           credentials_encrypted: string | null
           environment: string
           id: string
+          last_sync_at: string | null
           name: string
           provider: string
+          public_config_json: Json | null
+          settings_json: Json | null
           status: string
           updated_at: string
           webhook_secret_encrypted: string | null
@@ -1993,8 +2159,11 @@ export type Database = {
           credentials_encrypted?: string | null
           environment?: string
           id?: string
+          last_sync_at?: string | null
           name: string
           provider: string
+          public_config_json?: Json | null
+          settings_json?: Json | null
           status?: string
           updated_at?: string
           webhook_secret_encrypted?: string | null
@@ -2006,14 +2175,82 @@ export type Database = {
           credentials_encrypted?: string | null
           environment?: string
           id?: string
+          last_sync_at?: string | null
           name?: string
           provider?: string
+          public_config_json?: Json | null
+          settings_json?: Json | null
           status?: string
           updated_at?: string
           webhook_secret_encrypted?: string | null
           workspace_id?: string
         }
         Relationships: []
+      }
+      gateway_webhook_logs: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          event_type: string | null
+          external_event_id: string | null
+          gateway_integration_id: string | null
+          http_headers_json: Json | null
+          id: string
+          payload_json: Json | null
+          processed_at: string | null
+          processing_attempts: number
+          processing_status: string
+          provider: string
+          query_params_json: Json | null
+          received_at: string
+          signature_valid: boolean | null
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          event_type?: string | null
+          external_event_id?: string | null
+          gateway_integration_id?: string | null
+          http_headers_json?: Json | null
+          id?: string
+          payload_json?: Json | null
+          processed_at?: string | null
+          processing_attempts?: number
+          processing_status?: string
+          provider: string
+          query_params_json?: Json | null
+          received_at?: string
+          signature_valid?: boolean | null
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          event_type?: string | null
+          external_event_id?: string | null
+          gateway_integration_id?: string | null
+          http_headers_json?: Json | null
+          id?: string
+          payload_json?: Json | null
+          processed_at?: string | null
+          processing_attempts?: number
+          processing_status?: string
+          provider?: string
+          query_params_json?: Json | null
+          received_at?: string
+          signature_valid?: boolean | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gateway_webhook_logs_gateway_integration_id_fkey"
+            columns: ["gateway_integration_id"]
+            isOneToOne: false
+            referencedRelation: "gateway_integrations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       identities: {
         Row: {
@@ -2079,9 +2316,12 @@ export type Database = {
           landing_page: string | null
           name: string | null
           phone: string | null
+          pixel_id: string | null
           referrer: string | null
           session_id: string | null
+          source: string | null
           ttclid: string | null
+          updated_at: string
           utm_campaign: string | null
           utm_content: string | null
           utm_medium: string | null
@@ -2102,9 +2342,12 @@ export type Database = {
           landing_page?: string | null
           name?: string | null
           phone?: string | null
+          pixel_id?: string | null
           referrer?: string | null
           session_id?: string | null
+          source?: string | null
           ttclid?: string | null
+          updated_at?: string
           utm_campaign?: string | null
           utm_content?: string | null
           utm_medium?: string | null
@@ -2125,9 +2368,12 @@ export type Database = {
           landing_page?: string | null
           name?: string | null
           phone?: string | null
+          pixel_id?: string | null
           referrer?: string | null
           session_id?: string | null
+          source?: string | null
           ttclid?: string | null
+          updated_at?: string
           utm_campaign?: string | null
           utm_content?: string | null
           utm_medium?: string | null
@@ -2188,35 +2434,47 @@ export type Database = {
         Row: {
           category: string | null
           created_at: string
+          external_item_id: string | null
           id: string
           order_id: string
           product_id: string | null
           product_name: string | null
           quantity: number
+          sku: string | null
           total_price: number | null
           unit_price: number | null
+          variant_name: string | null
+          workspace_id: string | null
         }
         Insert: {
           category?: string | null
           created_at?: string
+          external_item_id?: string | null
           id?: string
           order_id: string
           product_id?: string | null
           product_name?: string | null
           quantity?: number
+          sku?: string | null
           total_price?: number | null
           unit_price?: number | null
+          variant_name?: string | null
+          workspace_id?: string | null
         }
         Update: {
           category?: string | null
           created_at?: string
+          external_item_id?: string | null
           id?: string
           order_id?: string
           product_id?: string | null
           product_name?: string | null
           quantity?: number
+          sku?: string | null
           total_price?: number | null
           unit_price?: number | null
+          variant_name?: string | null
+          workspace_id?: string | null
         }
         Relationships: [
           {
@@ -2230,27 +2488,42 @@ export type Database = {
       }
       orders: {
         Row: {
+          canceled_at: string | null
+          coupon_code: string | null
           created_at: string
           currency: string | null
+          current_page: string | null
           customer_document: string | null
           customer_email: string | null
           customer_name: string | null
           customer_phone: string | null
+          discount_value: number | null
           external_checkout_id: string | null
+          external_subscription_id: string | null
           fbc: string | null
           fbclid: string | null
           fbp: string | null
+          financial_status: string | null
+          first_page: string | null
+          fulfillment_status: string | null
           gateway: string
+          gateway_integration_id: string | null
           gateway_order_id: string | null
           gclid: string | null
           id: string
           identity_id: string | null
+          installments: number | null
           landing_page: string | null
+          order_created_at: string | null
+          paid_at: string | null
           payment_method: string | null
           pixel_id: string | null
           referrer: string | null
+          refunded_at: string | null
           session_id: string | null
+          shipping_value: number | null
           status: string
+          subtotal_value: number | null
           total_value: number | null
           ttclid: string | null
           updated_at: string
@@ -2262,27 +2535,42 @@ export type Database = {
           workspace_id: string
         }
         Insert: {
+          canceled_at?: string | null
+          coupon_code?: string | null
           created_at?: string
           currency?: string | null
+          current_page?: string | null
           customer_document?: string | null
           customer_email?: string | null
           customer_name?: string | null
           customer_phone?: string | null
+          discount_value?: number | null
           external_checkout_id?: string | null
+          external_subscription_id?: string | null
           fbc?: string | null
           fbclid?: string | null
           fbp?: string | null
+          financial_status?: string | null
+          first_page?: string | null
+          fulfillment_status?: string | null
           gateway: string
+          gateway_integration_id?: string | null
           gateway_order_id?: string | null
           gclid?: string | null
           id?: string
           identity_id?: string | null
+          installments?: number | null
           landing_page?: string | null
+          order_created_at?: string | null
+          paid_at?: string | null
           payment_method?: string | null
           pixel_id?: string | null
           referrer?: string | null
+          refunded_at?: string | null
           session_id?: string | null
+          shipping_value?: number | null
           status?: string
+          subtotal_value?: number | null
           total_value?: number | null
           ttclid?: string | null
           updated_at?: string
@@ -2294,27 +2582,42 @@ export type Database = {
           workspace_id: string
         }
         Update: {
+          canceled_at?: string | null
+          coupon_code?: string | null
           created_at?: string
           currency?: string | null
+          current_page?: string | null
           customer_document?: string | null
           customer_email?: string | null
           customer_name?: string | null
           customer_phone?: string | null
+          discount_value?: number | null
           external_checkout_id?: string | null
+          external_subscription_id?: string | null
           fbc?: string | null
           fbclid?: string | null
           fbp?: string | null
+          financial_status?: string | null
+          first_page?: string | null
+          fulfillment_status?: string | null
           gateway?: string
+          gateway_integration_id?: string | null
           gateway_order_id?: string | null
           gclid?: string | null
           id?: string
           identity_id?: string | null
+          installments?: number | null
           landing_page?: string | null
+          order_created_at?: string | null
+          paid_at?: string | null
           payment_method?: string | null
           pixel_id?: string | null
           referrer?: string | null
+          refunded_at?: string | null
           session_id?: string | null
+          shipping_value?: number | null
           status?: string
+          subtotal_value?: number | null
           total_value?: number | null
           ttclid?: string | null
           updated_at?: string
@@ -2325,20 +2628,38 @@ export type Database = {
           utm_term?: string | null
           workspace_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "orders_gateway_integration_id_fkey"
+            columns: ["gateway_integration_id"]
+            isOneToOne: false
+            referencedRelation: "gateway_integrations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payments: {
         Row: {
           amount: number | null
+          boleto_barcode: string | null
+          boleto_url: string | null
           chargeback_at: string | null
           created_at: string
           currency: string | null
+          due_at: string | null
+          external_charge_id: string | null
+          fee_amount: number | null
           gateway: string
+          gateway_integration_id: string | null
           gateway_payment_id: string | null
           id: string
+          installments: number | null
+          net_amount: number | null
           order_id: string | null
           paid_at: string | null
           payment_method: string | null
+          payment_type: string | null
+          pix_qr_code: string | null
           raw_payload_json: Json | null
           refunded_at: string | null
           status: string
@@ -2347,15 +2668,25 @@ export type Database = {
         }
         Insert: {
           amount?: number | null
+          boleto_barcode?: string | null
+          boleto_url?: string | null
           chargeback_at?: string | null
           created_at?: string
           currency?: string | null
+          due_at?: string | null
+          external_charge_id?: string | null
+          fee_amount?: number | null
           gateway: string
+          gateway_integration_id?: string | null
           gateway_payment_id?: string | null
           id?: string
+          installments?: number | null
+          net_amount?: number | null
           order_id?: string | null
           paid_at?: string | null
           payment_method?: string | null
+          payment_type?: string | null
+          pix_qr_code?: string | null
           raw_payload_json?: Json | null
           refunded_at?: string | null
           status?: string
@@ -2364,15 +2695,25 @@ export type Database = {
         }
         Update: {
           amount?: number | null
+          boleto_barcode?: string | null
+          boleto_url?: string | null
           chargeback_at?: string | null
           created_at?: string
           currency?: string | null
+          due_at?: string | null
+          external_charge_id?: string | null
+          fee_amount?: number | null
           gateway?: string
+          gateway_integration_id?: string | null
           gateway_payment_id?: string | null
           id?: string
+          installments?: number | null
+          net_amount?: number | null
           order_id?: string | null
           paid_at?: string | null
           payment_method?: string | null
+          payment_type?: string | null
+          pix_qr_code?: string | null
           raw_payload_json?: Json | null
           refunded_at?: string | null
           status?: string
@@ -2380,6 +2721,13 @@ export type Database = {
           workspace_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "payments_gateway_integration_id_fkey"
+            columns: ["gateway_integration_id"]
+            isOneToOne: false
+            referencedRelation: "gateway_integrations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "payments_order_id_fkey"
             columns: ["order_id"]
@@ -2413,6 +2761,45 @@ export type Database = {
           id?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      reconciliation_logs: {
+        Row: {
+          created_at: string
+          details_json: Json | null
+          entity_id: string | null
+          entity_type: string
+          external_id: string | null
+          id: string
+          provider: string | null
+          reconciliation_type: string
+          status: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          details_json?: Json | null
+          entity_id?: string | null
+          entity_type: string
+          external_id?: string | null
+          id?: string
+          provider?: string | null
+          reconciliation_type: string
+          status?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          details_json?: Json | null
+          entity_id?: string | null
+          entity_type?: string
+          external_id?: string | null
+          id?: string
+          provider?: string | null
+          reconciliation_type?: string
+          status?: string
+          workspace_id?: string
         }
         Relationships: []
       }
