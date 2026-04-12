@@ -50,6 +50,8 @@ export interface ProviderConfig {
   generatedOutputs: GeneratedOutput[];
   /** Link principal da plataforma */
   docsLink?: { url: string; label: string };
+  /** Passos finais após preencher / gerar tudo */
+  nextSteps?: string[];
 }
 
 const webhookOutput = (pasteSteps: string[]): GeneratedOutput => ({
