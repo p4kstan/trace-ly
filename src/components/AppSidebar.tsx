@@ -22,6 +22,7 @@ const mainItems = [
   { title: "Event Logs", url: "/logs", icon: ScrollText },
   { title: "Debugger", url: "/debugger", icon: Bug },
   { title: "AI Analytics", url: "/ai-analytics", icon: Brain },
+  { title: "Real-Time & ML", url: "/realtime", icon: Gauge },
 ];
 
 const settingsItems = [
