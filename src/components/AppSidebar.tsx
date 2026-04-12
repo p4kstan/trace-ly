@@ -16,13 +16,13 @@ import {
 
 const mainItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Real-Time & ML", url: "/realtime", icon: Gauge },
+  { title: "AI Insights", url: "/ai-analytics", icon: Brain },
   { title: "Attribution", url: "/attribution", icon: GitBranch },
-  { title: "Pixels", url: "/pixels", icon: MonitorDot },
   { title: "Orders", url: "/orders", icon: ShoppingCart },
+  { title: "Pixels", url: "/pixels", icon: MonitorDot },
   { title: "Event Logs", url: "/logs", icon: ScrollText },
   { title: "Debugger", url: "/debugger", icon: Bug },
-  { title: "AI Analytics", url: "/ai-analytics", icon: Brain },
-  { title: "Real-Time & ML", url: "/realtime", icon: Gauge },
 ];
 
 const settingsItems = [
