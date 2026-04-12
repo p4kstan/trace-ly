@@ -778,7 +778,9 @@ Deno.serve(async (req) => {
       }).select("id").single();
       eventId = evt?.id || null;
 
-      // Record conversion
+      // Record conversion with attributed source from reconciled session
+      const attributedSource = sessionData?.utm_source || null;
+      const attributedCampaign = sessionData?.utm_campaign || null;
       if (["Purchase", "Lead", "Subscribe"].includes(evtName) || internalEvent === "order_paid" || internalEvent === "payment_paid") {
         await supabase.from("conversions").insert({
           workspace_id: workspaceId,
@@ -786,11 +788,13 @@ Deno.serve(async (req) => {
           session_id: sessionId, identity_id: identityId,
           conversion_type: evtName.toLowerCase(),
           value: order.total_value, currency: order.currency,
-          attributed_source: null, attributed_campaign: null,
+          attributed_source: attributedSource,
+          attributed_campaign: attributedCampaign,
+          attribution_model: "last_touch",
         });
       }
 
-      // Send to Meta CAPI
+      // Send enriched event to Meta CAPI
       if (marketingEvent && META_EVENTS.has(marketingEvent)) {
         try {
           const { data: pixels } = await supabase.from("meta_pixels")
@@ -801,18 +805,30 @@ Deno.serve(async (req) => {
             for (const pixel of pixels) {
               if (!pixel.access_token_encrypted) continue;
 
+              // Build enriched user_data using reconciled session
+              const userData: Record<string, unknown> = {};
+              if (order.customer.email) userData.em = [await sha256(order.customer.email.toLowerCase().trim())];
+              if (order.customer.phone) userData.ph = [await sha256(order.customer.phone.replace(/\D/g, ""))];
+              if (order.customer.name) {
+                const parts = order.customer.name.trim().split(/\s+/);
+                userData.fn = [await sha256(parts[0].toLowerCase())];
+                if (parts.length > 1) userData.ln = [await sha256(parts[parts.length - 1].toLowerCase())];
+              }
+              if (identityId) userData.external_id = [identityId];
+              // Enrich with session data (fbp, fbc, IP, UA)
+              if (sessionData?.fbp) userData.fbp = sessionData.fbp;
+              if (sessionData?.fbc) userData.fbc = sessionData.fbc;
+              if (sessionData?.ip_hash) userData.client_ip_address = sessionData.ip_hash;
+              if (sessionData?.user_agent) userData.client_user_agent = sessionData.user_agent;
+
               const metaPayload = {
                 data: [{
                   event_name: marketingEvent,
                   event_time: Math.floor(Date.now() / 1000),
                   event_id: evt?.id || crypto.randomUUID(),
                   action_source: "website",
-                  user_data: {
-                    em: order.customer.email ? [await sha256(order.customer.email.toLowerCase().trim())] : undefined,
-                    ph: order.customer.phone ? [await sha256(order.customer.phone.replace(/\D/g, ""))] : undefined,
-                    fn: order.customer.name ? [await sha256(order.customer.name.split(" ")[0].toLowerCase())] : undefined,
-                    external_id: identityId ? [identityId] : undefined,
-                  },
+                  event_source_url: sessionData?.landing_page || undefined,
+                  user_data: userData,
                   custom_data: {
                     value: order.total_value,
                     currency: order.currency,
@@ -840,6 +856,11 @@ Deno.serve(async (req) => {
                 request_json: metaPayload, response_json: metaData,
                 error_message: metaRes.ok ? null : JSON.stringify(metaData),
               });
+
+              // Update event status
+              if (metaRes.ok && evt?.id) {
+                await supabase.from("events").update({ processing_status: "delivered" }).eq("id", evt.id);
+              }
             }
           }
         } catch (metaErr) {
