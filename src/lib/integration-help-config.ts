@@ -65,6 +65,7 @@ const webhookOutput = (pasteSteps: string[]): GeneratedOutput => ({
 export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
   stripe: {
     label: "Stripe",
+    integrationType: "hybrid" as const,
     emoji: "💳",
     country: "int",
     description: "Gateway internacional de pagamentos com suporte completo a webhooks.",
@@ -127,6 +128,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 
   mercadopago: {
     label: "Mercado Pago",
+    integrationType: "hybrid" as const,
     emoji: "🟡",
     country: "br",
     description: "Principal gateway de pagamentos do Brasil.",
@@ -166,6 +168,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 
   hotmart: {
     label: "Hotmart",
+    integrationType: "hybrid" as const,
     emoji: "🔥",
     country: "br",
     description: "Plataforma de produtos digitais e infoprodutos.",
@@ -225,6 +228,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 
   kiwify: {
     label: "Kiwify",
+    integrationType: "hybrid" as const,
     emoji: "🥝",
     country: "br",
     description: "Plataforma de vendas de produtos digitais.",
@@ -263,6 +267,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 
   fortpay: {
     label: "FortPay",
+    integrationType: "webhook_only" as const,
     emoji: "🏰",
     country: "br",
     description: "Gateway de pagamentos com integração via webhook URL.",
@@ -287,6 +292,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 
   pagarme: {
     label: "Pagar.me",
+    integrationType: "hybrid" as const,
     emoji: "🟢",
     country: "br",
     description: "Gateway de pagamentos brasileiro da Stone.",
@@ -324,6 +330,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 
   asaas: {
     label: "Asaas",
+    integrationType: "hybrid" as const,
     emoji: "🔵",
     country: "br",
     description: "Plataforma de cobranças e pagamentos.",
@@ -348,6 +355,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 
   appmax: {
     label: "Appmax",
+    integrationType: "hybrid" as const,
     emoji: "📱",
     country: "br",
     description: "Plataforma de vendas online.",
@@ -371,6 +379,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 
   monetizze: {
     label: "Monetizze",
+    integrationType: "hybrid" as const,
     emoji: "💰",
     country: "br",
     description: "Plataforma de afiliados e produtos digitais.",
@@ -394,6 +403,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 
   eduzz: {
     label: "Eduzz",
+    integrationType: "hybrid" as const,
     emoji: "📚",
     country: "br",
     description: "Plataforma de produtos digitais e cursos.",
@@ -417,6 +427,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 
   cakto: {
     label: "Cakto",
+    integrationType: "hybrid" as const,
     emoji: "🎯",
     country: "br",
     description: "Plataforma de vendas de infoprodutos.",
@@ -437,6 +448,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 
   kirvano: {
     label: "Kirvano",
+    integrationType: "hybrid" as const,
     emoji: "🚀",
     country: "br",
     description: "Plataforma de checkout e vendas.",
@@ -457,6 +469,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 
   pagseguro: {
     label: "PagSeguro",
+    integrationType: "hybrid" as const,
     emoji: "🟠",
     country: "br",
     description: "Gateway de pagamentos do PagBank.",
@@ -481,6 +494,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 
   pushinpay: {
     label: "PushinPay",
+    integrationType: "hybrid" as const,
     emoji: "⚡",
     country: "br",
     description: "Gateway de pagamentos via Pix.",
@@ -501,6 +515,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 
   perfectpay: {
     label: "Perfect Pay",
+    integrationType: "hybrid" as const,
     emoji: "✅",
     country: "br",
     description: "Plataforma de checkout e pagamentos.",
@@ -521,6 +536,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 
   greenn: {
     label: "Greenn",
+    integrationType: "hybrid" as const,
     emoji: "🌿",
     country: "br",
     description: "Plataforma de vendas e checkout.",
@@ -541,6 +557,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 
   ticto: {
     label: "Ticto",
+    integrationType: "hybrid" as const,
     emoji: "🎪",
     country: "br",
     description: "Plataforma de checkout e vendas.",
@@ -561,6 +578,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 
   yampi: {
     label: "Yampi Payments",
+    integrationType: "hybrid" as const,
     emoji: "🛒",
     country: "br",
     description: "Plataforma de e-commerce e checkout.",
@@ -581,6 +599,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 
   vindi: {
     label: "Vindi",
+    integrationType: "hybrid" as const,
     emoji: "💜",
     country: "br",
     description: "Plataforma de pagamentos recorrentes.",
@@ -605,6 +624,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 
   iugu: {
     label: "Iugu",
+    integrationType: "hybrid" as const,
     emoji: "🧾",
     country: "br",
     description: "Plataforma de pagamentos e cobranças.",
@@ -629,6 +649,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 
   efi: {
     label: "Gerencianet / Efí",
+    integrationType: "hybrid" as const,
     emoji: "💎",
     country: "br",
     description: "Gateway de pagamentos Pix e boleto.",
@@ -652,6 +673,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 
   abacatepay: {
     label: "AbacatePay",
+    integrationType: "hybrid" as const,
     emoji: "🥑",
     country: "br",
     description: "Gateway de pagamentos Pix.",
@@ -672,6 +694,7 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 
   hubla: {
     label: "Hubla",
+    integrationType: "hybrid" as const,
     emoji: "🔗",
     country: "br",
     description: "Plataforma de comunidades e pagamentos.",
