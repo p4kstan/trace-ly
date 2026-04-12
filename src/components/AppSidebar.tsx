@@ -1,11 +1,13 @@
 import {
   LayoutDashboard, GitBranch, MonitorDot, ScrollText, Bug, Settings,
-  Zap, Brain, CreditCard, HeartPulse, Key, LogOut, ShoppingCart, Webhook, Inbox, BookOpen, Cpu,
+  Zap, Brain, CreditCard, HeartPulse, Key, LogOut, ShoppingCart, Webhook, Inbox, BookOpen, Cpu, Gauge,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import { useWorkspace, useEventStats } from "@/hooks/use-tracking-data";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter, useSidebar,
@@ -29,6 +31,7 @@ const settingsItems = [
   { title: "Tutorials", url: "/tutorials", icon: BookOpen },
   { title: "MCP", url: "/mcp", icon: Cpu },
   { title: "Plans", url: "/plans", icon: CreditCard },
+  { title: "Usage", url: "/usage", icon: Gauge },
   { title: "Settings", url: "/settings", icon: Settings },
   { title: "System Health", url: "/system-diagnostic", icon: HeartPulse },
 ];
@@ -72,8 +75,25 @@ export function AppSidebar() {
   const { data: workspace } = useWorkspace();
   const { data: stats } = useEventStats(workspace?.id);
 
-  const eventCount = stats?.totalEvents || 0;
-  const eventLimit = 10000;
+  const { data: usageData } = useQuery({
+    queryKey: ["sidebar-usage", workspace?.id],
+    enabled: !!workspace?.id,
+    refetchInterval: 60000,
+    queryFn: async () => {
+      const currentMonth = new Date().toISOString().substring(0, 7);
+      const [{ data: usage }, { data: limit }] = await Promise.all([
+        supabase.from("workspace_usage").select("event_count").eq("workspace_id", workspace!.id).eq("month", currentMonth).maybeSingle(),
+        supabase.from("plan_limits").select("max_events_per_month").eq("plan_name", workspace!.plan || "free").maybeSingle(),
+      ]);
+      return {
+        count: Number(usage?.event_count || 0),
+        limit: Number(limit?.max_events_per_month || 10000),
+      };
+    },
+  });
+
+  const eventCount = usageData?.count || stats?.totalEvents || 0;
+  const eventLimit = usageData?.limit || 10000;
   const eventPct = Math.min(100, Math.round((eventCount / eventLimit) * 100));
 
   return (
@@ -102,7 +122,7 @@ export function AppSidebar() {
         {!collapsed && (
           <div className="rounded-lg bg-sidebar-accent/30 border border-border/20 p-3 backdrop-blur-sm">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Free Plan</span>
+              <span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider capitalize">{workspace?.plan || "Free"} Plan</span>
               <span className="text-[10px] font-bold text-primary tabular-nums">
                 {eventCount.toLocaleString()}/{eventLimit.toLocaleString()}
               </span>

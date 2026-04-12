@@ -88,6 +88,15 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ── Rate limit: check workspace usage (after validation, before expensive processing) ──
+    const { data: usageResult } = await supabase.rpc("increment_workspace_usage", { _workspace_id: workspaceId });
+    if (usageResult && typeof usageResult === "object" && (usageResult as any).allowed === false) {
+      return new Response(
+        JSON.stringify({ error: "Monthly event limit exceeded. Please upgrade your plan.", usage: usageResult }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // ── Compute hashes in parallel ──
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
     const userAgent = req.headers.get("user-agent") || "unknown";
