@@ -43,6 +43,51 @@ export type Database = {
           },
         ]
       }
+      anomaly_alerts: {
+        Row: {
+          acknowledged: boolean
+          acknowledged_at: string | null
+          actual_value: number | null
+          created_at: string
+          detected_at: string
+          deviation_percent: number | null
+          expected_value: number | null
+          id: string
+          message: string | null
+          metric_name: string
+          severity: string
+          workspace_id: string
+        }
+        Insert: {
+          acknowledged?: boolean
+          acknowledged_at?: string | null
+          actual_value?: number | null
+          created_at?: string
+          detected_at?: string
+          deviation_percent?: number | null
+          expected_value?: number | null
+          id?: string
+          message?: string | null
+          metric_name: string
+          severity?: string
+          workspace_id: string
+        }
+        Update: {
+          acknowledged?: boolean
+          acknowledged_at?: string | null
+          actual_value?: number | null
+          created_at?: string
+          detected_at?: string
+          deviation_percent?: number | null
+          expected_value?: number | null
+          id?: string
+          message?: string | null
+          metric_name?: string
+          severity?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       api_keys: {
         Row: {
           created_at: string
@@ -491,6 +536,51 @@ export type Database = {
           payload_json?: Json
           provider?: string
           status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      event_replay_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          failed_events: number | null
+          filter_json: Json | null
+          id: string
+          replayed_events: number | null
+          started_at: string | null
+          status: string
+          total_events: number | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          failed_events?: number | null
+          filter_json?: Json | null
+          id?: string
+          replayed_events?: number | null
+          started_at?: string | null
+          status?: string
+          total_events?: number | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          failed_events?: number | null
+          filter_json?: Json | null
+          id?: string
+          replayed_events?: number | null
+          started_at?: string | null
+          status?: string
+          total_events?: number | null
           updated_at?: string
           workspace_id?: string
         }
@@ -2142,6 +2232,45 @@ export type Database = {
           session_id?: string | null
           source?: string | null
           user_data_json?: Json | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      feature_flags: {
+        Row: {
+          created_at: string
+          description: string | null
+          enabled: boolean
+          flag_key: string
+          id: string
+          label: string | null
+          payload_json: Json | null
+          rollout_percentage: number
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          flag_key: string
+          id?: string
+          label?: string | null
+          payload_json?: Json | null
+          rollout_percentage?: number
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          flag_key?: string
+          id?: string
+          label?: string | null
+          payload_json?: Json | null
+          rollout_percentage?: number
+          updated_at?: string
           workspace_id?: string
         }
         Relationships: []
