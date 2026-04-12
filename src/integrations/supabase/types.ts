@@ -2132,6 +2132,13 @@ export type Database = {
             referencedRelation: "gateway_integrations"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "gateway_api_sync_logs_gateway_integration_id_fkey"
+            columns: ["gateway_integration_id"]
+            isOneToOne: false
+            referencedRelation: "gateway_integrations_safe"
+            referencedColumns: ["id"]
+          },
         ]
       }
       gateway_customers: {
@@ -2183,6 +2190,13 @@ export type Database = {
             columns: ["gateway_integration_id"]
             isOneToOne: false
             referencedRelation: "gateway_integrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gateway_customers_gateway_integration_id_fkey"
+            columns: ["gateway_integration_id"]
+            isOneToOne: false
+            referencedRelation: "gateway_integrations_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -2299,6 +2313,13 @@ export type Database = {
             columns: ["gateway_integration_id"]
             isOneToOne: false
             referencedRelation: "gateway_integrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gateway_webhook_logs_gateway_integration_id_fkey"
+            columns: ["gateway_integration_id"]
+            isOneToOne: false
+            referencedRelation: "gateway_integrations_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -2770,6 +2791,13 @@ export type Database = {
             referencedRelation: "gateway_integrations"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "orders_gateway_integration_id_fkey"
+            columns: ["gateway_integration_id"]
+            isOneToOne: false
+            referencedRelation: "gateway_integrations_safe"
+            referencedColumns: ["id"]
+          },
         ]
       }
       payments: {
@@ -2860,6 +2888,13 @@ export type Database = {
             columns: ["gateway_integration_id"]
             isOneToOne: false
             referencedRelation: "gateway_integrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_gateway_integration_id_fkey"
+            columns: ["gateway_integration_id"]
+            isOneToOne: false
+            referencedRelation: "gateway_integrations_safe"
             referencedColumns: ["id"]
           },
           {
@@ -3211,9 +3246,70 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      gateway_integrations_safe: {
+        Row: {
+          api_base_url: string | null
+          created_at: string | null
+          environment: string | null
+          id: string | null
+          last_sync_at: string | null
+          name: string | null
+          provider: string | null
+          public_config_json: Json | null
+          settings_json: Json | null
+          status: string | null
+          updated_at: string | null
+          workspace_id: string | null
+        }
+        Insert: {
+          api_base_url?: string | null
+          created_at?: string | null
+          environment?: string | null
+          id?: string | null
+          last_sync_at?: string | null
+          name?: string | null
+          provider?: string | null
+          public_config_json?: Json | null
+          settings_json?: Json | null
+          status?: string | null
+          updated_at?: string | null
+          workspace_id?: string | null
+        }
+        Update: {
+          api_base_url?: string | null
+          created_at?: string | null
+          environment?: string | null
+          id?: string | null
+          last_sync_at?: string | null
+          name?: string | null
+          provider?: string | null
+          public_config_json?: Json | null
+          settings_json?: Json | null
+          status?: string | null
+          updated_at?: string | null
+          workspace_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      get_integration_metadata: {
+        Args: { _workspace_id: string }
+        Returns: {
+          api_base_url: string
+          created_at: string
+          environment: string
+          id: string
+          last_sync_at: string
+          name: string
+          provider: string
+          public_config_json: Json
+          settings_json: Json
+          status: string
+          updated_at: string
+          workspace_id: string
+        }[]
+      }
       is_workspace_member: {
         Args: { _user_id: string; _workspace_id: string }
         Returns: boolean
