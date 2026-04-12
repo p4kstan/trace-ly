@@ -2954,6 +2954,36 @@ export type Database = {
           },
         ]
       }
+      pipeline_metrics: {
+        Row: {
+          created_at: string
+          id: string
+          metadata_json: Json | null
+          metric_type: string
+          recorded_at: string
+          value: number
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          metadata_json?: Json | null
+          metric_type: string
+          recorded_at?: string
+          value?: number
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          metadata_json?: Json | null
+          metric_type?: string
+          recorded_at?: string
+          value?: number
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
