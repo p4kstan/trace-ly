@@ -31,6 +31,7 @@ const QueueMonitor = lazy(() => import("@/pages/QueueMonitor"));
 const Tutorials = lazy(() => import("@/pages/Tutorials"));
 const McpIntegration = lazy(() => import("@/pages/McpIntegration"));
 const Enterprise = lazy(() => import("@/pages/Enterprise"));
+const RealTimeAnalytics = lazy(() => import("@/pages/RealTimeAnalytics"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -58,6 +59,7 @@ function ProtectedRoutes() {
           <Route path="/tutorials" element={<Tutorials />} />
           <Route path="/mcp" element={<McpIntegration />} />
           <Route path="/enterprise" element={<Enterprise />} />
+          <Route path="/realtime" element={<RealTimeAnalytics />} />
           <Route path="/plans" element={<Plans />} />
           <Route path="/usage" element={<Usage />} />
           <Route path="/settings" element={<SettingsPage />} />
