@@ -516,7 +516,40 @@ async function enqueueForMeta(
         marketing_event: marketingEvent,
         order: { total_value: order.total_value, currency: order.currency, external_order_id: order.external_order_id, payment_method: order.payment_method, items: order.items },
         customer: order.customer,
-        session: sessionData ? { fbp: sessionData.fbp, fbc: sessionData.fbc, ip_hash: sessionData.ip_hash, user_agent: sessionData.user_agent, landing_page: sessionData.landing_page } : null,
+        session: sessionData ? { fbp: sessionData.fbp, fbc: sessionData.fbc, ip_hash: sessionData.ip_hash, user_agent: sessionData.user_agent, landing_page: sessionData.landing_page, gclid: sessionData.gclid, ttclid: sessionData.ttclid, ttp: sessionData.ttp, referrer: sessionData.referrer, utm_source: sessionData.utm_source, utm_medium: sessionData.utm_medium, utm_campaign: sessionData.utm_campaign } : null,
+        identity_id: identityId,
+      },
+    });
+  }
+}
+
+/** Enqueue events for non-Meta providers (Google Ads, TikTok, GA4) */
+async function enqueueForOtherProviders(
+  workspaceId: string, eventId: string, orderId: string | null,
+  order: NormalizedOrder, marketingEvent: string,
+  sessionData: any, identityId: string | null,
+) {
+  const { data: destinations } = await supabase.from("integration_destinations")
+    .select("id, provider, destination_id")
+    .eq("workspace_id", workspaceId)
+    .eq("is_active", true)
+    .in("provider", ["google_ads", "tiktok", "ga4"]);
+
+  if (!destinations?.length) return;
+
+  for (const dest of destinations) {
+    await supabase.from("event_queue").insert({
+      workspace_id: workspaceId,
+      event_id: eventId,
+      order_id: orderId,
+      provider: dest.provider,
+      destination: dest.destination_id,
+      status: "queued",
+      payload_json: {
+        marketing_event: marketingEvent,
+        order: { total_value: order.total_value, currency: order.currency, external_order_id: order.external_order_id, payment_method: order.payment_method, items: order.items },
+        customer: order.customer,
+        session: sessionData ? { fbp: sessionData.fbp, fbc: sessionData.fbc, ip_hash: sessionData.ip_hash, user_agent: sessionData.user_agent, landing_page: sessionData.landing_page, gclid: sessionData.gclid, ttclid: sessionData.ttclid, ttp: sessionData.ttp, gbraid: sessionData.gbraid, wbraid: sessionData.wbraid, referrer: sessionData.referrer, utm_source: sessionData.utm_source, utm_medium: sessionData.utm_medium, utm_campaign: sessionData.utm_campaign, client_id: sessionData.ga_client_id } : null,
         identity_id: identityId,
       },
     });
