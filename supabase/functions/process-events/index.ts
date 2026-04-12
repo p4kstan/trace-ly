@@ -85,7 +85,7 @@ async function processInParallel<T>(items: T[], concurrency: number, fn: (item: 
 }
 
 // ══════════════════════════════════════════════════════════════
-// META CAPI (existing logic, preserved)
+// META CAPI
 // ══════════════════════════════════════════════════════════════
 
 async function buildMetaEvent(item: any) {
@@ -195,8 +195,7 @@ async function processMetaBatch(
 }
 
 // ══════════════════════════════════════════════════════════════
-// MULTI-PROVIDER DISPATCH (Google Ads, TikTok, GA4)
-// Delegates to dedicated edge functions via internal HTTP call
+// MULTI-PROVIDER DISPATCH
 // ══════════════════════════════════════════════════════════════
 
 const PROVIDER_FUNCTIONS: Record<string, string> = {
@@ -214,32 +213,20 @@ async function dispatchToProvider(
     for (const item of items) await handleFailure(item, `Unknown provider: ${provider}`, stats);
     return;
   }
-
   try {
     const url = `${SUPABASE_URL}/functions/v1/${fnName}`;
     const res = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-      },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` },
       body: JSON.stringify({ items, destination }),
     });
-
     const result = await res.json();
-
     if (res.ok && (result.status === "ok" || result.status === "partial")) {
-      // Mark delivered items
       const deliveredCount = result.delivered || 0;
-      if (deliveredCount > 0) {
-        const deliveredItems = items.slice(0, deliveredCount);
-        await markDelivered(deliveredItems, stats);
-      }
-      // Mark failed items for retry
+      if (deliveredCount > 0) await markDelivered(items.slice(0, deliveredCount), stats);
       const failedCount = result.failed || 0;
       if (failedCount > 0) {
-        const failedItems = items.slice(items.length - failedCount);
-        for (const item of failedItems) {
+        for (const item of items.slice(items.length - failedCount)) {
           await handleFailure(item, `${provider} dispatch failed`, stats);
         }
       }
@@ -257,29 +244,48 @@ async function processNonMetaBatch(
   destCache: Map<string, any>,
   stats: { delivered: number; failed: number; deadLettered: number }
 ) {
-  // Lookup destination from integration_destinations
   const cacheKey = `${workspaceId}::${provider}`;
   let destinations = destCache.get(cacheKey);
   if (!destinations) {
     const { data } = await supabase.from("integration_destinations")
-      .select("*")
-      .eq("workspace_id", workspaceId)
-      .eq("provider", provider)
-      .eq("is_active", true);
+      .select("*").eq("workspace_id", workspaceId).eq("provider", provider).eq("is_active", true);
     destinations = data || [];
     destCache.set(cacheKey, destinations);
   }
-
   if (!destinations.length) {
-    for (const item of items) {
-      await handleFailure(item, `No active ${provider} destination configured`, stats);
-    }
+    for (const item of items) await handleFailure(item, `No active ${provider} destination configured`, stats);
     return;
   }
-
-  // Dispatch to each active destination
   for (const dest of destinations) {
     await dispatchToProvider(provider, items, dest, stats);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// METRICS RECORDING
+// ══════════════════════════════════════════════════════════════
+
+async function recordMetrics(
+  workspaceIds: Set<string>,
+  stats: { delivered: number; failed: number; deadLettered: number },
+  durationMs: number,
+  totalItems: number,
+) {
+  const now = new Date().toISOString();
+  const throughput = totalItems > 0 ? (totalItems / (durationMs / 1000)) : 0;
+  const metrics: any[] = [];
+
+  for (const wsId of workspaceIds) {
+    metrics.push(
+      { workspace_id: wsId, metric_type: "batch_throughput", value: throughput, metadata_json: { total: totalItems, duration_ms: durationMs }, recorded_at: now },
+      { workspace_id: wsId, metric_type: "batch_latency_ms", value: durationMs, recorded_at: now },
+      { workspace_id: wsId, metric_type: "batch_delivered", value: stats.delivered, recorded_at: now },
+      { workspace_id: wsId, metric_type: "batch_failed", value: stats.failed + stats.deadLettered, recorded_at: now },
+    );
+  }
+
+  if (metrics.length > 0) {
+    await supabase.from("pipeline_metrics").insert(metrics);
   }
 }
 
@@ -301,7 +307,6 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const { workspace_id, limit = 200 } = body;
 
-    // Fetch queued items ready for processing
     let query = supabase.from("event_queue")
       .select("*")
       .in("status", ["queued", "retry"])
@@ -326,20 +331,20 @@ Deno.serve(async (req) => {
       .update({ status: "processing", updated_at: new Date().toISOString() })
       .in("id", allIds);
 
-    // Group items by provider → workspace → destination
+    // Group items by provider
     const metaBatches = new Map<string, any[]>();
     const nonMetaBatches = new Map<string, { provider: string; workspaceId: string; items: any[] }>();
+    const workspaceIds = new Set<string>();
 
     for (const item of queueItems) {
       const provider = item.provider || "meta";
+      workspaceIds.add(item.workspace_id);
 
       if (provider === "meta") {
-        // Existing Meta logic: group by workspace::pixel_id
         const key = `${item.workspace_id}::${item.destination}`;
         if (!metaBatches.has(key)) metaBatches.set(key, []);
         metaBatches.get(key)!.push(item);
       } else {
-        // Non-Meta: group by provider::workspace
         const key = `${provider}::${item.workspace_id}`;
         if (!nonMetaBatches.has(key)) {
           nonMetaBatches.set(key, { provider, workspaceId: item.workspace_id, items: [] });
@@ -352,16 +357,13 @@ Deno.serve(async (req) => {
     const pixelCache = new Map<string, any>();
     const destCache = new Map<string, any>();
 
-    // Process Meta batches in parallel (existing logic)
     const metaEntries = Array.from(metaBatches.entries());
     const nonMetaEntries = Array.from(nonMetaBatches.values());
 
     await Promise.all([
-      // Meta parallel processing
       processInParallel(metaEntries, CONCURRENCY, async ([pixelKey, items]) => {
         await processMetaBatch(pixelKey, items, pixelCache, stats);
       }),
-      // Non-Meta parallel processing
       processInParallel(nonMetaEntries, CONCURRENCY, async ({ provider, workspaceId, items }) => {
         await processNonMetaBatch(provider, workspaceId, items, destCache, stats);
       }),
@@ -369,6 +371,10 @@ Deno.serve(async (req) => {
 
     const duration = Date.now() - startTime;
     const totalBatches = metaBatches.size + nonMetaBatches.size;
+
+    // Record pipeline metrics (fire-and-forget)
+    recordMetrics(workspaceIds, stats, duration, queueItems.length).catch(e => console.error("Metrics error:", e));
+
     console.log(`Processed ${queueItems.length} items (${totalBatches} batches): ${stats.delivered} delivered, ${stats.failed} retry, ${stats.deadLettered} dead_letter (${duration}ms)`);
 
     return new Response(JSON.stringify({
@@ -378,10 +384,8 @@ Deno.serve(async (req) => {
       failed: stats.failed,
       dead_lettered: stats.deadLettered,
       batches: totalBatches,
-      providers: {
-        meta: metaBatches.size,
-        others: nonMetaBatches.size,
-      },
+      throughput_eps: queueItems.length > 0 ? +(queueItems.length / (duration / 1000)).toFixed(1) : 0,
+      providers: { meta: metaBatches.size, others: nonMetaBatches.size },
       duration_ms: duration,
     }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
