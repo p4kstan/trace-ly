@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, GitBranch, MonitorDot, ScrollText, Bug, Settings,
   Zap, Brain, CreditCard, HeartPulse, Key, LogOut, ShoppingCart, Webhook, Inbox, BookOpen, Cpu, Gauge,
-  Shield,
+  Shield, TrendingUp, Lightbulb, Filter,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -18,7 +18,10 @@ const mainItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Real-Time & ML", url: "/realtime", icon: Gauge },
   { title: "AI Insights", url: "/ai-analytics", icon: Brain },
+  { title: "Predictions", url: "/predictions", icon: TrendingUp },
+  { title: "Optimization", url: "/optimization", icon: Lightbulb },
   { title: "Attribution", url: "/attribution", icon: GitBranch },
+  { title: "Funnels", url: "/funnels", icon: Filter },
   { title: "Orders", url: "/orders", icon: ShoppingCart },
   { title: "Pixels", url: "/pixels", icon: MonitorDot },
   { title: "Event Logs", url: "/logs", icon: ScrollText },
