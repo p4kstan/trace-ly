@@ -5,45 +5,16 @@ import { useWorkspace } from "@/hooks/use-tracking-data";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Plus, Copy, CheckCircle, XCircle, Trash2, Webhook, Settings2, RefreshCw, ExternalLink } from "lucide-react";
-import { InlineHelp } from "@/components/InlineHelp";
-
-const PROVIDERS = [
-  { value: "stripe", label: "Stripe", emoji: "💳", country: "int" },
-  { value: "mercadopago", label: "Mercado Pago", emoji: "🟡", country: "br" },
-  { value: "pagarme", label: "Pagar.me", emoji: "🟢", country: "br" },
-  { value: "asaas", label: "Asaas", emoji: "🔵", country: "br" },
-  { value: "appmax", label: "Appmax", emoji: "📱", country: "br" },
-  { value: "hotmart", label: "Hotmart", emoji: "🔥", country: "br" },
-  { value: "monetizze", label: "Monetizze", emoji: "💰", country: "br" },
-  { value: "eduzz", label: "Eduzz", emoji: "📚", country: "br" },
-  { value: "cakto", label: "Cakto", emoji: "🎯", country: "br" },
-  { value: "kirvano", label: "Kirvano", emoji: "🚀", country: "br" },
-  { value: "pagseguro", label: "PagSeguro", emoji: "🟠", country: "br" },
-  { value: "pushinpay", label: "PushinPay", emoji: "⚡", country: "br" },
-  { value: "perfectpay", label: "Perfect Pay", emoji: "✅", country: "br" },
-  { value: "greenn", label: "Greenn", emoji: "🌿", country: "br" },
-  { value: "ticto", label: "Ticto", emoji: "🎪", country: "br" },
-  { value: "yampi", label: "Yampi Payments", emoji: "🛒", country: "br" },
-  { value: "vindi", label: "Vindi", emoji: "💜", country: "br" },
-  { value: "iugu", label: "Iugu", emoji: "🧾", country: "br" },
-  { value: "efi", label: "Gerencianet / Efí", emoji: "💎", country: "br" },
-  { value: "abacatepay", label: "AbacatePay", emoji: "🥑", country: "br" },
-  { value: "hubla", label: "Hubla", emoji: "🔗", country: "br" },
-];
+import { Plus, Copy, Trash2, Webhook } from "lucide-react";
+import { IntegrationDialog } from "@/components/integrations/IntegrationDialog";
+import { PROVIDER_CONFIGS } from "@/lib/integration-help-config";
 
 export default function Integrations() {
   const { data: workspace } = useWorkspace();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState({ provider: "stripe", name: "", credentials: "", webhookSecret: "", environment: "production" });
 
   const { data: integrations, isLoading } = useQuery({
     queryKey: ["gateway_integrations", workspace?.id],
@@ -56,12 +27,12 @@ export default function Integrations() {
   });
 
   const createMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (form: { provider: string; name: string; credentials: string; webhookSecret: string; environment: string }) => {
       if (!workspace?.id) throw new Error("No workspace");
       const { error } = await supabase.from("gateway_integrations").insert({
         workspace_id: workspace.id,
         provider: form.provider,
-        name: form.name || PROVIDERS.find(p => p.value === form.provider)?.label || form.provider,
+        name: form.name,
         credentials_encrypted: form.credentials,
         webhook_secret_encrypted: form.webhookSecret,
         environment: form.environment,
@@ -72,7 +43,6 @@ export default function Integrations() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["gateway_integrations"] });
       setDialogOpen(false);
-      setForm({ provider: "stripe", name: "", credentials: "", webhookSecret: "", environment: "production" });
       toast.success("Integração criada com sucesso!");
     },
     onError: (e) => toast.error(String(e)),
@@ -80,8 +50,7 @@ export default function Integrations() {
 
   const toggleMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const newStatus = status === "active" ? "inactive" : "active";
-      const { error } = await supabase.from("gateway_integrations").update({ status: newStatus }).eq("id", id);
+      const { error } = await supabase.from("gateway_integrations").update({ status: status === "active" ? "inactive" : "active" }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -110,9 +79,6 @@ export default function Integrations() {
     navigator.clipboard.writeText(getWebhookUrl(integrationId, provider));
     toast.success("URL do webhook copiada!");
   };
-
-  const brProviders = PROVIDERS.filter(p => p.country === "br");
-  const intProviders = PROVIDERS.filter(p => p.country === "int");
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -167,7 +133,7 @@ export default function Integrations() {
         ) : (
           <div className="space-y-3">
             {(integrations || []).map(gi => {
-              const prov = PROVIDERS.find(p => p.value === gi.provider);
+              const prov = PROVIDER_CONFIGS[gi.provider];
               return (
                 <Card key={gi.id} className="glass-card">
                   <CardContent className="p-4">
@@ -180,10 +146,7 @@ export default function Integrations() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Switch
-                          checked={gi.status === "active"}
-                          onCheckedChange={() => toggleMutation.mutate({ id: gi.id, status: gi.status })}
-                        />
+                        <Switch checked={gi.status === "active"} onCheckedChange={() => toggleMutation.mutate({ id: gi.id, status: gi.status })} />
                         <Button variant="ghost" size="sm" onClick={() => copyWebhookUrl(gi.id, gi.provider)} title="Copiar URL do Webhook">
                           <Copy className="w-4 h-4" />
                         </Button>
@@ -192,7 +155,6 @@ export default function Integrations() {
                         </Button>
                       </div>
                     </div>
-                    {/* Webhook URL */}
                     <div className="bg-muted/30 rounded-lg p-2.5 flex items-center gap-2">
                       <Webhook className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                       <code className="text-xs text-muted-foreground truncate flex-1">{getWebhookUrl(gi.id, gi.provider)}</code>
@@ -208,125 +170,15 @@ export default function Integrations() {
         )}
       </div>
 
-      {/* Create dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>Adicionar Gateway de Pagamento</DialogTitle></DialogHeader>
-          <Tabs defaultValue="br">
-            <TabsList className="w-full">
-              <TabsTrigger value="br" className="flex-1">🇧🇷 Brasil ({brProviders.length})</TabsTrigger>
-              <TabsTrigger value="int" className="flex-1">🌎 Internacional ({intProviders.length})</TabsTrigger>
-            </TabsList>
-            <TabsContent value="br">
-              <div className="grid grid-cols-3 gap-2 mt-2 max-h-48 overflow-y-auto">
-                {brProviders.map(p => (
-                  <button
-                    key={p.value}
-                    onClick={() => setForm(f => ({ ...f, provider: p.value }))}
-                    className={`p-2 rounded-lg border text-center text-xs transition-colors ${form.provider === p.value ? "border-primary bg-primary/10 text-primary" : "border-border hover:border-muted-foreground/30"}`}
-                  >
-                    <span className="text-lg block">{p.emoji}</span>
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-            </TabsContent>
-            <TabsContent value="int">
-              <div className="grid grid-cols-3 gap-2 mt-2">
-                {intProviders.map(p => (
-                  <button
-                    key={p.value}
-                    onClick={() => setForm(f => ({ ...f, provider: p.value }))}
-                    className={`p-2 rounded-lg border text-center text-xs transition-colors ${form.provider === p.value ? "border-primary bg-primary/10 text-primary" : "border-border hover:border-muted-foreground/30"}`}
-                  >
-                    <span className="text-lg block">{p.emoji}</span>
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-            </TabsContent>
-          </Tabs>
-          <div className="space-y-3 mt-2">
-            <div>
-              <Label>Nome interno</Label>
-              <Input placeholder={`Ex: ${PROVIDERS.find(p => p.value === form.provider)?.label} Produção`} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-            </div>
-            <div>
-              <Label>API Key / Credenciais</Label>
-              <Input type="password" placeholder="sk_live_..." value={form.credentials} onChange={e => setForm(f => ({ ...f, credentials: e.target.value }))} />
-              {form.provider === "stripe" && (
-                <InlineHelp
-                  label="Onde encontrar a API Key do Stripe?"
-                  steps={[
-                    { text: "Acesse o Dashboard do Stripe" },
-                    { text: "Vá em Developers → API Keys" },
-                    { text: "Copie a Secret Key (sk_live_... ou sk_test_...)" },
-                  ]}
-                  note="Use sk_test_ para testes e sk_live_ para produção."
-                  link={{ url: "https://dashboard.stripe.com/apikeys", label: "Abrir Stripe Dashboard" }}
-                />
-              )}
-              {form.provider === "mercadopago" && (
-                <InlineHelp
-                  label="Onde encontrar o Access Token?"
-                  steps={[
-                    { text: "Acesse Mercado Pago Developers" },
-                    { text: "Vá em Suas Integrações → Credenciais" },
-                    { text: "Copie o Access Token de produção" },
-                  ]}
-                  link={{ url: "https://www.mercadopago.com.br/developers/panel/app", label: "Abrir Mercado Pago Developers" }}
-                />
-              )}
-              {form.provider === "hotmart" && (
-                <InlineHelp
-                  label="Como configurar o Hotmart?"
-                  steps={[
-                    { text: "Acesse o painel da Hotmart" },
-                    { text: "Vá em Ferramentas → Webhooks" },
-                    { text: "Crie um novo webhook com o endpoint abaixo" },
-                  ]}
-                  snippet={`${supabaseUrl}/functions/v1/gateway-webhook`}
-                  link={{ url: "https://app-vlc.hotmart.com/tools/webhook", label: "Abrir Hotmart Webhooks" }}
-                />
-              )}
-            </div>
-            <div>
-              <Label>Webhook Secret (opcional)</Label>
-              <Input type="password" placeholder="whsec_..." value={form.webhookSecret} onChange={e => setForm(f => ({ ...f, webhookSecret: e.target.value }))} />
-              {form.provider === "stripe" && (
-                <InlineHelp
-                  label="Como obter o Webhook Secret?"
-                  steps={[
-                    { text: "No Stripe Dashboard, vá em Developers → Webhooks" },
-                    { text: "Clique em Add Endpoint" },
-                    { text: "Cole o endpoint do CapiTrack" },
-                    { text: "Selecione: checkout.session.completed, payment_intent.succeeded" },
-                    { text: "Copie o Signing Secret (whsec_...)" },
-                  ]}
-                  snippet={`${supabaseUrl}/functions/v1/gateway-webhook`}
-                  link={{ url: "https://dashboard.stripe.com/webhooks", label: "Abrir Stripe Webhooks" }}
-                />
-              )}
-            </div>
-            <div>
-              <Label>Ambiente</Label>
-              <Select value={form.environment} onValueChange={v => setForm(f => ({ ...f, environment: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="production">Produção</SelectItem>
-                  <SelectItem value="sandbox">Sandbox</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>
-              {createMutation.isPending ? "Criando..." : "Criar Integração"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Dialog */}
+      <IntegrationDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onSubmit={(data) => createMutation.mutate(data)}
+        isPending={createMutation.isPending}
+        supabaseUrl={supabaseUrl}
+        workspaceId={workspace?.id || ""}
+      />
     </div>
   );
 }
