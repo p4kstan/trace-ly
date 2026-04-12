@@ -19,6 +19,7 @@ import ApiKeys from "@/pages/ApiKeys";
 import Auth from "@/pages/Auth";
 import ResetPassword from "@/pages/ResetPassword";
 import Setup from "@/pages/Setup";
+import Onboarding from "@/pages/Onboarding";
 import Orders from "@/pages/Orders";
 import WebhookLogs from "@/pages/WebhookLogs";
 import QueueMonitor from "@/pages/QueueMonitor";
@@ -76,6 +77,7 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/setup" element={<Setup />} />
+          <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/*" element={<ProtectedRoutes />} />
         </Routes>
       </BrowserRouter>
