@@ -30,6 +30,7 @@ const WebhookLogs = lazy(() => import("@/pages/WebhookLogs"));
 const QueueMonitor = lazy(() => import("@/pages/QueueMonitor"));
 const Tutorials = lazy(() => import("@/pages/Tutorials"));
 const McpIntegration = lazy(() => import("@/pages/McpIntegration"));
+const Enterprise = lazy(() => import("@/pages/Enterprise"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -56,6 +57,7 @@ function ProtectedRoutes() {
           <Route path="/queue" element={<QueueMonitor />} />
           <Route path="/tutorials" element={<Tutorials />} />
           <Route path="/mcp" element={<McpIntegration />} />
+          <Route path="/enterprise" element={<Enterprise />} />
           <Route path="/plans" element={<Plans />} />
           <Route path="/usage" element={<Usage />} />
           <Route path="/settings" element={<SettingsPage />} />
