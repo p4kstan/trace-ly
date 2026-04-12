@@ -209,20 +209,13 @@ Regras:
     });
 
     if (!aiResponse.ok) {
-      if (aiResponse.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded. Try again later." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (aiResponse.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted. Add funds at Settings > Workspace > Usage." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      // Fallback
+      console.warn("AI gateway error:", aiResponse.status, "— using fallback insights");
+      // Always fallback gracefully (including 402/429) so the UI never breaks
       return new Response(JSON.stringify({
         insights: generateFallbackInsights(revenueChange, channelInsights, anomalies || [], queueFailed || 0, dlqCount || 0),
         data: { events24h, events7d, recentRevenue, olderRevenue, revenueChange },
+        fallback: true,
+        ai_status: aiResponse.status,
       }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
