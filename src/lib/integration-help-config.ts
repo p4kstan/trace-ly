@@ -34,11 +34,16 @@ export interface GeneratedOutput {
   pasteInstructions?: string[];
 }
 
+/** Tipo de integração determina o fluxo do modal */
+export type IntegrationType = "external_api" | "webhook_only" | "hybrid" | "auto_token";
+
 export interface ProviderConfig {
   label: string;
   emoji: string;
   country: "br" | "int";
   description: string;
+  /** Tipo de integração — define o fluxo do modal */
+  integrationType: IntegrationType;
   /** Checklist resumido exibido no topo do modal */
   checklist: string[];
   fields: FieldHelp[];
