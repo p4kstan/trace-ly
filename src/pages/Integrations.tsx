@@ -253,10 +253,20 @@ function DestinationDialog({ open, onOpenChange, workspaceId }: { open: boolean;
                 onChange={(e) => setFields(prev => ({ ...prev, [f.key]: e.target.value }))}
               />
               {f.help && (
-                <p className="text-[11px] text-muted-foreground leading-relaxed flex items-start gap-1.5">
-                  <span className="text-primary mt-0.5">📍</span>
-                  {f.help}
-                </p>
+                <div className="text-[11px] text-muted-foreground leading-relaxed flex items-start gap-1.5">
+                  <span className="text-primary mt-0.5 shrink-0">📍</span>
+                  <span>
+                    {f.help}
+                    {f.helpLink && (
+                      <>
+                        {" — "}
+                        <a href={f.helpLink.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-0.5">
+                          {f.helpLink.label} ↗
+                        </a>
+                      </>
+                    )}
+                  </span>
+                </div>
               )}
             </div>
           ))}
