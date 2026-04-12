@@ -380,6 +380,57 @@ export type Database = {
         }
         Relationships: []
       }
+      event_queue: {
+        Row: {
+          attempt_count: number
+          created_at: string
+          destination: string | null
+          event_id: string | null
+          id: string
+          last_error: string | null
+          max_attempts: number
+          next_retry_at: string
+          order_id: string | null
+          payload_json: Json
+          provider: string
+          status: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          attempt_count?: number
+          created_at?: string
+          destination?: string | null
+          event_id?: string | null
+          id?: string
+          last_error?: string | null
+          max_attempts?: number
+          next_retry_at?: string
+          order_id?: string | null
+          payload_json?: Json
+          provider?: string
+          status?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          attempt_count?: number
+          created_at?: string
+          destination?: string | null
+          event_id?: string | null
+          id?: string
+          last_error?: string | null
+          max_attempts?: number
+          next_retry_at?: string
+          order_id?: string | null
+          payload_json?: Json
+          provider?: string
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       events: {
         Row: {
           action_source: string | null
