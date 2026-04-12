@@ -78,6 +78,15 @@ Deno.serve(async (req) => {
     // Fire-and-forget: update last_used_at
     supabase.from("api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", keyId).then(() => {});
 
+    // ── Rate limit: check workspace usage ──
+    const { data: usageResult } = await supabase.rpc("increment_workspace_usage", { _workspace_id: workspaceId });
+    if (usageResult && typeof usageResult === "object" && (usageResult as any).allowed === false) {
+      return new Response(
+        JSON.stringify({ error: "Monthly event limit exceeded. Please upgrade your plan.", usage: usageResult }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // ── Parse body + validate ──
     const body = await req.json();
 
