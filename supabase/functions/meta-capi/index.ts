@@ -117,7 +117,6 @@ Deno.serve(async (req) => {
     }
 
     // Get associated sessions for fbp/fbc
-    const sessionIds = events.map(e => e.session_id).filter(Boolean);
     const { data: sessions } = await supabase
       .from("sessions")
       .select("id, identity_id, fbp, fbc, ip_hash, user_agent")
@@ -163,7 +162,7 @@ Deno.serve(async (req) => {
           fbp: session?.fbp || undefined,
         };
 
-        // Add hashed email if available (already hashed in our DB, but Meta expects SHA256)
+        // Identity hashes are already SHA-256 (aligned with /track)
         if (identity?.email_hash) {
           userDataPayload.em = [identity.email_hash];
         }
@@ -174,7 +173,7 @@ Deno.serve(async (req) => {
           userDataPayload.external_id = [identity.external_id];
         }
 
-        // Add any additional user data from the event payload
+        // Add any additional user data from the event payload (hash on the fly)
         if (userData.email) {
           userDataPayload.em = [await hashSHA256(userData.email as string)];
         }
@@ -225,10 +224,11 @@ Deno.serve(async (req) => {
         metaEvents.push(metaEvent);
       }
 
-      // POST to Meta Conversions API
+      // POST to Meta Conversions API - token in Authorization header, NOT query string
       const url = `${GRAPH_API_BASE}/${GRAPH_API_VERSION}/${pixel.pixel_id}/events`;
       const requestBody: Record<string, unknown> = {
         data: metaEvents,
+        access_token: pixel.access_token_encrypted,
       };
 
       if (pixel.test_event_code) {
@@ -237,7 +237,8 @@ Deno.serve(async (req) => {
 
       console.log(`Sending ${metaEvents.length} events to Meta pixel ${pixel.pixel_id}`);
 
-      const response = await fetch(`${url}?access_token=${pixel.access_token_encrypted}`, {
+      // Send token in POST body (Meta's recommended approach) instead of query string
+      const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
