@@ -796,7 +796,7 @@ Deno.serve(async (req) => {
 
   try {
     const url = new URL(req.url);
-    const provider = url.searchParams.get("provider") || "generic";
+    let provider = url.searchParams.get("provider") || "auto";
     const workspaceId = url.searchParams.get("workspace_id");
     const integrationId = url.searchParams.get("integration_id") || null;
 
@@ -805,6 +805,15 @@ Deno.serve(async (req) => {
     }
 
     const rawBody = await req.text();
+
+    // ── Parse payload early for auto-detection ──
+    let payload: any;
+    try { payload = JSON.parse(rawBody); } catch { payload = { raw: rawBody }; }
+
+    // ── Auto-detect provider if not specified ──
+    if (provider === "auto" || provider === "generic") {
+      provider = detectProvider(req, payload);
+    }
 
     // ── Signature validation ──
     let webhookSecret: string | null = null;
@@ -822,10 +831,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Invalid signature", reason: sigResult.reason }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // ── Parse & normalize ──
-    let payload: any;
-    try { payload = JSON.parse(rawBody); } catch { payload = { raw: rawBody }; }
-
+    // ── Normalize ──
     const handler = getHandler(provider);
     const eventType = handler.extractEventType(payload);
     const internalEvent = handler.resolveInternalEvent(eventType);
