@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Key, Plus, Copy, Trash2, CheckCircle, AlertCircle, Inbox } from "lucide-react";
+import { Key, Plus, Copy, Trash2, Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-
+import { InlineHelp } from "@/components/InlineHelp";
 import { generatePublicKey } from "@/lib/key-utils";
 
 export default function ApiKeys() {
@@ -54,6 +54,19 @@ export default function ApiKeys() {
   };
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const activeKey = keys?.find((k: any) => k.status === "active")?.public_key || "pk_xxxxx";
+
+  const snippet = `<script>
+  (function(){
+    var ct=window.capitrack=function(){ct.q.push(arguments)};ct.q=[];
+    ct("init","${activeKey}",{endpoint:"${supabaseUrl}/functions/v1/track"});
+    ct("page");
+    var s=document.createElement("script");
+    s.src="${window.location.origin}/sdk.js";
+    s.async=true;
+    document.head.appendChild(s);
+  })();
+</script>`;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -71,7 +84,10 @@ export default function ApiKeys() {
         <DialogContent className="bg-card border-border">
           <DialogHeader><DialogTitle className="text-foreground">Gerar API Key</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div><Label className="text-foreground">Nome</Label><Input value={name} onChange={e => setName(e.target.value)} /></div>
+            <div>
+              <Label className="text-foreground">Nome</Label>
+              <Input value={name} onChange={e => setName(e.target.value)} />
+            </div>
             {newKey ? (
               <div className="space-y-2">
                 <p className="text-sm text-warning">⚠️ Copie esta chave agora. Ela não será exibida novamente.</p>
@@ -90,26 +106,25 @@ export default function ApiKeys() {
         </DialogContent>
       </Dialog>
 
-      {/* Snippet section */}
+      {/* Snippet section with inline help */}
       {keys && keys.length > 0 && (
         <div className="glass-card p-5">
           <h3 className="text-sm font-medium text-foreground mb-3">📋 Snippet de Instalação</h3>
           <div className="bg-muted p-4 rounded-lg relative">
-            <pre className="text-xs text-foreground overflow-x-auto whitespace-pre-wrap font-mono">{`<script>
-  (function(){
-    var ct=window.capitrack=function(){ct.q.push(arguments)};ct.q=[];
-    ct("init","${keys.find(k => k.status === "active")?.public_key || "pk_xxxxx"}",{endpoint:"${supabaseUrl}/functions/v1/track"});
-    ct("page");
-    var s=document.createElement("script");
-    s.src="${window.location.origin}/sdk.js";
-    s.async=true;
-    document.head.appendChild(s);
-  })();
-</script>`}</pre>
-            <button onClick={() => { navigator.clipboard.writeText("copied"); toast.success("Snippet copiado!"); }} className="absolute top-2 right-2 p-1.5 bg-card rounded hover:bg-accent">
+            <pre className="text-xs text-foreground overflow-x-auto whitespace-pre-wrap font-mono">{snippet}</pre>
+            <button onClick={() => { navigator.clipboard.writeText(snippet); toast.success("Snippet copiado!"); }} className="absolute top-2 right-2 p-1.5 bg-card rounded hover:bg-accent">
               <Copy className="w-4 h-4 text-muted-foreground" />
             </button>
           </div>
+          <InlineHelp
+            label="Onde instalar esse código?"
+            note="Cole este snippet antes do </head> do seu site para ativar o tracking."
+            cards={[
+              { title: "WordPress", steps: ["Aparência → Editor de Temas", "Abra header.php", "Cole antes do </head>", "Salve"] },
+              { title: "Shopify", steps: ["Configurações → Checkout", "Scripts adicionais", "Cole o snippet", "Salve"] },
+              { title: "HTML Puro", steps: ["Abra index.html", "Cole antes do </head>", "Faça deploy"] },
+            ]}
+          />
         </div>
       )}
 
