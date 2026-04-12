@@ -735,9 +735,14 @@ Deno.serve(async (req) => {
         });
       }
 
-      // ── ENQUEUE for Meta (instead of sending directly) ──
-      if (marketingEvent && META_EVENTS.has(marketingEvent) && eventId) {
-        await enqueueForMeta(workspaceId, eventId, savedOrder?.id || null, order, marketingEvent, sessionData, identityId);
+      // ── ENQUEUE for all configured providers ──
+      if (marketingEvent && eventId) {
+        // Meta CAPI
+        if (META_EVENTS.has(marketingEvent)) {
+          await enqueueForMeta(workspaceId, eventId, savedOrder?.id || null, order, marketingEvent, sessionData, identityId);
+        }
+        // Google Ads, TikTok, GA4
+        await enqueueForOtherProviders(workspaceId, eventId, savedOrder?.id || null, order, marketingEvent, sessionData, identityId);
       }
     }
 
@@ -751,7 +756,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({
       status: "ok", provider, internal_event: internalEvent,
       marketing_event: marketingEvent, order_id: savedOrder?.id, event_id: eventId,
-      queued_for_delivery: !!(marketingEvent && META_EVENTS.has(marketingEvent)),
+      queued_for_delivery: !!marketingEvent,
     }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   } catch (err) {
