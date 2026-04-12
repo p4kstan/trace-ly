@@ -33,11 +33,41 @@ const settingsItems = [
   { title: "System Health", url: "/system-diagnostic", icon: HeartPulse },
 ];
 
+function SidebarNavGroup({ items, label, collapsed }: { items: typeof mainItems; label: string; collapsed: boolean }) {
+  const location = useLocation();
+  const isActive = (path: string) => location.pathname === path;
+
+  return (
+    <SidebarGroup>
+      <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/40 px-3 mb-1">
+        {!collapsed && label}
+      </SidebarGroupLabel>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {items.map((item) => (
+            <SidebarMenuItem key={item.title}>
+              <SidebarMenuButton asChild isActive={isActive(item.url)}>
+                <NavLink
+                  to={item.url}
+                  end={item.url === "/"}
+                  className="group flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-all duration-200 text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent/60"
+                  activeClassName="!bg-primary/10 !text-primary font-medium glow-border"
+                >
+                  <item.icon className="w-4 h-4 shrink-0 opacity-60 group-hover:opacity-100 group-hover:drop-shadow-[0_0_4px_hsl(199_89%_48%/0.3)] transition-all duration-300" />
+                  {!collapsed && <span>{item.title}</span>}
+                </NavLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+}
+
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
-  const location = useLocation();
-  const isActive = (path: string) => location.pathname === path;
   const { user, signOut } = useAuth();
   const { data: workspace } = useWorkspace();
   const { data: stats } = useEventStats(workspace?.id);
@@ -48,13 +78,14 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="p-4 border-b border-sidebar-border/60">
+      <SidebarHeader className="p-4 border-b border-sidebar-border/40">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
-            <Zap className="w-4 h-4 text-primary" />
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center relative gradient-border"
+            style={{ background: 'hsl(199 89% 48% / 0.08)' }}>
+            <Zap className="w-4 h-4 text-primary drop-shadow-[0_0_8px_hsl(199_89%_48%/0.5)]" />
           </div>
           {!collapsed && (
-            <span className="text-base font-semibold tracking-tight text-gradient-primary">
+            <span className="text-base font-bold tracking-tight text-gradient-primary">
               CapiTrack AI
             </span>
           )}
@@ -62,69 +93,27 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="px-2 py-3">
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/50 px-3 mb-1">
-            {!collapsed && "Analytics"}
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {mainItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                    <NavLink
-                      to={item.url}
-                      end={item.url === "/"}
-                      className="group flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-all duration-150 text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent/60"
-                      activeClassName="!bg-primary/10 !text-primary font-medium"
-                    >
-                      <item.icon className="w-4 h-4 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity" />
-                      {!collapsed && <span>{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup className="mt-4">
-          <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/50 px-3 mb-1">
-            {!collapsed && "Settings"}
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {settingsItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={isActive(item.url)}>
-                    <NavLink
-                      to={item.url}
-                      className="group flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-all duration-150 text-sidebar-foreground hover:text-foreground hover:bg-sidebar-accent/60"
-                      activeClassName="!bg-primary/10 !text-primary font-medium"
-                    >
-                      <item.icon className="w-4 h-4 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity" />
-                      {!collapsed && <span>{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <SidebarNavGroup items={mainItems} label="Analytics" collapsed={collapsed} />
+        <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
+        <SidebarNavGroup items={settingsItems} label="Settings" collapsed={collapsed} />
       </SidebarContent>
 
-      <SidebarFooter className="p-3 border-t border-sidebar-border/60 space-y-2.5">
+      <SidebarFooter className="p-3 border-t border-sidebar-border/40 space-y-2.5">
         {!collapsed && (
-          <div className="rounded-lg bg-sidebar-accent/50 border border-border/30 p-3">
+          <div className="rounded-lg bg-sidebar-accent/30 border border-border/20 p-3 backdrop-blur-sm">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-medium text-muted-foreground">Free Plan</span>
-              <span className="text-[11px] font-semibold text-primary tabular-nums">
+              <span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">Free Plan</span>
+              <span className="text-[10px] font-bold text-primary tabular-nums">
                 {eventCount.toLocaleString()}/{eventLimit.toLocaleString()}
               </span>
             </div>
-            <div className="w-full h-1 bg-muted/60 rounded-full overflow-hidden">
+            <div className="w-full h-1 bg-muted/40 rounded-full overflow-hidden">
               <div
-                className="h-full rounded-full bg-primary/80 transition-all duration-500"
-                style={{ width: `${eventPct}%` }}
+                className="h-full rounded-full transition-all duration-700"
+                style={{
+                  width: `${eventPct}%`,
+                  background: 'linear-gradient(90deg, hsl(199 89% 48%), hsl(265 80% 60%))',
+                }}
               />
             </div>
           </div>
@@ -132,7 +121,7 @@ export function AppSidebar() {
         {user && !collapsed && (
           <button
             onClick={signOut}
-            className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full px-2 py-1 rounded-md hover:bg-sidebar-accent/40"
+            className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-all duration-200 w-full px-2 py-1.5 rounded-md hover:bg-sidebar-accent/40"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span className="truncate">Sair ({user.email?.split("@")[0]})</span>
