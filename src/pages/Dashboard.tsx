@@ -123,7 +123,41 @@ export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useEventStats(workspace?.id);
   const { data: orderStats, isLoading: orderLoading } = useOrderStats(workspace?.id);
   const { data: recentEvents, isLoading: eventsLoading } = useRecentEvents(workspace?.id);
+  const navigate = useNavigate();
 
+  // Fetch recent AI insights
+  const { data: aiInsights } = useQuery({
+    queryKey: ["dashboard-insights", workspace?.id],
+    enabled: !!workspace?.id,
+    refetchInterval: 120000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("ai_insights")
+        .select("*")
+        .eq("workspace_id", workspace!.id)
+        .eq("dismissed", false)
+        .order("created_at", { ascending: false })
+        .limit(4);
+      return data || [];
+    },
+  });
+
+  // Fetch anomaly alerts
+  const { data: anomalies } = useQuery({
+    queryKey: ["dashboard-anomalies", workspace?.id],
+    enabled: !!workspace?.id,
+    refetchInterval: 60000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("anomaly_alerts")
+        .select("*")
+        .eq("workspace_id", workspace!.id)
+        .eq("acknowledged", false)
+        .order("detected_at", { ascending: false })
+        .limit(5);
+      return data || [];
+    },
+  });
   const isLoading = wsLoading || statsLoading || orderLoading;
 
   if (!wsLoading && !workspace) {
