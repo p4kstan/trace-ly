@@ -275,6 +275,7 @@ export default function SystemDiagnostic() {
             </div>
           </CardContent>
         </Card>
+      )}
 
       {/* Overall Status Card */}
       {result && (
