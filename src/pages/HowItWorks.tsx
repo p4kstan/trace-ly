@@ -1,293 +1,19 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  Server, Globe, Send, Code, Shield,
-  ArrowRight, ArrowLeft, CheckCircle, ChevronDown, ChevronUp,
-  Zap, ExternalLink, Radio, Key, FileText,
-  Monitor, Cloud, Database, Workflow,
-} from "lucide-react";
-
-const PILLARS = [
-  {
-    id: "server",
-    icon: Server,
-    title: "1. Servidor (Backend)",
-    subtitle: "Quem recebe os eventos",
-    color: "text-blue-400",
-    bgColor: "bg-blue-500/10",
-    borderColor: "border-blue-500/20",
-    summary: "Você precisa de um servidor que receba os eventos enviados pelo seu site. É ele que processa, valida e distribui tudo.",
-    explanation: [
-      "Quando um usuário faz uma ação no seu site (compra, cadastro, clique), essa informação precisa ir para algum lugar. O navegador sozinho não consegue enviar para Meta, Google, TikTok de forma confiável — bloqueadores de anúncios, ITP do Safari e restrições de cookies impedem isso.",
-      "A solução é ter um servidor intermediário. O site envia para o SEU servidor, e ele repassa para as plataformas de anúncio. Isso é o que chamam de 'Server-Side Tracking'.",
-      "Opções comuns: VPS, Cloudflare Workers, Vercel, ou Supabase Edge Functions. O CapiTrack AI já usa Supabase Edge Functions como backend — você não precisa configurar nenhum servidor.",
-    ],
-    referenceLinks: [
-      { label: "DigitalOcean", url: "https://www.digitalocean.com" },
-      { label: "AWS", url: "https://aws.amazon.com" },
-      { label: "Google Cloud", url: "https://cloud.google.com" },
-      { label: "Cloudflare Workers", url: "https://workers.cloudflare.com" },
-      { label: "Vercel", url: "https://vercel.com" },
-      { label: "Supabase Edge Functions", url: "https://supabase.com/edge-functions" },
-    ],
-    whatCapitrackDoes: "O CapiTrack AI já possui um servidor pronto (Edge Functions) que recebe, processa e distribui seus eventos automaticamente. Zero configuração de infraestrutura.",
-    status: "configured",
-    actionLabel: "Ver System Health",
-    actionRoute: "/system-diagnostic",
-  },
-  {
-    id: "endpoint",
-    icon: Radio,
-    title: "2. Endpoint de Coleta",
-    subtitle: "Para onde o site envia os dados",
-    color: "text-emerald-400",
-    bgColor: "bg-emerald-500/10",
-    borderColor: "border-emerald-500/20",
-    summary: "Um endpoint é uma URL que recebe os eventos. Tipo: https://tracking.seudominio.com/collect",
-    explanation: [
-      "O endpoint de coleta é a 'porta de entrada' dos seus eventos. É uma URL que aceita requisições POST com dados como: nome do evento, valor, e-mail do usuário, UTMs, etc.",
-      "Exemplo de payload que chega no endpoint:",
-      '{\n  "event": "purchase",\n  "value": 297,\n  "email": "user@email.com",\n  "utm_source": "facebook",\n  "utm_campaign": "black_friday"\n}',
-      "O endpoint precisa: validar a API Key, verificar o domínio de origem, resolver a identidade do usuário (via email/telefone/fingerprint), salvar o evento no banco e acionar o roteamento para as plataformas.",
-      "No CapiTrack, o endpoint é: /functions/v1/track — ele faz tudo isso automaticamente, incluindo deduplicação por event_id para evitar contagem duplicada.",
-    ],
-    referenceLinks: [],
-    whatCapitrackDoes: "Seu endpoint já está ativo em /functions/v1/track. Ele valida keys, resolve identidade, persiste eventos e aciona o EventRouter — tudo automático.",
-    status: "configured",
-    actionLabel: "Criar API Key",
-    actionRoute: "/api-keys",
-  },
-  {
-    id: "destinations",
-    icon: Send,
-    title: "3. Envio para Plataformas (CAPI)",
-    subtitle: "Meta, Google, TikTok recebem seus eventos",
-    color: "text-purple-400",
-    bgColor: "bg-purple-500/10",
-    borderColor: "border-purple-500/20",
-    summary: "Depois de receber o evento, seu servidor precisa repassar para Meta Conversions API, GA4, TikTok Events API, etc.",
-    explanation: [
-      "Cada plataforma de anúncio tem sua própria API para receber eventos server-side:",
-      "• Meta Conversions API (CAPI) — Envia Purchase, Lead, AddToCart, etc. Precisa de: Pixel ID e Access Token. Suporta batching de até 1000 eventos por request.",
-      "• Google Analytics 4 (GA4) — Measurement Protocol. Envia eventos para o GA4. Precisa de: Measurement ID e API Secret.",
-      "• TikTok Events API — Similar à Meta CAPI. Precisa de: Pixel Code e Access Token.",
-      "• Google Ads — Enhanced Conversions API para otimização de campanhas.",
-      "O grande desafio é manter cada integração atualizada (APIs mudam), tratar erros, implementar retries com backoff exponencial e garantir que nenhum evento se perca.",
-      "O CapiTrack faz isso via EventRouter: quando um evento chega, ele automaticamente distribui para TODOS os destinos ativos do seu workspace, com retries automáticos e logs detalhados.",
-    ],
-    referenceLinks: [
-      { label: "Meta Conversions API", url: "https://developers.facebook.com/docs/marketing-api/conversions-api" },
-      { label: "GA4 Measurement Protocol", url: "https://developers.google.com/analytics/devguides/collection/protocol/ga4" },
-      { label: "TikTok Events API", url: "https://business-api.tiktok.com/portal/docs?id=1741601162187777" },
-      { label: "Google Ads API", url: "https://developers.google.com/google-ads/api/docs/conversions/overview" },
-    ],
-    whatCapitrackDoes: "O EventRouter distribui automaticamente para todos os destinos configurados. Suporta Meta CAPI (batch), GA4, TikTok e Google Ads com retries e logs completos.",
-    status: "action_needed",
-    actionLabel: "Configurar Destinos",
-    actionRoute: "/integrations",
-  },
-  {
-    id: "domain",
-    icon: Globe,
-    title: "4. Domínio Próprio",
-    subtitle: "Mais confiança e menos bloqueios",
-    color: "text-amber-400",
-    bgColor: "bg-amber-500/10",
-    borderColor: "border-amber-500/20",
-    summary: "Usar tracking.seudominio.com ao invés de domínios terceiros melhora a precisão e evita bloqueios.",
-    explanation: [
-      "Bloqueadores de anúncios funcionam com listas de domínios conhecidos. Se seu tracking usa um domínio terceiro (como connect.facebook.net), ele é bloqueado facilmente.",
-      "Com domínio próprio (tracking.seudominio.com), o navegador trata como first-party — cookies duram mais, bloqueadores não interferem e a taxa de match de identidade sobe significativamente.",
-      "Como configurar:",
-      "1. Adicione um subdomínio DNS (ex: tracking.seudominio.com) apontando para seu servidor",
-      "2. Configure SSL (HTTPS é obrigatório)",
-      "3. Cadastre os domínios permitidos no CapiTrack para validação de segurança (Origin/Referer)",
-      "O CapiTrack valida o header Origin/Referer de cada evento contra a lista de domínios permitidos do workspace. Suporta wildcards (*.seudominio.com).",
-    ],
-    referenceLinks: [
-      { label: "Cloudflare DNS", url: "https://www.cloudflare.com/dns/" },
-      { label: "Let's Encrypt (SSL grátis)", url: "https://letsencrypt.org" },
-      { label: "Namecheap", url: "https://www.namecheap.com" },
-    ],
-    whatCapitrackDoes: "Cadastre seus domínios em Tracking Sources. O sistema valida automaticamente a origem dos eventos para segurança. Suporte a wildcards.",
-    status: "action_needed",
-    actionLabel: "Cadastrar Domínio",
-    actionRoute: "/tracking-sources",
-  },
-  {
-    id: "script",
-    icon: Code,
-    title: "5. Script no Site (SDK)",
-    subtitle: "Captura eventos do navegador",
-    color: "text-rose-400",
-    bgColor: "bg-rose-500/10",
-    borderColor: "border-rose-500/20",
-    summary: "Um script JavaScript no seu site captura ações do usuário e envia para o seu endpoint.",
-    explanation: [
-      "O SDK é um script leve (~5KB) que você cola no HTML do seu site. Ele captura automaticamente:",
-      "• PageView — cada página visitada\n• UTMs — utm_source, utm_medium, utm_campaign, utm_content, utm_term\n• Click IDs — fbclid (Meta), gclid (Google), ttclid (TikTok)\n• Cookies Meta — _fbp e _fbc para melhorar o match rate\n• Fingerprint — identificação anônima do navegador\n• Sessão — gerenciamento automático com timeout de 30min",
-      "Além da captura automática, você pode rastrear eventos customizados:",
-      'capitrack("track", "Purchase", {\n  value: 297.00,\n  currency: "BRL",\n  email: "cliente@email.com"\n});',
-      'Ou identificar o usuário:\n\ncapitrack("identify", {\n  email: "cliente@email.com",\n  phone: "5511999999999"\n});',
-      "O SDK envia tudo via POST para o endpoint /track com a API Key configurada. Funciona com qualquer site: WordPress, Shopify, HTML, React, etc.",
-    ],
-    referenceLinks: [
-      { label: "Google Tag Manager", url: "https://tagmanager.google.com" },
-      { label: "Meta Pixel Helper", url: "https://www.facebook.com/business/help/742478679120153" },
-      { label: "WordPress", url: "https://wordpress.org" },
-      { label: "Shopify", url: "https://www.shopify.com" },
-    ],
-    whatCapitrackDoes: "SDK v3 pronto para copiar e colar. Captura automática de PageView, UTMs, click IDs, cookies, fingerprint e sessões. Modo debug visual incluso.",
-    status: "action_needed",
-    actionLabel: "Copiar SDK",
-    actionRoute: "/sdk-setup",
-  },
-];
-
-function PillarCard({
-  pillar,
-  index,
-  isActive,
-  isCompleted,
-  onSelect,
-}: {
-  pillar: typeof PILLARS[0];
-  index: number;
-  isActive: boolean;
-  isCompleted: boolean;
-  onSelect: () => void;
-}) {
-  const navigate = useNavigate();
-  const [expanded, setExpanded] = useState(false);
-
-  return (
-    <Card
-      className={`glass-card transition-all duration-300 cursor-pointer ${
-        isActive ? `ring-1 ${pillar.borderColor} ${pillar.bgColor}` : "hover:border-border/50"
-      }`}
-      onClick={onSelect}
-    >
-      <CardContent className="p-0">
-        {/* Header */}
-        <div className="flex items-center gap-4 p-4">
-          <div className={`w-12 h-12 rounded-xl ${pillar.bgColor} flex items-center justify-center shrink-0`}>
-            <pillar.icon className={`w-6 h-6 ${pillar.color}`} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-foreground">{pillar.title}</h3>
-              {pillar.status === "configured" && (
-                <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px]">
-                  <CheckCircle className="w-3 h-3 mr-1" /> Pronto
-                </Badge>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground mt-0.5">{pillar.subtitle}</p>
-          </div>
-          <button
-            onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
-            className="p-1.5 rounded-lg hover:bg-muted/50 transition-colors"
-          >
-            {expanded ? (
-              <ChevronUp className="w-4 h-4 text-muted-foreground" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-muted-foreground" />
-            )}
-          </button>
-        </div>
-
-        {/* Summary always visible */}
-        <div className="px-4 pb-3">
-          <p className="text-xs text-muted-foreground leading-relaxed">{pillar.summary}</p>
-        </div>
-
-        {/* Expanded content */}
-        {expanded && (
-          <div className="border-t border-border/30 px-4 py-4 space-y-4 animate-fade-in">
-            {/* Detailed explanation */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5 text-primary" /> Explicação Detalhada
-              </h4>
-              {pillar.explanation.map((text, i) => (
-                <div key={i}>
-                  {text.includes("{") || text.includes("capitrack(") ? (
-                    <pre className="bg-muted/30 border border-border/30 rounded-lg p-3 text-[11px] font-mono text-foreground overflow-x-auto leading-relaxed">
-                      {text}
-                    </pre>
-                  ) : text.startsWith("•") ? (
-                    <p className="text-xs text-muted-foreground leading-relaxed pl-2">{text}</p>
-                  ) : (
-                    <p className="text-xs text-muted-foreground leading-relaxed">{text}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Reference links */}
-            {pillar.referenceLinks && pillar.referenceLinks.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <ExternalLink className="w-3.5 h-3.5 text-primary" /> Links de Referência
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {pillar.referenceLinks.map((link, i) => (
-                    <a
-                      key={i}
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/30 border border-border/30 text-[11px] text-muted-foreground hover:text-primary hover:border-primary/30 transition-colors"
-                    >
-                      <ExternalLink className="w-3 h-3" />
-                      {link.label}
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-
-
-            <div className={`${pillar.bgColor} border ${pillar.borderColor} rounded-lg p-3`}>
-              <div className="flex items-start gap-2">
-                <Zap className={`w-4 h-4 ${pillar.color} mt-0.5 shrink-0`} />
-                <div>
-                  <p className="text-xs font-semibold text-foreground mb-1">O que o CapiTrack AI já faz por você:</p>
-                  <p className="text-xs text-muted-foreground leading-relaxed">{pillar.whatCapitrackDoes}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Action button */}
-            <Button
-              size="sm"
-              className="w-full gap-2 text-xs"
-              onClick={(e) => { e.stopPropagation(); navigate(pillar.actionRoute); }}
-            >
-              {pillar.actionLabel} <ArrowRight className="w-3.5 h-3.5" />
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Workflow, Monitor, Cloud, Database, Send, ArrowRight } from "lucide-react";
+import PlatformWizard from "@/components/how-it-works/PlatformWizard";
+import { FACEBOOK_STEPS } from "@/components/how-it-works/facebook-steps";
+import { GOOGLE_STEPS } from "@/components/how-it-works/google-steps";
 
 export default function HowItWorks() {
-  const navigate = useNavigate();
-  const [activePillar, setActivePillar] = useState<number | null>(null);
-
   return (
     <div className="space-y-6 max-w-3xl">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gradient-primary">Como Funciona</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Entenda os 5 pilares do tracking server-side e como o CapiTrack já resolve cada um
+          Configure o rastreamento server-side passo a passo para cada plataforma
         </p>
       </div>
 
@@ -300,9 +26,9 @@ export default function HowItWorks() {
           <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
             {[
               { icon: Monitor, label: "Seu Site", sub: "SDK captura eventos" },
-              { icon: Cloud, label: "Seu Servidor", sub: "CapiTrack (Edge Functions)" },
+              { icon: Cloud, label: "CapiTrack", sub: "Servidor (Edge Functions)" },
               { icon: Database, label: "Banco de Dados", sub: "Eventos persistidos" },
-              { icon: Send, label: "Plataformas", sub: "Meta / GA4 / TikTok" },
+              { icon: Send, label: "Plataformas", sub: "Meta / GA4 / Google Ads" },
             ].map((item, i, arr) => (
               <div key={i} className="flex items-center gap-2">
                 <div className="bg-muted/40 border border-border/30 rounded-lg px-4 py-3 text-center min-w-[100px]">
@@ -314,48 +40,40 @@ export default function HowItWorks() {
               </div>
             ))}
           </div>
-          <p className="text-xs text-muted-foreground text-center mt-4 leading-relaxed">
-            Isso é exatamente o que plataformas como Stape fazem — mas aqui você tem <strong className="text-foreground">controle total</strong>, sem mensalidade extra e com multi-plataforma nativo.
-          </p>
         </CardContent>
       </Card>
 
-      {/* 5 Pillars */}
-      <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-          <Shield className="w-4 h-4 text-primary" /> Os 5 Pilares — Clique para expandir
-        </h2>
-        {PILLARS.map((pillar, i) => (
-          <PillarCard
-            key={pillar.id}
-            pillar={pillar}
-            index={i}
-            isActive={activePillar === i}
-            isCompleted={pillar.status === "configured"}
-            onSelect={() => setActivePillar(activePillar === i ? null : i)}
+      {/* Platform tabs */}
+      <Tabs defaultValue="facebook" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="facebook" className="gap-2 text-xs">
+            <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+            Facebook / Meta
+          </TabsTrigger>
+          <TabsTrigger value="google" className="gap-2 text-xs">
+            <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+            Google (GA4 + Ads)
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="facebook">
+          <PlatformWizard
+            steps={FACEBOOK_STEPS}
+            platformColor="text-blue-400"
+            platformBg="bg-blue-500/10"
+            platformBorder="border-blue-500/20"
           />
-        ))}
-      </div>
+        </TabsContent>
 
-      {/* Quick start CTA */}
-      <Card className="glass-card border-primary/20 bg-primary/[0.03]">
-        <CardContent className="p-5">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-              <Zap className="w-6 h-6 text-primary" />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-sm font-semibold text-foreground">Pronto para começar?</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Siga o guia interativo passo-a-passo e configure tudo em minutos.
-              </p>
-            </div>
-            <Button size="sm" className="gap-2 shrink-0" onClick={() => navigate("/tracking-guide")}>
-              Iniciar Setup <ArrowRight className="w-3.5 h-3.5" />
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+        <TabsContent value="google">
+          <PlatformWizard
+            steps={GOOGLE_STEPS}
+            platformColor="text-amber-400"
+            platformBg="bg-amber-500/10"
+            platformBorder="border-amber-500/20"
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
