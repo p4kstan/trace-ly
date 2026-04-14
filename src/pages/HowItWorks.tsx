@@ -78,6 +78,12 @@ const PILLARS = [
       "O grande desafio é manter cada integração atualizada (APIs mudam), tratar erros, implementar retries com backoff exponencial e garantir que nenhum evento se perca.",
       "O CapiTrack faz isso via EventRouter: quando um evento chega, ele automaticamente distribui para TODOS os destinos ativos do seu workspace, com retries automáticos e logs detalhados.",
     ],
+    referenceLinks: [
+      { label: "Meta Conversions API", url: "https://developers.facebook.com/docs/marketing-api/conversions-api" },
+      { label: "GA4 Measurement Protocol", url: "https://developers.google.com/analytics/devguides/collection/protocol/ga4" },
+      { label: "TikTok Events API", url: "https://business-api.tiktok.com/portal/docs?id=1741601162187777" },
+      { label: "Google Ads API", url: "https://developers.google.com/google-ads/api/docs/conversions/overview" },
+    ],
     whatCapitrackDoes: "O EventRouter distribui automaticamente para todos os destinos configurados. Suporta Meta CAPI (batch), GA4, TikTok e Google Ads com retries e logs completos.",
     status: "action_needed",
     actionLabel: "Configurar Destinos",
