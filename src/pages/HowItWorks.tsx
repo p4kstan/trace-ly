@@ -134,6 +134,12 @@ const PILLARS = [
       'Ou identificar o usuário:\n\ncapitrack("identify", {\n  email: "cliente@email.com",\n  phone: "5511999999999"\n});',
       "O SDK envia tudo via POST para o endpoint /track com a API Key configurada. Funciona com qualquer site: WordPress, Shopify, HTML, React, etc.",
     ],
+    referenceLinks: [
+      { label: "Google Tag Manager", url: "https://tagmanager.google.com" },
+      { label: "Meta Pixel Helper", url: "https://www.facebook.com/business/help/742478679120153" },
+      { label: "WordPress", url: "https://wordpress.org" },
+      { label: "Shopify", url: "https://www.shopify.com" },
+    ],
     whatCapitrackDoes: "SDK v3 pronto para copiar e colar. Captura automática de PageView, UTMs, click IDs, cookies, fingerprint e sessões. Modo debug visual incluso.",
     status: "action_needed",
     actionLabel: "Copiar SDK",
