@@ -1,12 +1,12 @@
 /**
- * CapiTrack AI SDK v2.0
- * Full-featured server-side event tracking with UTM persistence,
- * identity resolution, and click ID capture.
+ * CapiTrack AI SDK v3.0
+ * Full server-side event tracking with UTM persistence,
+ * identity resolution, click ID capture, debug mode, and page tracking.
  */
 (function(window, document) {
   'use strict';
 
-  var SDK_VERSION = '2.0.0';
+  var SDK_VERSION = '3.0.0';
   var BATCH_INTERVAL = 2000;
   var MAX_BATCH_SIZE = 20;
   var COOKIE_DAYS = 390;
@@ -16,10 +16,13 @@
   var UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
   var CLICK_IDS = ['fbclid', 'gclid', 'ttclid'];
 
-  var config = { apiKey: '', endpoint: '', debug: false };
+  var config = { apiKey: '', endpoint: '', debug: false, autoPageView: true, trackSPA: false };
   var eventQueue = [];
   var batchTimer = null;
   var identifiedUser = {};
+  var initialized = false;
+  var debugPanel = null;
+  var debugLogs = [];
 
   // ---- Utilities ----
   function generateId() {
@@ -30,7 +33,12 @@
   }
 
   function log() {
-    if (config.debug) console.log.apply(console, ['[CapiTrack]'].concat(Array.prototype.slice.call(arguments)));
+    if (config.debug) {
+      var args = ['[CapiTrack]'].concat(Array.prototype.slice.call(arguments));
+      console.log.apply(console, args);
+      debugLogs.push({ ts: new Date().toISOString(), msg: Array.prototype.slice.call(arguments).join(' ') });
+      updateDebugPanel();
+    }
   }
 
   function getCookie(name) {
@@ -61,13 +69,12 @@
     return id;
   }
 
-  // ---- UTM Persistence (cookie + localStorage + sessionStorage) ----
+  // ---- UTM Persistence ----
   function captureAndPersistUTMs() {
     var params = new URLSearchParams(window.location.search);
     var utms = {};
     var hasNew = false;
 
-    // UTM params
     UTM_KEYS.forEach(function(key) {
       var val = params.get(key);
       if (val) {
@@ -77,13 +84,11 @@
         setSS('ct_' + key, val);
         hasNew = true;
       } else {
-        // Fallback: session > local > cookie
         var stored = getSS('ct_' + key) || getLS('ct_' + key) || getCookie('ct_' + key);
         if (stored) utms[key] = stored;
       }
     });
 
-    // Click IDs
     CLICK_IDS.forEach(function(key) {
       var val = params.get(key);
       if (val) {
@@ -96,26 +101,17 @@
       }
     });
 
-    // First touch vs last touch
     if (hasNew) {
-      // Save as last touch
       setLS('ct_last_touch', JSON.stringify(utms));
-      // Save first touch only if not set
       if (!getLS('ct_first_touch')) {
         setLS('ct_first_touch', JSON.stringify(utms));
       }
     }
-
     return utms;
   }
 
-  function getFirstTouch() {
-    try { return JSON.parse(getLS('ct_first_touch') || '{}'); } catch(e) { return {}; }
-  }
-
-  function getLastTouch() {
-    try { return JSON.parse(getLS('ct_last_touch') || '{}'); } catch(e) { return {}; }
-  }
+  function getFirstTouch() { try { return JSON.parse(getLS('ct_first_touch') || '{}'); } catch(e) { return {}; } }
+  function getLastTouch() { try { return JSON.parse(getLS('ct_last_touch') || '{}'); } catch(e) { return {}; } }
 
   // ---- Facebook Parameters ----
   function getFbp() {
@@ -160,6 +156,39 @@
     return lp;
   }
 
+  // ---- Debug Panel ----
+  function createDebugPanel() {
+    if (debugPanel) return;
+    debugPanel = document.createElement('div');
+    debugPanel.id = 'ct-debug-panel';
+    debugPanel.style.cssText = 'position:fixed;bottom:10px;right:10px;width:360px;max-height:300px;overflow-y:auto;background:#1a1a2e;color:#0ff;font-family:monospace;font-size:11px;padding:10px;border-radius:8px;border:1px solid #0ff3;z-index:99999;box-shadow:0 4px 20px rgba(0,255,255,0.1);';
+    var header = document.createElement('div');
+    header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #0ff3;';
+    header.innerHTML = '<span style="font-weight:bold;font-size:12px;">🔍 CapiTrack Debug v' + SDK_VERSION + '</span>';
+    var closeBtn = document.createElement('span');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = 'cursor:pointer;color:#f55;font-size:14px;';
+    closeBtn.onclick = function() { debugPanel.style.display = 'none'; };
+    header.appendChild(closeBtn);
+    debugPanel.appendChild(header);
+    var content = document.createElement('div');
+    content.id = 'ct-debug-content';
+    debugPanel.appendChild(content);
+    document.body.appendChild(debugPanel);
+  }
+
+  function updateDebugPanel() {
+    if (!debugPanel) return;
+    var content = document.getElementById('ct-debug-content');
+    if (!content) return;
+    var last10 = debugLogs.slice(-15);
+    content.innerHTML = last10.map(function(l) {
+      var time = l.ts.split('T')[1].split('.')[0];
+      return '<div style="margin:2px 0;opacity:0.9;"><span style="color:#888;">' + time + '</span> ' + l.msg + '</div>';
+    }).join('');
+    content.scrollTop = content.scrollHeight;
+  }
+
   // ---- Build Event ----
   function buildEvent(eventName, data) {
     var utms = captureAndPersistUTMs();
@@ -180,16 +209,13 @@
       sdk_version: SDK_VERSION
     };
 
-    // Merge UTMs and click IDs
     for (var k in utms) event[k] = utms[k];
 
-    // Identified user data
     if (Object.keys(identifiedUser).length > 0) {
       event.user_data = {};
       for (var u in identifiedUser) event.user_data[u] = identifiedUser[u];
     }
 
-    // Custom data from caller
     if (data) {
       var userFields = ['email', 'phone', 'first_name', 'last_name', 'city', 'state', 'zip', 'country', 'external_id', 'name'];
       var userData = event.user_data || {};
@@ -218,10 +244,19 @@
         xhr.open('POST', config.endpoint, true);
         xhr.setRequestHeader('Content-Type', 'application/json');
         xhr.setRequestHeader('X-Api-Key', config.apiKey);
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState === 4) {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              log('✓ ' + event.event_name + ' sent (status ' + xhr.status + ')');
+            } else {
+              log('✗ ' + event.event_name + ' failed (status ' + xhr.status + '): ' + xhr.responseText);
+            }
+          }
+        };
         xhr.send(JSON.stringify(event));
       } catch(e) { log('Send error:', e); }
     });
-    log('Sent ' + events.length + ' events');
+    log('Dispatched ' + events.length + ' events');
   }
 
   function flushQueue() {
@@ -235,6 +270,37 @@
       flushQueue();
     } else if (!batchTimer) {
       batchTimer = setTimeout(function() { batchTimer = null; flushQueue(); }, BATCH_INTERVAL);
+    }
+  }
+
+  // ---- SPA Route Change ----
+  function setupSPATracking() {
+    if (!config.trackSPA) return;
+    var lastPath = window.location.pathname;
+
+    // Listen to pushState/replaceState
+    var origPushState = history.pushState;
+    var origReplaceState = history.replaceState;
+
+    history.pushState = function() {
+      origPushState.apply(this, arguments);
+      onRouteChange();
+    };
+    history.replaceState = function() {
+      origReplaceState.apply(this, arguments);
+      onRouteChange();
+    };
+    window.addEventListener('popstate', onRouteChange);
+
+    function onRouteChange() {
+      setTimeout(function() {
+        var newPath = window.location.pathname;
+        if (newPath !== lastPath) {
+          lastPath = newPath;
+          enqueueEvent(buildEvent('PageView'));
+          log('SPA PageView: ' + newPath);
+        }
+      }, 50);
     }
   }
 
@@ -260,38 +326,47 @@
         config.apiKey = apiKey;
         config.endpoint = options.endpoint || (window.location.origin + '/functions/v1/track');
         config.debug = !!options.debug;
+        config.autoPageView = options.autoPageView !== false;
+        config.trackSPA = !!options.trackSPA;
+        initialized = true;
         captureAndPersistUTMs();
         setupAutoTracking();
-        log('Initialized v' + SDK_VERSION);
-        if (options.autoPageView !== false) {
+        if (config.debug) createDebugPanel();
+        log('Initialized v' + SDK_VERSION + ' | key: ' + apiKey.substring(0, 8) + '...');
+        log('Endpoint: ' + config.endpoint);
+        log('Anonymous ID: ' + getAnonymousId().substring(0, 8) + '...');
+        log('Session: ' + getSessionId().substring(0, 8) + '...');
+        if (config.autoPageView) {
           enqueueEvent(buildEvent('PageView'));
-          log('Auto PageView');
+          log('Auto PageView: ' + window.location.pathname);
         }
+        setupSPATracking();
         break;
 
       case 'page':
         enqueueEvent(buildEvent('PageView', args[0]));
-        log('PageView');
+        log('PageView: ' + window.location.pathname);
         break;
 
       case 'track':
         if (!args[0]) { console.error('[CapiTrack] Event name required'); return; }
         enqueueEvent(buildEvent(args[0], args[1]));
-        log('Event:', args[0]);
+        log('Event: ' + args[0]);
         break;
 
       case 'identify':
         if (args[0]) {
           for (var k in args[0]) identifiedUser[k] = args[0][k];
-          // Persist identity for cross-session matching
           setLS(IDENTITY_KEY, JSON.stringify(identifiedUser));
-          log('Identified:', Object.keys(args[0]));
+          log('Identified: ' + Object.keys(args[0]).join(', '));
+          // Send identify event to server for identity resolution
+          enqueueEvent(buildEvent('Identify', args[0]));
         }
         break;
 
       case 'purchase':
         enqueueEvent(buildEvent('Purchase', args[0]));
-        log('Purchase');
+        log('Purchase: ' + JSON.stringify(args[0] || {}));
         break;
 
       case 'lead':
@@ -327,6 +402,24 @@
       case 'getAttribution':
         return { firstTouch: getFirstTouch(), lastTouch: getLastTouch() };
 
+      case 'debug':
+        config.debug = args[0] !== false;
+        if (config.debug) createDebugPanel();
+        else if (debugPanel) debugPanel.style.display = 'none';
+        break;
+
+      case 'reset':
+        identifiedUser = {};
+        setLS(IDENTITY_KEY, '{}');
+        log('Identity reset');
+        break;
+
+      case 'getSessionId':
+        return getSessionId();
+
+      case 'getAnonymousId':
+        return getAnonymousId();
+
       default:
         console.warn('[CapiTrack] Unknown command:', command);
     }
@@ -340,8 +433,9 @@
 
   // Process pre-init queue
   var existingQueue = (window.capitrack && window.capitrack.q) || [];
-  window.capitrack = function() { processCommand.apply(null, arguments); };
+  window.capitrack = function() { return processCommand.apply(null, arguments); };
   window.capitrack.q = [];
+  window.capitrack.version = SDK_VERSION;
   for (var i = 0; i < existingQueue.length; i++) processCommand.apply(null, existingQueue[i]);
 
   log('SDK v' + SDK_VERSION + ' loaded');

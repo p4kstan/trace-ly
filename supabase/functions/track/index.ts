@@ -12,6 +12,7 @@ const supabase = createClient(
 
 // ── In-memory caches (per isolate, ~5min TTL) ──
 const apiKeyCache = new Map<string, { workspaceId: string; keyId: string; ts: number }>();
+const domainCache = new Map<string, { domains: string[]; ts: number }>();
 const API_KEY_TTL = 5 * 60 * 1000;
 
 function getCachedApiKey(key: string) {
@@ -21,11 +22,70 @@ function getCachedApiKey(key: string) {
   return null;
 }
 
+function getCachedDomains(workspaceId: string) {
+  const entry = domainCache.get(workspaceId);
+  if (entry && Date.now() - entry.ts < API_KEY_TTL) return entry.domains;
+  domainCache.delete(workspaceId);
+  return null;
+}
+
 // SHA-256 hashing aligned with Meta CAPI requirements
 async function hashSHA256(value: string): Promise<string> {
   const data = new TextEncoder().encode(value.trim().toLowerCase());
   const hash = await crypto.subtle.digest("SHA-256", data);
   return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+// ── Domain validation ──
+function extractDomain(url: string): string | null {
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+function isDomainAllowed(requestDomain: string, allowedDomains: string[]): boolean {
+  if (allowedDomains.length === 0) return true; // no restrictions configured
+  return allowedDomains.some(pattern => {
+    if (pattern === "*") return true;
+    if (pattern.startsWith("*.")) {
+      const suffix = pattern.slice(2);
+      return requestDomain === suffix || requestDomain.endsWith("." + suffix);
+    }
+    return requestDomain === pattern.toLowerCase();
+  });
+}
+
+async function validateDomain(req: Request, workspaceId: string): Promise<{ valid: boolean; domain?: string }> {
+  const origin = req.headers.get("origin");
+  const referer = req.headers.get("referer");
+  const requestDomain = extractDomain(origin || referer || "");
+
+  if (!requestDomain) return { valid: true }; // server-to-server calls have no origin
+
+  let domains = getCachedDomains(workspaceId);
+  if (!domains) {
+    const { data } = await supabase
+      .from("allowed_domains")
+      .select("domain")
+      .eq("meta_pixel_id", workspaceId);
+    // Also check tracking_sources
+    const { data: sources } = await supabase
+      .from("tracking_sources")
+      .select("primary_domain")
+      .eq("workspace_id", workspaceId)
+      .eq("status", "active");
+
+    domains = [
+      ...(data || []).map(d => d.domain),
+      ...(sources || []).map(s => s.primary_domain).filter(Boolean),
+    ];
+    domainCache.set(workspaceId, { domains, ts: Date.now() });
+  }
+
+  if (domains.length === 0) return { valid: true, domain: requestDomain };
+  return { valid: isDomainAllowed(requestDomain, domains), domain: requestDomain };
 }
 
 Deno.serve(async (req) => {
@@ -75,6 +135,16 @@ Deno.serve(async (req) => {
       apiKeyCache.set(apiKey, { workspaceId, keyId, ts: Date.now() });
     }
 
+    // ── Domain validation ──
+    const domainCheck = await validateDomain(req, workspaceId);
+    if (!domainCheck.valid) {
+      console.warn(`Domain blocked: ${domainCheck.domain} for workspace ${workspaceId}`);
+      return new Response(
+        JSON.stringify({ error: "Domain not allowed", domain: domainCheck.domain }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Fire-and-forget: update last_used_at
     supabase.from("api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", keyId).then(() => {});
 
@@ -88,7 +158,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ── Rate limit: check workspace usage (after validation, before expensive processing) ──
+    // ── Rate limit: check workspace usage ──
     const { data: usageResult } = await supabase.rpc("increment_workspace_usage", { _workspace_id: workspaceId });
     if (usageResult && typeof usageResult === "object" && (usageResult as any).allowed === false) {
       return new Response(
@@ -156,12 +226,12 @@ Deno.serve(async (req) => {
           ip_hash: ipHash,
           user_agent: userAgent,
           referrer: body.referrer || null,
-          landing_page: body.url || null,
-          utm_source: body.utm_source || null,
-          utm_medium: body.utm_medium || null,
-          utm_campaign: body.utm_campaign || null,
-          utm_content: body.utm_content || null,
-          utm_term: body.utm_term || null,
+          landing_page: body.url || body.landing_page || null,
+          utm_source: body.utm_source || body.utm?.utm_source || null,
+          utm_medium: body.utm_medium || body.utm?.utm_medium || null,
+          utm_campaign: body.utm_campaign || body.utm?.utm_campaign || null,
+          utm_content: body.utm_content || body.utm?.utm_content || null,
+          utm_term: body.utm_term || body.utm?.utm_term || null,
           fbp: body.fbp || null,
           fbc: body.fbc || null,
         })
@@ -184,7 +254,7 @@ Deno.serve(async (req) => {
         event_time: new Date().toISOString(),
         source: body.source || null,
         action_source: body.action_source || "website",
-        event_source_url: body.url || null,
+        event_source_url: body.url || body.page_url || null,
         page_path: body.page_path || null,
         payload_json: body.payload || null,
         user_data_json: body.user_data || null,
@@ -204,17 +274,18 @@ Deno.serve(async (req) => {
     }
 
     // ── Fire-and-forget: attribution touch ──
-    if (body.utm_source || body.referrer) {
+    const utmSource = body.utm_source || body.utm?.utm_source;
+    if (utmSource || body.referrer) {
       supabase.from("attribution_touches").insert({
         workspace_id: workspaceId,
         session_id: sessionId,
         identity_id: identityId,
-        source: body.utm_source || null,
-        medium: body.utm_medium || null,
-        campaign: body.utm_campaign || null,
-        content: body.utm_content || null,
-        term: body.utm_term || null,
-        touch_type: body.utm_source ? "paid" : "organic",
+        source: utmSource || null,
+        medium: body.utm_medium || body.utm?.utm_medium || null,
+        campaign: body.utm_campaign || body.utm?.utm_campaign || null,
+        content: body.utm_content || body.utm?.utm_content || null,
+        term: body.utm_term || body.utm?.utm_term || null,
+        touch_type: utmSource ? "paid" : "organic",
         touch_time: new Date().toISOString(),
       }).then(() => {});
     }
@@ -253,7 +324,7 @@ Deno.serve(async (req) => {
   }
 });
 
-// ── Identity resolver (extracted for clarity) ──
+// ── Identity resolver ──
 async function resolveIdentity(
   workspaceId: string,
   emailHash: string | null,
