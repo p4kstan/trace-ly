@@ -227,7 +227,31 @@ function PillarCard({
               ))}
             </div>
 
-            {/* What CapiTrack does */}
+            {/* Reference links */}
+            {pillar.referenceLinks && pillar.referenceLinks.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <ExternalLink className="w-3.5 h-3.5 text-primary" /> Links de Referência
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {pillar.referenceLinks.map((link, i) => (
+                    <a
+                      key={i}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/30 border border-border/30 text-[11px] text-muted-foreground hover:text-primary hover:border-primary/30 transition-colors"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      {link.label}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+
             <div className={`${pillar.bgColor} border ${pillar.borderColor} rounded-lg p-3`}>
               <div className="flex items-start gap-2">
                 <Zap className={`w-4 h-4 ${pillar.color} mt-0.5 shrink-0`} />
