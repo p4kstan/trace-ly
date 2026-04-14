@@ -224,12 +224,12 @@ function DestinationDialog({ open, onOpenChange, workspaceId }: { open: boolean;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="glass-card border-border/50 sm:max-w-lg">
-        <DialogHeader>
+      <DialogContent className="glass-card flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-2xl flex-col overflow-hidden border-border/50 p-0">
+        <DialogHeader className="shrink-0 px-4 pb-0 pt-4 sm:px-6 sm:pt-6">
           <DialogTitle className="text-foreground">Adicionar Destino de Conversão</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="space-y-4 overflow-y-auto px-4 py-4 sm:px-6">
           <div className="space-y-2">
             <Label>Plataforma</Label>
             <Select value={provider} onValueChange={(v) => { setProvider(v); setFields({}); }}>
@@ -282,7 +282,7 @@ function DestinationDialog({ open, onOpenChange, workspaceId }: { open: boolean;
           ))}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0 border-t border-border bg-background px-4 py-4 sm:px-6">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button onClick={() => mutation.mutate()} disabled={mutation.isPending} className="gap-2">
             <Plus className="w-4 h-4" />
