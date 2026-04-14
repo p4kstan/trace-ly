@@ -7,7 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import {
   Activity, Database, Globe, Shield, Server, Code, Zap, ChevronDown, ChevronRight,
   Copy, Download, Play, CheckCircle2, XCircle, AlertTriangle, Clock, Loader2, RefreshCw,
-  Webhook, ShoppingCart, GitBranch,
+  Webhook, ShoppingCart, GitBranch, Radio, Send, Key, FileText,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useWorkspace } from "@/hooks/use-tracking-data";
@@ -241,6 +241,40 @@ export default function SystemDiagnostic() {
           </CardContent></Card>
         </div>
       )}
+
+      {/* Tracking Hub Stats */}
+      {localDiag?.trackingHub && (
+        <Card className="glass-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Radio className="w-4 h-4 text-primary" /> Tracking Hub Status
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-muted/20 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1"><Radio className="w-3 h-3" />Sources</div>
+                <p className="text-lg font-bold">{localDiag.trackingHub.sources.active}/{localDiag.trackingHub.sources.total}</p>
+                <p className="text-[10px] text-muted-foreground">ativas</p>
+              </div>
+              <div className="bg-muted/20 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1"><Send className="w-3 h-3" />Destinations</div>
+                <p className="text-lg font-bold">{localDiag.trackingHub.destinations.active}/{localDiag.trackingHub.destinations.total}</p>
+                <p className="text-[10px] text-muted-foreground">ativas</p>
+              </div>
+              <div className="bg-muted/20 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1"><Key className="w-3 h-3" />API Keys</div>
+                <p className="text-lg font-bold">{localDiag.trackingHub.apiKeys.active}/{localDiag.trackingHub.apiKeys.total}</p>
+                <p className="text-[10px] text-muted-foreground">ativas</p>
+              </div>
+              <div className="bg-muted/20 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1"><FileText className="w-3 h-3" />Router Delivery</div>
+                <p className="text-lg font-bold">{localDiag.trackingHub.routerLogs.successRate}%</p>
+                <p className="text-[10px] text-muted-foreground">{localDiag.trackingHub.routerLogs.delivered} ok · {localDiag.trackingHub.routerLogs.failed} fail</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
       {/* Overall Status Card */}
       {result && (
