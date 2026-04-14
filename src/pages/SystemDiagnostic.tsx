@@ -7,7 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import {
   Activity, Database, Globe, Shield, Server, Code, Zap, ChevronDown, ChevronRight,
   Copy, Download, Play, CheckCircle2, XCircle, AlertTriangle, Clock, Loader2, RefreshCw,
-  Webhook, ShoppingCart, GitBranch,
+  Webhook, ShoppingCart, GitBranch, Radio, Send, Key, FileText,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useWorkspace } from "@/hooks/use-tracking-data";
@@ -93,7 +93,7 @@ export default function SystemDiagnostic() {
     queryFn: async () => {
       const wid = workspace!.id;
 
-      const [gatewaysRes, ordersRes, eventsRes, webhooksRes, deliveriesRes, reconRes, pixelsRes] = await Promise.all([
+      const [gatewaysRes, ordersRes, eventsRes, webhooksRes, deliveriesRes, reconRes, pixelsRes, sourcesRes, intLogsRes, apiKeysRes] = await Promise.all([
         supabase.from("gateway_integrations").select("id, provider, status, last_sync_at").eq("workspace_id", wid),
         supabase.from("orders").select("id, status, paid_at").eq("workspace_id", wid).order("created_at", { ascending: false }).limit(500),
         supabase.from("events").select("id, processing_status").eq("workspace_id", wid).order("created_at", { ascending: false }).limit(500),
@@ -101,6 +101,9 @@ export default function SystemDiagnostic() {
         supabase.from("event_deliveries").select("id, status, provider").eq("workspace_id", wid).order("created_at", { ascending: false }).limit(200),
         supabase.from("reconciliation_logs").select("id, status, reconciliation_type").eq("workspace_id", wid).order("created_at", { ascending: false }).limit(200),
         supabase.from("meta_pixels").select("id, pixel_id, is_active").eq("workspace_id", wid),
+        supabase.from("tracking_sources").select("id, status, type").eq("workspace_id", wid),
+        supabase.from("integration_logs").select("id, status, provider").eq("workspace_id", wid).order("created_at", { ascending: false }).limit(200),
+        supabase.from("api_keys").select("id, status").eq("workspace_id", wid),
       ]);
 
       const gateways = gatewaysRes.data || [];
@@ -110,6 +113,9 @@ export default function SystemDiagnostic() {
       const deliveries = deliveriesRes.data || [];
       const recon = reconRes.data || [];
       const pixels = pixelsRes.data || [];
+      const sources = sourcesRes.data || [];
+      const intLogs = intLogsRes.data || [];
+      const apiKeys = apiKeysRes.data || [];
 
       const paidOrders = orders.filter(o => o.status === "paid").length;
       const totalOrders = orders.length;
@@ -119,6 +125,8 @@ export default function SystemDiagnostic() {
       const deliveredEvents = deliveries.filter(d => d.status === "delivered").length;
       const failedDeliveries = deliveries.filter(d => d.status === "failed").length;
       const processedWebhooks = webhooks.filter(w => w.processing_status === "processed").length;
+      const intDelivered = intLogs.filter(l => l.status === "delivered").length;
+      const intFailed = intLogs.filter(l => l.status === "failed").length;
 
       return {
         gateways: { count: gateways.length, active: gateways.filter(g => g.status === "active").length, providers: gateways.map(g => g.provider) },
@@ -128,6 +136,12 @@ export default function SystemDiagnostic() {
         metaDelivery: { total: deliveries.length, delivered: deliveredEvents, failed: failedDeliveries, successRate: deliveries.length > 0 ? Math.round((deliveredEvents / deliveries.length) * 100) : 0 },
         reconciliation: { total: reconTotal, matched: reconSuccess, partial: recon.filter(r => r.status === "partial").length, failed: recon.filter(r => r.status === "failed").length, matchRate: reconRate },
         pixels: { total: pixels.length, active: pixels.filter(p => p.is_active).length },
+        trackingHub: {
+          sources: { total: sources.length, active: sources.filter(s => s.status === "active").length, byType: sources.reduce((acc: Record<string, number>, s) => { acc[s.type] = (acc[s.type] || 0) + 1; return acc; }, {}) },
+          destinations: { total: gateways.length, active: gateways.filter(g => g.status === "active").length },
+          apiKeys: { total: apiKeys.length, active: apiKeys.filter(k => k.status === "active").length },
+          routerLogs: { total: intLogs.length, delivered: intDelivered, failed: intFailed, successRate: intLogs.length > 0 ? Math.round((intDelivered / intLogs.length) * 100) : 0 },
+        },
       };
     },
   });
@@ -226,6 +240,41 @@ export default function SystemDiagnostic() {
             <p className="text-xs text-muted-foreground">configurados</p>
           </CardContent></Card>
         </div>
+      )}
+
+      {/* Tracking Hub Stats */}
+      {localDiag?.trackingHub && (
+        <Card className="glass-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Radio className="w-4 h-4 text-primary" /> Tracking Hub Status
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-muted/20 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1"><Radio className="w-3 h-3" />Sources</div>
+                <p className="text-lg font-bold">{localDiag.trackingHub.sources.active}/{localDiag.trackingHub.sources.total}</p>
+                <p className="text-[10px] text-muted-foreground">ativas</p>
+              </div>
+              <div className="bg-muted/20 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1"><Send className="w-3 h-3" />Destinations</div>
+                <p className="text-lg font-bold">{localDiag.trackingHub.destinations.active}/{localDiag.trackingHub.destinations.total}</p>
+                <p className="text-[10px] text-muted-foreground">ativas</p>
+              </div>
+              <div className="bg-muted/20 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1"><Key className="w-3 h-3" />API Keys</div>
+                <p className="text-lg font-bold">{localDiag.trackingHub.apiKeys.active}/{localDiag.trackingHub.apiKeys.total}</p>
+                <p className="text-[10px] text-muted-foreground">ativas</p>
+              </div>
+              <div className="bg-muted/20 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1"><FileText className="w-3 h-3" />Router Delivery</div>
+                <p className="text-lg font-bold">{localDiag.trackingHub.routerLogs.successRate}%</p>
+                <p className="text-[10px] text-muted-foreground">{localDiag.trackingHub.routerLogs.delivered} ok · {localDiag.trackingHub.routerLogs.failed} fail</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Overall Status Card */}
