@@ -571,14 +571,34 @@ function WizardStepReview({ form, selectedType, apiKey }: { form: any; selectedT
         </div>
       </div>
 
-      <div className="bg-primary/5 border border-primary/15 rounded-lg p-3 text-xs text-muted-foreground leading-relaxed">
-        <strong className="text-foreground">Próximos passos após criar:</strong>
-        <ol className="list-decimal pl-4 mt-1.5 space-y-0.5">
-          <li>Vá em <strong>SDK Setup</strong> e copie o snippet de instalação</li>
-          <li>Cole no seu site antes do <code className="bg-muted/50 px-1 rounded">&lt;/head&gt;</code></li>
-          <li>Configure ao menos um <strong>Destination</strong> (Meta, GA4, etc.)</li>
-          <li>Acesse seu site e veja os eventos chegarem em <strong>Event Logs</strong></li>
-        </ol>
+      <div className="bg-primary/5 border border-primary/15 rounded-lg p-4 text-xs text-muted-foreground leading-relaxed space-y-3">
+        <strong className="text-foreground text-sm">Próximos passos após criar:</strong>
+        <div className="space-y-2">
+          <a href="/sdk-setup" className="flex items-center gap-3 p-2.5 rounded-lg bg-background/50 border border-border/30 hover:border-primary/40 hover:bg-primary/5 transition-all group cursor-pointer">
+            <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center text-primary font-bold text-[10px] shrink-0 group-hover:bg-primary/20">1</div>
+            <div className="flex-1">
+              <p className="text-foreground font-medium text-xs">Copiar snippet do SDK</p>
+              <p className="text-[10px] text-muted-foreground">Vá em SDK Setup e cole antes do &lt;/head&gt;</p>
+            </div>
+            <ArrowRight className="w-3.5 h-3.5 text-muted-foreground/50 group-hover:text-primary transition-colors" />
+          </a>
+          <a href="/integrations" className="flex items-center gap-3 p-2.5 rounded-lg bg-background/50 border border-border/30 hover:border-primary/40 hover:bg-primary/5 transition-all group cursor-pointer">
+            <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center text-primary font-bold text-[10px] shrink-0 group-hover:bg-primary/20">2</div>
+            <div className="flex-1">
+              <p className="text-foreground font-medium text-xs">Configurar Destination</p>
+              <p className="text-[10px] text-muted-foreground">Meta CAPI, GA4, TikTok, Google Ads</p>
+            </div>
+            <ArrowRight className="w-3.5 h-3.5 text-muted-foreground/50 group-hover:text-primary transition-colors" />
+          </a>
+          <a href="/event-logs" className="flex items-center gap-3 p-2.5 rounded-lg bg-background/50 border border-border/30 hover:border-primary/40 hover:bg-primary/5 transition-all group cursor-pointer">
+            <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center text-primary font-bold text-[10px] shrink-0 group-hover:bg-primary/20">3</div>
+            <div className="flex-1">
+              <p className="text-foreground font-medium text-xs">Verificar Event Logs</p>
+              <p className="text-[10px] text-muted-foreground">Acesse seu site e veja os eventos chegarem</p>
+            </div>
+            <ArrowRight className="w-3.5 h-3.5 text-muted-foreground/50 group-hover:text-primary transition-colors" />
+          </a>
+        </div>
       </div>
     </div>
   );
