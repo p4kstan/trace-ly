@@ -183,7 +183,7 @@ const response = await fetch("${supabaseUrl}/functions/v1/track", {
             </div>
             <div>
               <p className="text-sm font-medium">SDK</p>
-              <Badge variant="default">v2.0</Badge>
+              <Badge variant="default">v3.0</Badge>
             </div>
           </CardContent>
         </Card>
