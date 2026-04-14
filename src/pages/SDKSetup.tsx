@@ -52,21 +52,22 @@ export default function SDKSetup() {
   const publicKey = apiKeys[0]?.public_key || "pk_live_SUA_CHAVE_AQUI";
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://seu-projeto.supabase.co";
 
-  const snippetHTML = `<!-- CapiTrack AI SDK -->
+  const snippetHTML = `<!-- CapiTrack AI SDK v3 -->
 <script>
   !function(){
     window.capitrack = window.capitrack || function(){
       (window.capitrack.q = window.capitrack.q || []).push(arguments);
     };
     var s = document.createElement("script");
-    s.src = "${supabaseUrl}/functions/v1/track/../../../sdk.js";
+    s.src = "https://SEU_DOMINIO/sdk.js";
     s.async = true;
     document.head.appendChild(s);
   }();
 
   capitrack("init", "${publicKey}", {
     endpoint: "${supabaseUrl}/functions/v1/track",
-    debug: false
+    debug: false,    // ativa painel visual de debug
+    trackSPA: true   // rastreia mudanças de rota em SPAs
   });
 </script>`;
 
