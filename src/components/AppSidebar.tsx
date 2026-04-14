@@ -33,6 +33,7 @@ const trackingHubItems = [
   { title: "Destinations", url: "/destinations", icon: Send },
   { title: "SDK Setup", url: "/sdk-setup", icon: Code },
   { title: "Integration Logs", url: "/integration-logs", icon: FileText },
+  { title: "Guia", url: "/tracking-guide", icon: BookOpen },
 ];
 
 const settingsItems = [

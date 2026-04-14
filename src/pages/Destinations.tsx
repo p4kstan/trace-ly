@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useWorkspace } from "@/hooks/use-tracking-data";
+import { TrackingHubGuide } from "@/components/TrackingHubGuide";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +58,8 @@ export default function Destinations() {
 
   return (
     <div className="space-y-6">
+      <TrackingHubGuide variant="compact" />
+
       <div>
         <h1 className="text-2xl font-bold text-gradient-primary">Destinations</h1>
         <p className="text-sm text-muted-foreground">
