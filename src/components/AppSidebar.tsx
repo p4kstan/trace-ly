@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, GitBranch, MonitorDot, ScrollText, Bug, Settings,
   Zap, Brain, CreditCard, HeartPulse, Key, LogOut, ShoppingCart, Webhook, Inbox, BookOpen, Cpu, Gauge,
-  Shield, TrendingUp, Lightbulb, Filter,
+  Shield, TrendingUp, Lightbulb, Filter, Radio, Send, Code, FileText,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -26,6 +26,13 @@ const mainItems = [
   { title: "Pixels", url: "/pixels", icon: MonitorDot },
   { title: "Event Logs", url: "/logs", icon: ScrollText },
   { title: "Debugger", url: "/debugger", icon: Bug },
+];
+
+const trackingHubItems = [
+  { title: "Tracking Sources", url: "/tracking-sources", icon: Radio },
+  { title: "Destinations", url: "/destinations", icon: Send },
+  { title: "SDK Setup", url: "/sdk-setup", icon: Code },
+  { title: "Integration Logs", url: "/integration-logs", icon: FileText },
 ];
 
 const settingsItems = [
@@ -120,6 +127,8 @@ export function AppSidebar() {
 
       <SidebarContent className="px-2 py-3">
         <SidebarNavGroup items={mainItems} label="Analytics" collapsed={collapsed} />
+        <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
+        <SidebarNavGroup items={trackingHubItems} label="Tracking Hub" collapsed={collapsed} />
         <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
         <SidebarNavGroup items={settingsItems} label="Settings" collapsed={collapsed} />
       </SidebarContent>
