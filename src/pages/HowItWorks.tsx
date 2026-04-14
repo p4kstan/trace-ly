@@ -23,7 +23,15 @@ const PILLARS = [
     explanation: [
       "Quando um usuário faz uma ação no seu site (compra, cadastro, clique), essa informação precisa ir para algum lugar. O navegador sozinho não consegue enviar para Meta, Google, TikTok de forma confiável — bloqueadores de anúncios, ITP do Safari e restrições de cookies impedem isso.",
       "A solução é ter um servidor intermediário. O site envia para o SEU servidor, e ele repassa para as plataformas de anúncio. Isso é o que chamam de 'Server-Side Tracking'.",
-      "Opções comuns: VPS (DigitalOcean — digitalocean.com, AWS — aws.amazon.com), Cloudflare Workers (workers.cloudflare.com), Vercel (vercel.com), ou Supabase Edge Functions (supabase.com/edge-functions). O CapiTrack AI já usa Supabase Edge Functions como backend — você não precisa configurar nenhum servidor.",
+      "Opções comuns: VPS, Cloudflare Workers, Vercel, ou Supabase Edge Functions. O CapiTrack AI já usa Supabase Edge Functions como backend — você não precisa configurar nenhum servidor.",
+    ],
+    referenceLinks: [
+      { label: "DigitalOcean", url: "https://www.digitalocean.com" },
+      { label: "AWS", url: "https://aws.amazon.com" },
+      { label: "Google Cloud", url: "https://cloud.google.com" },
+      { label: "Cloudflare Workers", url: "https://workers.cloudflare.com" },
+      { label: "Vercel", url: "https://vercel.com" },
+      { label: "Supabase Edge Functions", url: "https://supabase.com/edge-functions" },
     ],
     whatCapitrackDoes: "O CapiTrack AI já possui um servidor pronto (Edge Functions) que recebe, processa e distribui seus eventos automaticamente. Zero configuração de infraestrutura.",
     status: "configured",
