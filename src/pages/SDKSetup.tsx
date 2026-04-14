@@ -81,12 +81,26 @@ capitrack("track", "Purchase", {
 // Rastrear PageView manualmente
 capitrack("page");
 
-// Identificar usuário
+// Identificar usuário (envia evento + persiste cross-session)
 capitrack("identify", {
   email: "cliente@email.com",
   phone: "5511999999999",
   name: "João Silva"
-});`;
+});
+
+// Ativar/desativar debug em runtime
+capitrack("debug", true);
+
+// Resetar identidade
+capitrack("reset");
+
+// Obter IDs
+var sessionId = capitrack("getSessionId");
+var anonId = capitrack("getAnonymousId");
+
+// Atribuição first/last touch
+var attribution = capitrack("getAttribution");
+console.log(attribution.firstTouch, attribution.lastTouch);`;
 
   const snippetEcommerce = `// AddToCart
 capitrack("addToCart", {
