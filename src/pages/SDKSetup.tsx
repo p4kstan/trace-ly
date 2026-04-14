@@ -52,21 +52,22 @@ export default function SDKSetup() {
   const publicKey = apiKeys[0]?.public_key || "pk_live_SUA_CHAVE_AQUI";
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://seu-projeto.supabase.co";
 
-  const snippetHTML = `<!-- CapiTrack AI SDK -->
+  const snippetHTML = `<!-- CapiTrack AI SDK v3 -->
 <script>
   !function(){
     window.capitrack = window.capitrack || function(){
       (window.capitrack.q = window.capitrack.q || []).push(arguments);
     };
     var s = document.createElement("script");
-    s.src = "${supabaseUrl}/functions/v1/track/../../../sdk.js";
+    s.src = "https://SEU_DOMINIO/sdk.js";
     s.async = true;
     document.head.appendChild(s);
   }();
 
   capitrack("init", "${publicKey}", {
     endpoint: "${supabaseUrl}/functions/v1/track",
-    debug: false
+    debug: false,    // ativa painel visual de debug
+    trackSPA: true   // rastreia mudanças de rota em SPAs
   });
 </script>`;
 
@@ -80,12 +81,26 @@ capitrack("track", "Purchase", {
 // Rastrear PageView manualmente
 capitrack("page");
 
-// Identificar usuário
+// Identificar usuário (envia evento + persiste cross-session)
 capitrack("identify", {
   email: "cliente@email.com",
   phone: "5511999999999",
   name: "João Silva"
-});`;
+});
+
+// Ativar/desativar debug em runtime
+capitrack("debug", true);
+
+// Resetar identidade
+capitrack("reset");
+
+// Obter IDs
+var sessionId = capitrack("getSessionId");
+var anonId = capitrack("getAnonymousId");
+
+// Atribuição first/last touch
+var attribution = capitrack("getAttribution");
+console.log(attribution.firstTouch, attribution.lastTouch);`;
 
   const snippetEcommerce = `// AddToCart
 capitrack("addToCart", {
@@ -182,7 +197,7 @@ const response = await fetch("${supabaseUrl}/functions/v1/track", {
             </div>
             <div>
               <p className="text-sm font-medium">SDK</p>
-              <Badge variant="default">v2.0</Badge>
+              <Badge variant="default">v3.0</Badge>
             </div>
           </CardContent>
         </Card>
