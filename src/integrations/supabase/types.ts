@@ -2784,6 +2784,76 @@ export type Database = {
         }
         Relationships: []
       }
+      integration_logs: {
+        Row: {
+          created_at: string
+          destination_id: string | null
+          error_message: string | null
+          event_id: string | null
+          event_name: string | null
+          id: string
+          latency_ms: number | null
+          provider: string
+          request_json: Json | null
+          response_json: Json | null
+          status: string
+          status_code: number | null
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          destination_id?: string | null
+          error_message?: string | null
+          event_id?: string | null
+          event_name?: string | null
+          id?: string
+          latency_ms?: number | null
+          provider: string
+          request_json?: Json | null
+          response_json?: Json | null
+          status?: string
+          status_code?: number | null
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          destination_id?: string | null
+          error_message?: string | null
+          event_id?: string | null
+          event_name?: string | null
+          id?: string
+          latency_ms?: number | null
+          provider?: string
+          request_json?: Json | null
+          response_json?: Json | null
+          status?: string
+          status_code?: number | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_logs_destination_id_fkey"
+            columns: ["destination_id"]
+            isOneToOne: false
+            referencedRelation: "gateway_integrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "integration_logs_destination_id_fkey"
+            columns: ["destination_id"]
+            isOneToOne: false
+            referencedRelation: "gateway_integrations_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "integration_logs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads: {
         Row: {
           created_at: string
@@ -3780,6 +3850,66 @@ export type Database = {
           },
           {
             foreignKeyName: "subscriptions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tracking_sources: {
+        Row: {
+          allowed_domains: string[] | null
+          api_key_id: string | null
+          created_at: string
+          environment: string
+          id: string
+          name: string
+          primary_domain: string | null
+          settings_json: Json | null
+          status: string
+          type: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          allowed_domains?: string[] | null
+          api_key_id?: string | null
+          created_at?: string
+          environment?: string
+          id?: string
+          name: string
+          primary_domain?: string | null
+          settings_json?: Json | null
+          status?: string
+          type?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          allowed_domains?: string[] | null
+          api_key_id?: string | null
+          created_at?: string
+          environment?: string
+          id?: string
+          name?: string
+          primary_domain?: string | null
+          settings_json?: Json | null
+          status?: string
+          type?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tracking_sources_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tracking_sources_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
