@@ -54,6 +54,7 @@ const PILLARS = [
       "O endpoint precisa: validar a API Key, verificar o domínio de origem, resolver a identidade do usuário (via email/telefone/fingerprint), salvar o evento no banco e acionar o roteamento para as plataformas.",
       "No CapiTrack, o endpoint é: /functions/v1/track — ele faz tudo isso automaticamente, incluindo deduplicação por event_id para evitar contagem duplicada.",
     ],
+    referenceLinks: [],
     whatCapitrackDoes: "Seu endpoint já está ativo em /functions/v1/track. Ele valida keys, resolve identidade, persiste eventos e aciona o EventRouter — tudo automático.",
     status: "configured",
     actionLabel: "Criar API Key",
