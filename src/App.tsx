@@ -39,6 +39,7 @@ const TrackingSources = lazy(() => import("@/pages/TrackingSources"));
 const Destinations = lazy(() => import("@/pages/Destinations"));
 const SDKSetup = lazy(() => import("@/pages/SDKSetup"));
 const IntegrationLogs = lazy(() => import("@/pages/IntegrationLogs"));
+const TrackingGuide = lazy(() => import("@/pages/TrackingGuide"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -74,6 +75,7 @@ function ProtectedRoutes() {
           <Route path="/destinations" element={<Destinations />} />
           <Route path="/sdk-setup" element={<SDKSetup />} />
           <Route path="/integration-logs" element={<IntegrationLogs />} />
+          <Route path="/tracking-guide" element={<TrackingGuide />} />
           <Route path="/plans" element={<Plans />} />
           <Route path="/usage" element={<Usage />} />
           <Route path="/settings" element={<SettingsPage />} />
