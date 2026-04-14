@@ -3,11 +3,23 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   ArrowRight, ArrowLeft, CheckCircle, ExternalLink,
   Zap, Copy, Check,
 } from "lucide-react";
 import { toast } from "sonner";
+
+export interface StepInput {
+  id: string;
+  label: string;
+  placeholder: string;
+  type?: "text" | "password";
+  helpText?: string;
+  validation?: RegExp;
+  validationMessage?: string;
+}
 
 export interface WizardStep {
   title: string;
@@ -18,6 +30,7 @@ export interface WizardStep {
   actionLabel?: string;
   actionRoute?: string;
   copySnippet?: string;
+  inputs?: StepInput[];
 }
 
 interface PlatformWizardProps {
@@ -32,12 +45,36 @@ export default function PlatformWizard({ steps, platformColor, platformBg, platf
   const [current, setCurrent] = useState(0);
   const [completed, setCompleted] = useState<Set<number>>(new Set());
   const [copied, setCopied] = useState(false);
+  const [inputValues, setInputValues] = useState<Record<string, string>>({});
+  const [inputErrors, setInputErrors] = useState<Record<string, string>>({});
 
   const step = steps[current];
   const isLast = current === steps.length - 1;
   const allDone = completed.size === steps.length;
 
+  function validateInputs(): boolean {
+    if (!step.inputs || step.inputs.length === 0) return true;
+    const errors: Record<string, string> = {};
+    let valid = true;
+    for (const input of step.inputs) {
+      const val = (inputValues[input.id] || "").trim();
+      if (!val) {
+        errors[input.id] = "Campo obrigatório";
+        valid = false;
+      } else if (input.validation && !input.validation.test(val)) {
+        errors[input.id] = input.validationMessage || "Formato inválido";
+        valid = false;
+      }
+    }
+    setInputErrors(errors);
+    return valid;
+  }
+
   function markAndNext() {
+    if (!validateInputs()) {
+      toast.error("Preencha todos os campos antes de continuar");
+      return;
+    }
     setCompleted((prev) => new Set(prev).add(current));
     if (!isLast) setCurrent(current + 1);
   }
@@ -49,25 +86,30 @@ export default function PlatformWizard({ steps, platformColor, platformBg, platf
     setTimeout(() => setCopied(false), 2000);
   }
 
+  function handleInputChange(id: string, value: string) {
+    setInputValues((prev) => ({ ...prev, [id]: value }));
+    if (inputErrors[id]) {
+      setInputErrors((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* Progress bar */}
       <div className="flex items-center gap-1.5">
-        {steps.map((s, i) => (
-          <button
-            key={i}
-            onClick={() => setCurrent(i)}
-            className="flex items-center gap-1.5 group"
-          >
-            <div
-              className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                completed.has(i)
-                  ? "bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30"
-                  : i === current
-                  ? `${platformBg} ${platformColor} ring-1 ${platformBorder}`
-                  : "bg-muted/30 text-muted-foreground"
-              }`}
-            >
+        {steps.map((_, i) => (
+          <button key={i} onClick={() => setCurrent(i)} className="flex items-center gap-1.5 group">
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+              completed.has(i)
+                ? "bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30"
+                : i === current
+                ? `${platformBg} ${platformColor} ring-1 ${platformBorder}`
+                : "bg-muted/30 text-muted-foreground"
+            }`}>
               {completed.has(i) ? <CheckCircle className="w-3.5 h-3.5" /> : i + 1}
             </div>
             {i < steps.length - 1 && (
@@ -114,6 +156,36 @@ export default function PlatformWizard({ steps, platformColor, platformBg, platf
             ))}
           </div>
 
+          {/* Input fields */}
+          {step.inputs && step.inputs.length > 0 && (
+            <div className="space-y-3 p-4 rounded-lg bg-muted/20 border border-border/30">
+              <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                📝 Preencha para continuar
+              </p>
+              {step.inputs.map((input) => (
+                <div key={input.id} className="space-y-1.5">
+                  <Label htmlFor={input.id} className="text-xs text-muted-foreground">
+                    {input.label}
+                  </Label>
+                  <Input
+                    id={input.id}
+                    type={input.type || "text"}
+                    placeholder={input.placeholder}
+                    value={inputValues[input.id] || ""}
+                    onChange={(e) => handleInputChange(input.id, e.target.value)}
+                    className={`h-9 text-xs bg-background/50 ${inputErrors[input.id] ? "border-destructive ring-1 ring-destructive/30" : ""}`}
+                  />
+                  {input.helpText && !inputErrors[input.id] && (
+                    <p className="text-[10px] text-muted-foreground">{input.helpText}</p>
+                  )}
+                  {inputErrors[input.id] && (
+                    <p className="text-[10px] text-destructive">{inputErrors[input.id]}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Tip */}
           {step.tip && (
             <div className={`${platformBg} border ${platformBorder} rounded-lg p-3`}>
@@ -145,13 +217,8 @@ export default function PlatformWizard({ steps, platformColor, platformBg, platf
           {step.referenceLinks && step.referenceLinks.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {step.referenceLinks.map((link, i) => (
-                <a
-                  key={i}
-                  href={link.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/30 border border-border/30 text-[11px] text-muted-foreground hover:text-primary hover:border-primary/30 transition-colors"
-                >
+                <a key={i} href={link.url} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/30 border border-border/30 text-[11px] text-muted-foreground hover:text-primary hover:border-primary/30 transition-colors">
                   <ExternalLink className="w-3 h-3" />
                   {link.label}
                 </a>
@@ -161,32 +228,17 @@ export default function PlatformWizard({ steps, platformColor, platformBg, platf
 
           {/* Action link */}
           {step.actionLabel && step.actionRoute && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-2 text-xs"
-              onClick={() => navigate(step.actionRoute!)}
-            >
+            <Button size="sm" variant="outline" className="gap-2 text-xs" onClick={() => navigate(step.actionRoute!)}>
               {step.actionLabel} <ArrowRight className="w-3.5 h-3.5" />
             </Button>
           )}
 
           {/* Navigation */}
           <div className="flex items-center justify-between pt-2 border-t border-border/20">
-            <Button
-              size="sm"
-              variant="ghost"
-              className="gap-1.5 text-xs"
-              disabled={current === 0}
-              onClick={() => setCurrent(current - 1)}
-            >
+            <Button size="sm" variant="ghost" className="gap-1.5 text-xs" disabled={current === 0} onClick={() => setCurrent(current - 1)}>
               <ArrowLeft className="w-3.5 h-3.5" /> Anterior
             </Button>
-            <Button
-              size="sm"
-              className="gap-1.5 text-xs"
-              onClick={markAndNext}
-            >
+            <Button size="sm" className="gap-1.5 text-xs" onClick={markAndNext}>
               {completed.has(current) ? (
                 isLast ? "✅ Finalizado" : <>Próxima <ArrowRight className="w-3.5 h-3.5" /></>
               ) : (
