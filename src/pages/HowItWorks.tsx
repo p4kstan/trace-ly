@@ -107,6 +107,11 @@ const PILLARS = [
       "3. Cadastre os domínios permitidos no CapiTrack para validação de segurança (Origin/Referer)",
       "O CapiTrack valida o header Origin/Referer de cada evento contra a lista de domínios permitidos do workspace. Suporta wildcards (*.seudominio.com).",
     ],
+    referenceLinks: [
+      { label: "Cloudflare DNS", url: "https://www.cloudflare.com/dns/" },
+      { label: "Let's Encrypt (SSL grátis)", url: "https://letsencrypt.org" },
+      { label: "Namecheap", url: "https://www.namecheap.com" },
+    ],
     whatCapitrackDoes: "Cadastre seus domínios em Tracking Sources. O sistema valida automaticamente a origem dos eventos para segurança. Suporte a wildcards.",
     status: "action_needed",
     actionLabel: "Cadastrar Domínio",
