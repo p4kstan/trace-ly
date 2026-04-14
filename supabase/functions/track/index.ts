@@ -219,6 +219,18 @@ Deno.serve(async (req) => {
       }).then(() => {});
     }
 
+    // ── Fire-and-forget: EventRouter dispatch ──
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    fetch(`${SUPABASE_URL}/functions/v1/event-router`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      },
+      body: JSON.stringify({ event_id: event.id, workspace_id: workspaceId }),
+    }).catch(err => console.error("EventRouter dispatch error:", err));
+
     const latencyMs = Date.now() - startTime;
 
     return new Response(
