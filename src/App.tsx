@@ -35,6 +35,10 @@ const RealTimeAnalytics = lazy(() => import("@/pages/RealTimeAnalytics"));
 const Predictions = lazy(() => import("@/pages/Predictions"));
 const Optimization = lazy(() => import("@/pages/Optimization"));
 const Funnels = lazy(() => import("@/pages/Funnels"));
+const TrackingSources = lazy(() => import("@/pages/TrackingSources"));
+const Destinations = lazy(() => import("@/pages/Destinations"));
+const SDKSetup = lazy(() => import("@/pages/SDKSetup"));
+const IntegrationLogs = lazy(() => import("@/pages/IntegrationLogs"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -66,6 +70,10 @@ function ProtectedRoutes() {
           <Route path="/predictions" element={<Predictions />} />
           <Route path="/optimization" element={<Optimization />} />
           <Route path="/funnels" element={<Funnels />} />
+          <Route path="/tracking-sources" element={<TrackingSources />} />
+          <Route path="/destinations" element={<Destinations />} />
+          <Route path="/sdk-setup" element={<SDKSetup />} />
+          <Route path="/integration-logs" element={<IntegrationLogs />} />
           <Route path="/plans" element={<Plans />} />
           <Route path="/usage" element={<Usage />} />
           <Route path="/settings" element={<SettingsPage />} />
