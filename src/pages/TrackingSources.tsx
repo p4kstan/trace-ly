@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { TrackingHubGuide } from "@/components/TrackingHubGuide";
 import { useWorkspace } from "@/hooks/use-tracking-data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -92,6 +93,8 @@ export default function TrackingSources() {
 
   return (
     <div className="space-y-6">
+      <TrackingHubGuide variant="compact" />
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gradient-primary">Tracking Sources</h1>
