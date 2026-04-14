@@ -23,7 +23,15 @@ const PILLARS = [
     explanation: [
       "Quando um usuário faz uma ação no seu site (compra, cadastro, clique), essa informação precisa ir para algum lugar. O navegador sozinho não consegue enviar para Meta, Google, TikTok de forma confiável — bloqueadores de anúncios, ITP do Safari e restrições de cookies impedem isso.",
       "A solução é ter um servidor intermediário. O site envia para o SEU servidor, e ele repassa para as plataformas de anúncio. Isso é o que chamam de 'Server-Side Tracking'.",
-      "Opções comuns: VPS (DigitalOcean, AWS), Cloudflare Workers, Vercel, ou Supabase Edge Functions. O CapiTrack AI já usa Supabase Edge Functions como backend — você não precisa configurar nenhum servidor.",
+      "Opções comuns: VPS, Cloudflare Workers, Vercel, ou Supabase Edge Functions. O CapiTrack AI já usa Supabase Edge Functions como backend — você não precisa configurar nenhum servidor.",
+    ],
+    referenceLinks: [
+      { label: "DigitalOcean", url: "https://www.digitalocean.com" },
+      { label: "AWS", url: "https://aws.amazon.com" },
+      { label: "Google Cloud", url: "https://cloud.google.com" },
+      { label: "Cloudflare Workers", url: "https://workers.cloudflare.com" },
+      { label: "Vercel", url: "https://vercel.com" },
+      { label: "Supabase Edge Functions", url: "https://supabase.com/edge-functions" },
     ],
     whatCapitrackDoes: "O CapiTrack AI já possui um servidor pronto (Edge Functions) que recebe, processa e distribui seus eventos automaticamente. Zero configuração de infraestrutura.",
     status: "configured",
@@ -46,6 +54,7 @@ const PILLARS = [
       "O endpoint precisa: validar a API Key, verificar o domínio de origem, resolver a identidade do usuário (via email/telefone/fingerprint), salvar o evento no banco e acionar o roteamento para as plataformas.",
       "No CapiTrack, o endpoint é: /functions/v1/track — ele faz tudo isso automaticamente, incluindo deduplicação por event_id para evitar contagem duplicada.",
     ],
+    referenceLinks: [],
     whatCapitrackDoes: "Seu endpoint já está ativo em /functions/v1/track. Ele valida keys, resolve identidade, persiste eventos e aciona o EventRouter — tudo automático.",
     status: "configured",
     actionLabel: "Criar API Key",
@@ -68,6 +77,12 @@ const PILLARS = [
       "• Google Ads — Enhanced Conversions API para otimização de campanhas.",
       "O grande desafio é manter cada integração atualizada (APIs mudam), tratar erros, implementar retries com backoff exponencial e garantir que nenhum evento se perca.",
       "O CapiTrack faz isso via EventRouter: quando um evento chega, ele automaticamente distribui para TODOS os destinos ativos do seu workspace, com retries automáticos e logs detalhados.",
+    ],
+    referenceLinks: [
+      { label: "Meta Conversions API", url: "https://developers.facebook.com/docs/marketing-api/conversions-api" },
+      { label: "GA4 Measurement Protocol", url: "https://developers.google.com/analytics/devguides/collection/protocol/ga4" },
+      { label: "TikTok Events API", url: "https://business-api.tiktok.com/portal/docs?id=1741601162187777" },
+      { label: "Google Ads API", url: "https://developers.google.com/google-ads/api/docs/conversions/overview" },
     ],
     whatCapitrackDoes: "O EventRouter distribui automaticamente para todos os destinos configurados. Suporta Meta CAPI (batch), GA4, TikTok e Google Ads com retries e logs completos.",
     status: "action_needed",
@@ -92,6 +107,11 @@ const PILLARS = [
       "3. Cadastre os domínios permitidos no CapiTrack para validação de segurança (Origin/Referer)",
       "O CapiTrack valida o header Origin/Referer de cada evento contra a lista de domínios permitidos do workspace. Suporta wildcards (*.seudominio.com).",
     ],
+    referenceLinks: [
+      { label: "Cloudflare DNS", url: "https://www.cloudflare.com/dns/" },
+      { label: "Let's Encrypt (SSL grátis)", url: "https://letsencrypt.org" },
+      { label: "Namecheap", url: "https://www.namecheap.com" },
+    ],
     whatCapitrackDoes: "Cadastre seus domínios em Tracking Sources. O sistema valida automaticamente a origem dos eventos para segurança. Suporte a wildcards.",
     status: "action_needed",
     actionLabel: "Cadastrar Domínio",
@@ -113,6 +133,12 @@ const PILLARS = [
       'capitrack("track", "Purchase", {\n  value: 297.00,\n  currency: "BRL",\n  email: "cliente@email.com"\n});',
       'Ou identificar o usuário:\n\ncapitrack("identify", {\n  email: "cliente@email.com",\n  phone: "5511999999999"\n});',
       "O SDK envia tudo via POST para o endpoint /track com a API Key configurada. Funciona com qualquer site: WordPress, Shopify, HTML, React, etc.",
+    ],
+    referenceLinks: [
+      { label: "Google Tag Manager", url: "https://tagmanager.google.com" },
+      { label: "Meta Pixel Helper", url: "https://www.facebook.com/business/help/742478679120153" },
+      { label: "WordPress", url: "https://wordpress.org" },
+      { label: "Shopify", url: "https://www.shopify.com" },
     ],
     whatCapitrackDoes: "SDK v3 pronto para copiar e colar. Captura automática de PageView, UTMs, click IDs, cookies, fingerprint e sessões. Modo debug visual incluso.",
     status: "action_needed",
@@ -201,7 +227,31 @@ function PillarCard({
               ))}
             </div>
 
-            {/* What CapiTrack does */}
+            {/* Reference links */}
+            {pillar.referenceLinks && pillar.referenceLinks.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <ExternalLink className="w-3.5 h-3.5 text-primary" /> Links de Referência
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {pillar.referenceLinks.map((link, i) => (
+                    <a
+                      key={i}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/30 border border-border/30 text-[11px] text-muted-foreground hover:text-primary hover:border-primary/30 transition-colors"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      {link.label}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+
             <div className={`${pillar.bgColor} border ${pillar.borderColor} rounded-lg p-3`}>
               <div className="flex items-start gap-2">
                 <Zap className={`w-4 h-4 ${pillar.color} mt-0.5 shrink-0`} />
