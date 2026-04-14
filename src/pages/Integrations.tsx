@@ -57,6 +57,16 @@ const AD_PROVIDERS: Record<string, { label: string; emoji: string; desc: string;
       { key: "access_token", label: "API Secret", placeholder: "xxxxxxxxxxxxxxxx", secret: true, help: "GA4 → Administração → Fluxos de dados → Segredos da API do Measurement Protocol → Criar", helpLink: { url: "https://analytics.google.com/analytics/web/#/admin", label: "Abrir GA4 Admin" } },
     ],
   },
+  firebase: {
+    label: "Firebase Analytics", emoji: "🔥", desc: "Firebase SDK + Measurement Protocol",
+    fields: [
+      { key: "destination_id", label: "Measurement ID", placeholder: "G-XXXXXXXXXX", help: "Firebase Console → Configurações do projeto → Integrações → Google Analytics → O Measurement ID (G-XXXXXXX)", helpLink: { url: "https://console.firebase.google.com/", label: "Abrir Firebase Console" } },
+      { key: "access_token", label: "API Secret (Measurement Protocol)", placeholder: "xxxxxxxxxxxxxxxx", secret: true, help: "GA4 → Administração → Fluxos de dados → Segredos da API do Measurement Protocol → Criar", helpLink: { url: "https://analytics.google.com/analytics/web/#/admin", label: "Abrir GA4 Admin" } },
+      { key: "api_key", label: "Firebase API Key (público)", placeholder: "AIzaSy...", help: "Firebase Console → Configurações do projeto → Geral → Configuração do SDK → apiKey" },
+      { key: "app_id", label: "Firebase App ID", placeholder: "1:123456789:web:abc123", help: "Firebase Console → Configurações do projeto → Geral → Seus apps → App ID" },
+      { key: "project_id", label: "Firebase Project ID", placeholder: "meu-projeto-firebase", help: "Firebase Console → Configurações do projeto → Geral → ID do projeto" },
+    ],
+  },
 };
 
 // ── Shared Components ──
