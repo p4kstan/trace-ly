@@ -15,40 +15,40 @@ import {
 } from "@/components/ui/sidebar";
 
 const mainItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Real-Time & ML", url: "/realtime", icon: Gauge },
-  { title: "AI Insights", url: "/ai-analytics", icon: Brain },
-  { title: "Predictions", url: "/predictions", icon: TrendingUp },
-  { title: "Optimization", url: "/optimization", icon: Lightbulb },
-  { title: "Attribution", url: "/attribution", icon: GitBranch },
-  { title: "Funnels", url: "/funnels", icon: Filter },
-  { title: "Orders", url: "/orders", icon: ShoppingCart },
+  { title: "Painel", url: "/", icon: LayoutDashboard },
+  { title: "Tempo Real & ML", url: "/realtime", icon: Gauge },
+  { title: "Insights IA", url: "/ai-analytics", icon: Brain },
+  { title: "Predições", url: "/predictions", icon: TrendingUp },
+  { title: "Otimização", url: "/optimization", icon: Lightbulb },
+  { title: "Atribuição", url: "/attribution", icon: GitBranch },
+  { title: "Funis", url: "/funnels", icon: Filter },
+  { title: "Pedidos", url: "/orders", icon: ShoppingCart },
   { title: "Pixels", url: "/pixels", icon: MonitorDot },
-  { title: "Event Logs", url: "/logs", icon: ScrollText },
-  { title: "Debugger", url: "/debugger", icon: Bug },
+  { title: "Logs de Eventos", url: "/logs", icon: ScrollText },
+  { title: "Depurador", url: "/debugger", icon: Bug },
 ];
 
 const trackingHubItems = [
-  { title: "Tracking Sources", url: "/tracking-sources", icon: Radio },
-  { title: "Destinations", url: "/destinations", icon: Send },
-  { title: "SDK Setup", url: "/sdk-setup", icon: Code },
-  { title: "Integration Logs", url: "/integration-logs", icon: FileText },
+  { title: "Fontes de Tracking", url: "/tracking-sources", icon: Radio },
+  { title: "Destinos", url: "/destinations", icon: Send },
+  { title: "Instalação SDK", url: "/sdk-setup", icon: Code },
+  { title: "Logs de Integração", url: "/integration-logs", icon: FileText },
   { title: "Como Funciona", url: "/how-it-works", icon: HelpCircle },
-  { title: "Guia Setup", url: "/tracking-guide", icon: BookOpen },
+  { title: "Guia de Setup", url: "/tracking-guide", icon: BookOpen },
 ];
 
 const settingsItems = [
-  { title: "API Keys", url: "/api-keys", icon: Key },
-  { title: "Integrations", url: "/integrations", icon: Zap },
-  { title: "Webhook Logs", url: "/webhook-logs", icon: Webhook },
-  { title: "Queue", url: "/queue", icon: Inbox },
-  { title: "Tutorials", url: "/tutorials", icon: BookOpen },
+  { title: "Chaves API", url: "/api-keys", icon: Key },
+  { title: "Integrações", url: "/integrations", icon: Zap },
+  { title: "Logs Webhook", url: "/webhook-logs", icon: Webhook },
+  { title: "Fila", url: "/queue", icon: Inbox },
+  { title: "Tutoriais", url: "/tutorials", icon: BookOpen },
   { title: "MCP", url: "/mcp", icon: Cpu },
   { title: "Enterprise", url: "/enterprise", icon: Shield },
-  { title: "Plans", url: "/plans", icon: CreditCard },
-  { title: "Usage", url: "/usage", icon: Gauge },
-  { title: "Settings", url: "/settings", icon: Settings },
-  { title: "System Health", url: "/system-diagnostic", icon: HeartPulse },
+  { title: "Planos", url: "/plans", icon: CreditCard },
+  { title: "Uso", url: "/usage", icon: Gauge },
+  { title: "Configurações", url: "/settings", icon: Settings },
+  { title: "Saúde do Sistema", url: "/system-diagnostic", icon: HeartPulse },
 ];
 
 function SidebarNavGroup({ items, label, collapsed }: { items: typeof mainItems; label: string; collapsed: boolean }) {
@@ -128,18 +128,18 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="px-2 py-3">
-        <SidebarNavGroup items={mainItems} label="Analytics" collapsed={collapsed} />
+        <SidebarNavGroup items={mainItems} label="Análises" collapsed={collapsed} />
         <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
-        <SidebarNavGroup items={trackingHubItems} label="Tracking Hub" collapsed={collapsed} />
+        <SidebarNavGroup items={trackingHubItems} label="Hub de Tracking" collapsed={collapsed} />
         <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
-        <SidebarNavGroup items={settingsItems} label="Settings" collapsed={collapsed} />
+        <SidebarNavGroup items={settingsItems} label="Configurações" collapsed={collapsed} />
       </SidebarContent>
 
       <SidebarFooter className="p-3 border-t border-sidebar-border/40 space-y-2.5">
         {!collapsed && (
           <div className="rounded-lg bg-sidebar-accent/30 border border-border/20 p-3 backdrop-blur-sm">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider capitalize">{workspace?.plan || "Free"} Plan</span>
+              <span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider capitalize">Plano {workspace?.plan || "Free"}</span>
               <span className="text-[10px] font-bold text-primary tabular-nums">
                 {eventCount.toLocaleString()}/{eventLimit.toLocaleString()}
               </span>
