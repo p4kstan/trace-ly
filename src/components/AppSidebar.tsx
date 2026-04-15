@@ -34,6 +34,8 @@ const trackingHubItems = [
   { title: "Instalação SDK", url: "/sdk-setup", icon: Code },
   { title: "Logs de Integração", url: "/integration-logs", icon: FileText },
   { title: "Como Funciona", url: "/how-it-works", icon: HelpCircle },
+  { title: "Setup Facebook / Meta", url: "/setup-facebook", icon: Send },
+  { title: "Setup Google (GA4+Ads)", url: "/setup-google", icon: Send },
   { title: "Guia de Setup", url: "/tracking-guide", icon: BookOpen },
 ];
 
