@@ -78,7 +78,7 @@ export default function Auth() {
             <Zap className="w-6 h-6 text-primary" />
           </div>
           <h1 className="text-xl font-bold text-gradient-primary">CapiTrack AI</h1>
-          <p className="text-muted-foreground text-xs mt-1 tracking-wide">Server-side tracking platform</p>
+          <p className="text-muted-foreground text-xs mt-1 tracking-wide">Plataforma de rastreamento server-side</p>
         </div>
 
         <div className="surface-elevated p-6 space-y-5">
@@ -160,7 +160,7 @@ export default function Auth() {
         </div>
 
         <p className="text-center text-[10px] text-muted-foreground/40">
-          © 2026 CapiTrack AI · Tracking server-side inteligente
+          © 2026 CapiTrack AI · Rastreamento server-side inteligente
         </p>
       </div>
     </div>

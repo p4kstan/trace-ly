@@ -269,7 +269,7 @@ function AnomalyAlertsTab({ workspaceId }: { workspaceId: string }) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-sm font-medium text-foreground flex items-center gap-2">
-            Anomaly Detection
+            Detecção de Anomalias
             {unacknowledged.length > 0 && (
               <Badge variant="destructive" className="text-[10px]">{unacknowledged.length} novos</Badge>
             )}
@@ -321,7 +321,7 @@ function AnomalyAlertsTab({ workspaceId }: { workspaceId: string }) {
                     </div>
                     {!alert.acknowledged && (
                       <Button variant="ghost" size="sm" onClick={() => ackMutation.mutate(alert.id)} className="shrink-0">
-                        <BellOff className="w-3.5 h-3.5 mr-1" /> Ack
+                        <BellOff className="w-3.5 h-3.5 mr-1" /> Reconhecer
                       </Button>
                     )}
                   </div>
@@ -413,7 +413,7 @@ function EventReplayTab({ workspaceId }: { workspaceId: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-medium text-foreground">Event Replay</h2>
+          <h2 className="text-sm font-medium text-foreground">Replay de Eventos</h2>
           <p className="text-xs text-muted-foreground mt-0.5">Re-processar eventos da dead letter queue</p>
         </div>
         <Badge variant="outline" className="text-xs">
@@ -513,14 +513,14 @@ export default function EnterprisePage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-bold text-foreground">Enterprise</h1>
-        <p className="text-sm text-muted-foreground">Feature flags, anomaly detection e event replay</p>
+        <p className="text-sm text-muted-foreground">Feature flags, detecção de anomalias e replay de eventos</p>
       </div>
 
       <Tabs defaultValue="flags">
         <TabsList>
           <TabsTrigger value="flags" className="gap-1.5"><Flag className="w-3.5 h-3.5" /> Feature Flags</TabsTrigger>
           <TabsTrigger value="anomalies" className="gap-1.5"><AlertTriangle className="w-3.5 h-3.5" /> Anomalias</TabsTrigger>
-          <TabsTrigger value="replay" className="gap-1.5"><RotateCcw className="w-3.5 h-3.5" /> Event Replay</TabsTrigger>
+          <TabsTrigger value="replay" className="gap-1.5"><RotateCcw className="w-3.5 h-3.5" /> Replay de Eventos</TabsTrigger>
         </TabsList>
 
         <TabsContent value="flags" className="mt-4">

@@ -126,8 +126,8 @@ export default function Attribution() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Attribution</h1>
-          <p className="text-muted-foreground text-sm mt-1">Multi-model attribution analysis</p>
+          <h1 className="text-2xl font-bold text-foreground">Atribuição</h1>
+          <p className="text-muted-foreground text-sm mt-1">Análise de atribuição multi-modelo</p>
         </div>
         {conversions?.length ? (
           <Button onClick={handleCompute} disabled={computing} variant="outline" size="sm">
@@ -158,9 +158,9 @@ export default function Attribution() {
       {hasData && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
-            { label: "Revenue Atribuído", value: `R$ ${totalRevenue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` },
+            { label: "Receita Atribuída", value: `R$ ${totalRevenue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` },
             { label: "Conversões", value: String(totalConversions) },
-            { label: "Top Source", value: topSource },
+            { label: "Fonte Principal", value: topSource },
           ].map(card => (
             <div key={card.label} className="surface-elevated p-4">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{card.label}</p>
@@ -188,7 +188,7 @@ export default function Attribution() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="lg:col-span-2 surface-elevated p-5">
               <h3 className="text-sm font-medium text-foreground mb-4">
-                Attributed Revenue by Campaign ({MODELS.find(m => m.key === selectedModel)?.label})
+                Receita Atribuída por Campanha ({MODELS.find(m => m.key === selectedModel)?.label})
               </h3>
               <ResponsiveContainer width="100%" height={320}>
                 <BarChart data={attributionData.slice(0, 10)}>
@@ -198,15 +198,15 @@ export default function Attribution() {
                   <Tooltip
                     contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
                     labelStyle={{ color: "hsl(var(--foreground))" }}
-                    formatter={(value: number) => [`R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, "Revenue"]}
+                    formatter={(value: number) => [`R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, "Receita"]}
                   />
-                  <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Revenue" />
+                  <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Receita" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
 
             <div className="surface-elevated p-5">
-              <h3 className="text-sm font-medium text-foreground mb-4">Channel Distribution</h3>
+              <h3 className="text-sm font-medium text-foreground mb-4">Distribuição por Canal</h3>
               {channelPie.length > 0 ? (
                 <>
                   <ResponsiveContainer width="100%" height={240}>
@@ -237,14 +237,14 @@ export default function Attribution() {
 
           {/* Attribution table */}
           <div className="surface-elevated p-5 overflow-x-auto">
-            <h3 className="text-sm font-medium text-foreground mb-4">Campaign Attribution Table</h3>
+            <h3 className="text-sm font-medium text-foreground mb-4">Tabela de Atribuição por Campanha</h3>
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-muted-foreground border-b border-border">
-                  <th className="text-left py-2 font-medium">Campaign</th>
-                  <th className="text-right py-2 font-medium">Credit</th>
+                  <th className="text-left py-2 font-medium">Campanha</th>
+                  <th className="text-right py-2 font-medium">Crédito</th>
                   <th className="text-right py-2 font-medium">Conversões</th>
-                  <th className="text-right py-2 font-medium">Revenue</th>
+                  <th className="text-right py-2 font-medium">Receita</th>
                 </tr>
               </thead>
               <tbody>

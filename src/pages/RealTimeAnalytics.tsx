@@ -135,12 +135,12 @@ export default function RealTimeAnalytics() {
   };
 
   const metricCards = [
-    { label: "Events/sec", value: liveMetrics.events_per_sec?.toFixed(1) || "0", icon: Zap, color: "text-primary" },
-    { label: "Revenue/min", value: `R$ ${(liveMetrics.revenue_per_min || 0).toFixed(2)}`, icon: TrendingUp, color: "text-success" },
-    { label: "Conv. Rate", value: `${((liveMetrics.conversion_rate || 0) * 100).toFixed(1)}%`, icon: Activity, color: "text-accent" },
-    { label: "Queue Size", value: String(liveMetrics.queue_size || 0), icon: BarChart3, color: "text-warning" },
-    { label: "Error Rate", value: `${((liveMetrics.error_rate || 0) * 100).toFixed(1)}%`, icon: AlertTriangle, color: "text-destructive" },
-    { label: "ML Models", value: String(mlModels?.length || 0), icon: Brain, color: "text-primary" },
+    { label: "Eventos/seg", value: liveMetrics.events_per_sec?.toFixed(1) || "0", icon: Zap, color: "text-primary" },
+    { label: "Receita/min", value: `R$ ${(liveMetrics.revenue_per_min || 0).toFixed(2)}`, icon: TrendingUp, color: "text-success" },
+    { label: "Taxa Conv.", value: `${((liveMetrics.conversion_rate || 0) * 100).toFixed(1)}%`, icon: Activity, color: "text-accent" },
+    { label: "Tam. Fila", value: String(liveMetrics.queue_size || 0), icon: BarChart3, color: "text-warning" },
+    { label: "Taxa Erro", value: `${((liveMetrics.error_rate || 0) * 100).toFixed(1)}%`, icon: AlertTriangle, color: "text-destructive" },
+    { label: "Modelos ML", value: String(mlModels?.length || 0), icon: Brain, color: "text-primary" },
   ];
 
   // Group predictions by type
@@ -151,8 +151,8 @@ export default function RealTimeAnalytics() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Real-Time Analytics & ML</h1>
-          <p className="text-muted-foreground text-sm mt-1">Live metrics, ML attribution & predictive analytics</p>
+          <h1 className="text-2xl font-bold text-foreground">Análise em Tempo Real & ML</h1>
+          <p className="text-muted-foreground text-sm mt-1">Métricas ao vivo, atribuição ML e análise preditiva</p>
         </div>
         <div className="flex gap-2">
           <Button onClick={() => handleTrainML("markov")} disabled={training} variant="outline" size="sm">
@@ -162,7 +162,7 @@ export default function RealTimeAnalytics() {
             <Brain className="w-4 h-4 mr-1" /> Shapley
           </Button>
           <Button onClick={handlePredict} disabled={predicting} size="sm">
-            <TrendingUp className="w-4 h-4 mr-1" /> {predicting ? "Predizendo..." : "Predict ROAS/LTV"}
+            <TrendingUp className="w-4 h-4 mr-1" /> {predicting ? "Predizendo..." : "Prever ROAS/LTV"}
           </Button>
         </div>
       </div>
@@ -215,7 +215,7 @@ export default function RealTimeAnalytics() {
       {/* ROAS Predictions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="surface-elevated p-5">
-          <h3 className="text-sm font-medium text-foreground mb-3">Predicted ROAS por Canal</h3>
+          <h3 className="text-sm font-medium text-foreground mb-3">ROAS Previsto por Canal</h3>
           {predLoading ? (
             <Skeleton className="h-[200px]" />
           ) : roasPredictions.length > 0 ? (
@@ -234,12 +234,12 @@ export default function RealTimeAnalytics() {
               ))}
             </div>
           ) : (
-            <p className="text-muted-foreground text-sm text-center py-8">Clique "Predict ROAS/LTV" para gerar predições</p>
+            <p className="text-muted-foreground text-sm text-center py-8">Clique "Prever ROAS/LTV" para gerar predições</p>
           )}
         </div>
 
         <div className="surface-elevated p-5">
-          <h3 className="text-sm font-medium text-foreground mb-3">Predicted LTV por Canal</h3>
+          <h3 className="text-sm font-medium text-foreground mb-3">LTV Previsto por Canal</h3>
           {predLoading ? (
             <Skeleton className="h-[200px]" />
           ) : ltvPredictions.length > 0 ? (
@@ -262,7 +262,7 @@ export default function RealTimeAnalytics() {
 
       {/* Live Event Stream */}
       <div className="surface-elevated p-5">
-        <h3 className="text-sm font-medium text-foreground mb-3">Event Stream (últimos 60s)</h3>
+        <h3 className="text-sm font-medium text-foreground mb-3">Fluxo de Eventos (últimos 60s)</h3>
         {history.length > 0 ? (
           <div className="flex items-end gap-0.5 h-20">
             {history.map((h, i) => (

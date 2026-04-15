@@ -187,7 +187,7 @@ export default function Dashboard() {
       <div>
         <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground text-sm mt-0.5">
-          {workspace ? workspace.name : "Overview of your tracking performance"}
+          {workspace ? workspace.name : "Visão geral do seu rastreamento"}
         </p>
       </div>
 
@@ -260,10 +260,10 @@ export default function Dashboard() {
       {/* Quick AI Actions */}
       <div className="flex gap-2 flex-wrap">
         <button onClick={() => navigate("/ai-analytics")} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-primary/20 bg-primary/5 text-sm text-primary hover:bg-primary/10 transition-colors">
-          <Brain className="w-4 h-4" /> AI Insights
+          <Brain className="w-4 h-4" /> Insights IA
         </button>
         <button onClick={() => navigate("/realtime")} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border/30 bg-muted/10 text-sm text-muted-foreground hover:text-foreground transition-colors">
-          <Zap className="w-4 h-4" /> Real-Time
+          <Zap className="w-4 h-4" /> Tempo Real
         </button>
       </div>
 

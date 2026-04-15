@@ -6,8 +6,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 const FUNNEL_EVENTS = [
   { name: "PageView", icon: Eye, label: "Visualizações" },
-  { name: "ViewContent", icon: Filter, label: "View Content" },
-  { name: "AddToCart", icon: ShoppingCart, label: "Add to Cart" },
+  { name: "ViewContent", icon: Filter, label: "Conteúdo Visto" },
+  { name: "AddToCart", icon: ShoppingCart, label: "Add ao Carrinho" },
   { name: "InitiateCheckout", icon: CreditCard, label: "Checkout" },
   { name: "Purchase", icon: TrendingUp, label: "Compras" },
 ];
@@ -54,7 +54,7 @@ export default function Funnels() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Funnel Analytics</h1>
+        <h1 className="text-2xl font-bold text-foreground">Análise de Funil</h1>
         <p className="text-muted-foreground text-sm mt-1">Funil de conversão e descoberta de eventos</p>
       </div>
 

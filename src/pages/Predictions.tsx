@@ -53,7 +53,7 @@ export default function Predictions() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Predictive Analytics</h1>
+          <h1 className="text-2xl font-bold text-foreground">Análise Preditiva</h1>
           <p className="text-muted-foreground text-sm mt-1">ROAS, LTV e receita previstos por canal</p>
         </div>
         <Button onClick={handlePredict} disabled={predicting} size="sm">
@@ -66,8 +66,8 @@ export default function Predictions() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { label: "Total Predições", value: String(predictions?.length || 0), icon: Brain, color: "text-primary" },
-          { label: "ROAS Predictions", value: String(roasPreds.length), icon: TrendingUp, color: "text-success" },
-          { label: "LTV Predictions", value: String(ltvPreds.length), icon: Users, color: "text-accent" },
+          { label: "Predições ROAS", value: String(roasPreds.length), icon: TrendingUp, color: "text-success" },
+          { label: "Predições LTV", value: String(ltvPreds.length), icon: Users, color: "text-accent" },
           { label: "Confiança Média", value: `${avgConfidence}%`, icon: Target, color: "text-warning" },
         ].map(c => (
           <div key={c.label} className="surface-elevated p-4 text-center">
@@ -86,7 +86,7 @@ export default function Predictions() {
           <div className="surface-elevated p-5">
             <div className="flex items-center gap-2 mb-4">
               <DollarSign className="w-4 h-4 text-success" />
-              <h3 className="text-sm font-medium text-foreground">Predicted ROAS</h3>
+              <h3 className="text-sm font-medium text-foreground">ROAS Previsto</h3>
             </div>
             {roasPreds.length > 0 ? (
               <div className="space-y-2 max-h-[400px] overflow-y-auto">
@@ -114,7 +114,7 @@ export default function Predictions() {
           <div className="surface-elevated p-5">
             <div className="flex items-center gap-2 mb-4">
               <Users className="w-4 h-4 text-primary" />
-              <h3 className="text-sm font-medium text-foreground">Predicted LTV</h3>
+              <h3 className="text-sm font-medium text-foreground">LTV Previsto</h3>
             </div>
             {ltvPreds.length > 0 ? (
               <div className="space-y-2 max-h-[400px] overflow-y-auto">
