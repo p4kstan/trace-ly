@@ -154,7 +154,7 @@ export default function TrackingSources() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gradient-primary">Tracking Sources</h1>
+          <h1 className="text-2xl font-bold text-gradient-primary">Fontes de Tracking</h1>
           <p className="text-sm text-muted-foreground">Gerencie as fontes de coleta de eventos do seu workspace</p>
         </div>
         <Button onClick={openWizard} className="gap-2">

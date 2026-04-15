@@ -8,7 +8,7 @@ const plans = [
     period: "/mês",
     events: "10.000 eventos",
     current: true,
-    features: ["1 Pixel", "Dashboard básico", "7 dias de retenção", "Email support"],
+    features: ["1 Pixel", "Dashboard básico", "7 dias de retenção", "Suporte por email"],
   },
   {
     name: "Pro",
@@ -17,7 +17,7 @@ const plans = [
     events: "1.000.000 eventos",
     current: false,
     popular: true,
-    features: ["Pixels ilimitados", "Attribution multi-touch", "AI Analytics", "90 dias de retenção", "All integrations", "Priority support"],
+    features: ["Pixels ilimitados", "Atribuição multi-touch", "Análise IA", "90 dias de retenção", "Todas integrações", "Suporte prioritário"],
   },
   {
     name: "Enterprise",
@@ -25,7 +25,7 @@ const plans = [
     period: "",
     events: "Eventos ilimitados",
     current: false,
-    features: ["Tudo do Pro", "Dedicated infra", "Custom SLA", "API access ilimitado", "Onboarding dedicado", "Slack support"],
+    features: ["Tudo do Pro", "Infra dedicada", "SLA customizado", "Acesso API ilimitado", "Onboarding dedicado", "Suporte via Slack"],
   },
 ];
 
@@ -33,8 +33,8 @@ export default function Plans() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="text-center">
-        <h1 className="text-2xl font-bold text-foreground">Plans & Pricing</h1>
-        <p className="text-muted-foreground text-sm mt-1">Scale your tracking as you grow</p>
+        <h1 className="text-2xl font-bold text-foreground">Planos e Preços</h1>
+        <p className="text-muted-foreground text-sm mt-1">Escale seu rastreamento conforme você cresce</p>
         <Badge variant="secondary" className="mt-3">
           <Clock className="w-3 h-3 mr-1" />
           Billing em breve — planos são apenas informativos

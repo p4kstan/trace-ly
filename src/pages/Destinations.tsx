@@ -61,7 +61,7 @@ export default function Destinations() {
       <TrackingHubGuide variant="compact" />
 
       <div>
-        <h1 className="text-2xl font-bold text-gradient-primary">Destinations</h1>
+        <h1 className="text-2xl font-bold text-gradient-primary">Destinos</h1>
         <p className="text-sm text-muted-foreground">
           Destinos de eventos configurados via Integrações. Aqui você monitora o status de entrega.
         </p>

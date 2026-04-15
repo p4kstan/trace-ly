@@ -158,7 +158,7 @@ const response = await fetch("${supabaseUrl}/functions/v1/track", {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gradient-primary">SDK Setup</h1>
+        <h1 className="text-2xl font-bold text-gradient-primary">Instalação do SDK</h1>
         <p className="text-sm text-muted-foreground">
           Instale o SDK do CapiTrack AI no seu site para começar a coletar eventos
         </p>
@@ -207,7 +207,7 @@ const response = await fetch("${supabaseUrl}/functions/v1/track", {
       {apiKeys.length > 0 && (
         <Card className="glass-card">
           <CardHeader>
-            <CardTitle className="text-base">Sua Public Key</CardTitle>
+            <CardTitle className="text-base">Sua Chave Pública</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">

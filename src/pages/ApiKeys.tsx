@@ -72,7 +72,7 @@ export default function ApiKeys() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">API Keys</h1>
+          <h1 className="text-2xl font-bold text-foreground">Chaves API</h1>
           <p className="text-muted-foreground text-sm mt-1">Gerencie suas chaves de autenticação do SDK</p>
         </div>
         <Button onClick={() => { setShowForm(true); setNewKey(""); }} className="bg-primary text-primary-foreground hover:bg-primary/90 glow-primary">

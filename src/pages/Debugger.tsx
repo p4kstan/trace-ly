@@ -15,8 +15,8 @@ export default function Debugger() {
     return (
       <div className="space-y-6 animate-fade-in">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Event Debugger</h1>
-          <p className="text-muted-foreground text-sm mt-1">Inspect event payloads and API responses</p>
+          <h1 className="text-2xl font-bold text-foreground">Depurador de Eventos</h1>
+          <p className="text-muted-foreground text-sm mt-1">Inspecione payloads de eventos e respostas da API</p>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}</div>
@@ -32,8 +32,8 @@ export default function Debugger() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Event Debugger</h1>
-        <p className="text-muted-foreground text-sm mt-1">Inspect event payloads and API responses</p>
+        <h1 className="text-2xl font-bold text-foreground">Depurador de Eventos</h1>
+        <p className="text-muted-foreground text-sm mt-1">Inspecione payloads de eventos e respostas da API</p>
       </div>
 
       {!deliveries?.length ? (
@@ -69,7 +69,7 @@ export default function Debugger() {
                   <span>{new Date(d.created_at).toLocaleTimeString()}</span>
                   <span>•</span>
                   <Clock className="w-3 h-3" />
-                  <span>attempt {d.attempt_count}</span>
+                  <span>tentativa {d.attempt_count}</span>
                 </div>
               </button>
             ))}
@@ -79,7 +79,7 @@ export default function Debugger() {
             <div className="lg:col-span-2 space-y-4">
               <div className="glass-card p-4">
                 <div className="flex items-center gap-3 mb-3">
-                  <span className="text-xs font-medium text-muted-foreground uppercase">Request</span>
+                  <span className="text-xs font-medium text-muted-foreground uppercase">Requisição</span>
                   <ArrowRight className="w-3 h-3 text-muted-foreground" />
                   <span className="text-xs font-medium text-primary">{selected.provider} — {selected.destination}</span>
                 </div>
@@ -90,7 +90,7 @@ export default function Debugger() {
 
               <div className="glass-card p-4">
                 <div className="flex items-center gap-3 mb-3">
-                  <span className="text-xs font-medium text-muted-foreground uppercase">Response</span>
+                  <span className="text-xs font-medium text-muted-foreground uppercase">Resposta</span>
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                     selected.status === "delivered" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
                   }`}>

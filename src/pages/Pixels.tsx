@@ -210,7 +210,7 @@ export default function Pixels() {
                     {pixel.is_active ? "ativo" : "inativo"}
                   </span>
                 </div>
-                {pixel.test_event_code && <span className="px-2 py-0.5 rounded-full text-xs bg-warning/10 text-warning font-medium">Test Mode</span>}
+                {pixel.test_event_code && <span className="px-2 py-0.5 rounded-full text-xs bg-warning/10 text-warning font-medium">Modo Teste</span>}
                 <Switch checked={pixel.is_active} onCheckedChange={() => handleToggle(pixel.id, pixel.is_active)} />
                 <button onClick={() => startEdit(pixel)} className="text-muted-foreground hover:text-foreground"><Pencil className="w-4 h-4" /></button>
                 <button onClick={() => handleDelete(pixel.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="w-4 h-4" /></button>

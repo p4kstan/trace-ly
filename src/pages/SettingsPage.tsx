@@ -25,7 +25,7 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6 animate-fade-in max-w-2xl">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+        <h1 className="text-2xl font-bold text-foreground">Configurações</h1>
         <p className="text-muted-foreground text-sm mt-1">Configurações do workspace</p>
       </div>
 
@@ -76,7 +76,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="glass-card p-6 space-y-4">
-        <h3 className="font-medium text-foreground">SDK Installation</h3>
+        <h3 className="font-medium text-foreground">Instalação do SDK</h3>
         <p className="text-sm text-muted-foreground">
           Vá em <strong>API Keys</strong> para gerar uma chave e copiar o snippet de instalação completo.
         </p>

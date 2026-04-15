@@ -74,7 +74,7 @@ export default function Optimization() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Budget Optimization</h1>
+          <h1 className="text-2xl font-bold text-foreground">Otimização de Budget</h1>
           <p className="text-muted-foreground text-sm mt-1">Recomendações de otimização e atribuição híbrida</p>
         </div>
         <Button onClick={handleOptimize} disabled={running} size="sm">
@@ -88,8 +88,8 @@ export default function Optimization() {
         {[
           { label: "Recomendações", value: String(pending.length), icon: Lightbulb, color: "text-primary" },
           { label: "Alta Prioridade", value: String(high.length), icon: Zap, color: "text-destructive" },
-          { label: "Hybrid Channels", value: String(hybridAttr?.length || 0), icon: TrendingUp, color: "text-success" },
-          { label: "Budget Actions", value: String(recommendations?.length || 0), icon: Lightbulb, color: "text-warning" },
+          { label: "Canais Híbridos", value: String(hybridAttr?.length || 0), icon: TrendingUp, color: "text-success" },
+          { label: "Ações de Budget", value: String(recommendations?.length || 0), icon: Lightbulb, color: "text-warning" },
         ].map(c => (
           <div key={c.label} className="surface-elevated p-4 text-center">
             <c.icon className={`w-5 h-5 mx-auto mb-2 ${c.color}`} />
@@ -139,7 +139,7 @@ export default function Optimization() {
 
           {/* Hybrid Attribution */}
           <div className="surface-elevated p-5">
-            <h3 className="text-sm font-medium text-foreground mb-4">Hybrid Attribution</h3>
+            <h3 className="text-sm font-medium text-foreground mb-4">Atribuição Híbrida</h3>
             {(hybridAttr?.length || 0) > 0 ? (
               <div className="space-y-2 max-h-[400px] overflow-y-auto">
                 {hybridAttr!.map((h: any) => (

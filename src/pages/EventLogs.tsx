@@ -26,12 +26,12 @@ export default function EventLogs() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Event Logs</h1>
+          <h1 className="text-2xl font-bold text-foreground">Logs de Eventos</h1>
           <p className="text-muted-foreground text-sm mt-1">Todos os eventos rastreados com detalhes de payload</p>
         </div>
         <Button variant="outline" className="border-border text-muted-foreground hover:text-foreground" aria-label="Exportar eventos">
           <Download className="w-4 h-4 mr-2" />
-          Export
+          Exportar
         </Button>
       </div>
 
