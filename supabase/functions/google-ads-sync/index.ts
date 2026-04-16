@@ -41,36 +41,50 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
     }
 
-    const { workspace_id, days = 30 } = await req.json();
+    const { workspace_id, customer_id, days = 30 } = await req.json();
     if (!workspace_id) {
       return new Response(JSON.stringify({ error: "workspace_id required" }), { status: 400, headers: corsHeaders });
     }
 
     const service = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    const { data: cred, error: credErr } = await service
-      .from("google_ads_credentials")
-      .select("*")
-      .eq("workspace_id", workspace_id)
-      .maybeSingle();
+    // Pick specific account if customer_id given, else default, else first
+    let credQuery = service.from("google_ads_credentials").select("*").eq("workspace_id", workspace_id);
+    if (customer_id) credQuery = credQuery.eq("customer_id", customer_id);
+    else credQuery = credQuery.order("is_default", { ascending: false });
+
+    const { data: credList, error: credErr } = await credQuery.limit(1);
+    const cred = credList?.[0];
 
     if (credErr || !cred) {
-      return new Response(JSON.stringify({ error: "Google Ads not connected" }), { status: 400, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: "Google Ads not connected", reconnect: true }), { status: 400, headers: corsHeaders });
     }
 
     // Refresh if expired
     let accessToken = cred.access_token as string;
     if (!cred.token_expires_at || new Date(cred.token_expires_at).getTime() < Date.now()) {
       if (!cred.refresh_token) {
-        return new Response(JSON.stringify({ error: "No refresh token, reconnect required" }), { status: 400, headers: corsHeaders });
+        await service.from("google_ads_credentials").update({
+          status: "error",
+          last_error: "No refresh token, reconnect required",
+        }).eq("workspace_id", workspace_id).eq("customer_id", cred.customer_id);
+        return new Response(JSON.stringify({ error: "No refresh token, reconnect required", reconnect: true, customer_id: cred.customer_id }), { status: 400, headers: corsHeaders });
       }
-      const refreshed = await refreshAccessToken(cred.refresh_token);
-      accessToken = refreshed.access_token;
-      const newExpiry = new Date(Date.now() + (refreshed.expires_in - 60) * 1000).toISOString();
-      await service.from("google_ads_credentials").update({
-        access_token: accessToken,
-        token_expires_at: newExpiry,
-      }).eq("workspace_id", workspace_id);
+      try {
+        const refreshed = await refreshAccessToken(cred.refresh_token);
+        accessToken = refreshed.access_token;
+        const newExpiry = new Date(Date.now() + (refreshed.expires_in - 60) * 1000).toISOString();
+        await service.from("google_ads_credentials").update({
+          access_token: accessToken,
+          token_expires_at: newExpiry,
+        }).eq("workspace_id", workspace_id).eq("customer_id", cred.customer_id);
+      } catch (e) {
+        await service.from("google_ads_credentials").update({
+          status: "error",
+          last_error: `Refresh failed: ${String(e).slice(0, 300)}`,
+        }).eq("workspace_id", workspace_id).eq("customer_id", cred.customer_id);
+        return new Response(JSON.stringify({ error: "Refresh token invalid, reconnect required", reconnect: true, customer_id: cred.customer_id }), { status: 400, headers: corsHeaders });
+      }
     }
 
     const developerToken = cred.developer_token || Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN")!;
@@ -114,7 +128,7 @@ Deno.serve(async (req) => {
       console.error("ads api error", adsJson);
       await service.from("google_ads_credentials").update({
         last_error: JSON.stringify(adsJson).slice(0, 500),
-      }).eq("workspace_id", workspace_id);
+      }).eq("workspace_id", workspace_id).eq("customer_id", cred.customer_id);
       return new Response(JSON.stringify({ error: "Google Ads API error", detail: adsJson }), { status: 502, headers: corsHeaders });
     }
 
@@ -146,7 +160,8 @@ Deno.serve(async (req) => {
     await service.from("google_ads_credentials").update({
       last_sync_at: new Date().toISOString(),
       last_error: null,
-    }).eq("workspace_id", workspace_id);
+      status: "connected",
+    }).eq("workspace_id", workspace_id).eq("customer_id", cred.customer_id);
 
     return new Response(JSON.stringify({ ok: true, synced: rows.length }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
