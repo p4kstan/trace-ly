@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.103.0";
 import { corsHeaders } from "npm:@supabase/supabase-js@2.103.0/cors";
+import { selectAccounts, extractTag } from "../_shared/account-router.ts";
 
 const GRAPH_API_VERSION = "v21.0";
 const GRAPH_API_BASE = "https://graph.facebook.com";
@@ -8,6 +9,19 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
 );
+
+// Unified account shape for both legacy meta_pixels and new meta_ad_accounts
+interface MetaAccount {
+  id: string;
+  pixel_id: string;
+  access_token: string;
+  test_event_code?: string | null;
+  routing_mode?: string | null;
+  routing_domains?: string[] | null;
+  routing_tags?: string[] | null;
+  is_default?: boolean | null;
+  source: "pixel" | "ad_account";
+}
 
 // Standard Meta events mapping
 const STANDARD_EVENTS = [
@@ -85,16 +99,47 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get workspace's active Meta pixels
-    const { data: pixels, error: pixelError } = await supabase
-      .from("meta_pixels")
-      .select("id, pixel_id, access_token_encrypted, test_event_code")
-      .eq("workspace_id", workspace_id)
-      .eq("is_active", true);
+    // Load all Meta destinations: legacy meta_pixels + new meta_ad_accounts
+    const [{ data: legacyPixels }, { data: adAccounts }] = await Promise.all([
+      supabase
+        .from("meta_pixels")
+        .select("id, pixel_id, access_token_encrypted, test_event_code")
+        .eq("workspace_id", workspace_id)
+        .eq("is_active", true),
+      supabase
+        .from("meta_ad_accounts")
+        .select("id, pixel_id, access_token, routing_mode, routing_domains, routing_tags, is_default")
+        .eq("workspace_id", workspace_id)
+        .eq("status", "connected"),
+    ]);
 
-    if (pixelError || !pixels?.length) {
+    const accounts: MetaAccount[] = [
+      ...(legacyPixels || []).map((p: any): MetaAccount => ({
+        id: p.id,
+        pixel_id: p.pixel_id,
+        access_token: p.access_token_encrypted,
+        test_event_code: p.test_event_code,
+        routing_mode: "all",
+        is_default: true,
+        source: "pixel",
+      })),
+      ...((adAccounts || []) as any[])
+        .filter((a) => a.pixel_id && a.access_token)
+        .map((a): MetaAccount => ({
+          id: a.id,
+          pixel_id: a.pixel_id,
+          access_token: a.access_token,
+          routing_mode: a.routing_mode,
+          routing_domains: a.routing_domains,
+          routing_tags: a.routing_tags,
+          is_default: a.is_default,
+          source: "ad_account",
+        })),
+    ];
+
+    if (accounts.length === 0) {
       return new Response(
-        JSON.stringify({ error: "No active Meta pixels found" }),
+        JSON.stringify({ error: "No active Meta destinations found" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
