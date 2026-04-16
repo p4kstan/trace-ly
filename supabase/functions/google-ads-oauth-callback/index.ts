@@ -53,6 +53,15 @@ Deno.serve(async (req) => {
 
     const service = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
+    // Multi-conta: upsert por (workspace_id, customer_id) — permite N contas por workspace.
+    // Se for a primeira conta do workspace, marca como default.
+    const { count } = await service
+      .from("google_ads_credentials")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", state.workspace_id);
+
+    const isFirst = !count || count === 0;
+
     await service.from("google_ads_credentials").upsert({
       workspace_id: state.workspace_id,
       customer_id: state.customer_id,
@@ -62,7 +71,8 @@ Deno.serve(async (req) => {
       status: "connected",
       last_error: null,
       developer_token: Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN") ?? null,
-    }, { onConflict: "workspace_id" });
+      ...(isFirst ? { is_default: true, account_label: state.account_label || "Conta principal" } : {}),
+    }, { onConflict: "workspace_id,customer_id" });
 
     return Response.redirect(`${appOrigin}${state.return_url || "/setup-google"}?gads=connected`, 302);
   } catch (e) {
