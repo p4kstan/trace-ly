@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useWorkspace } from "@/hooks/use-tracking-data";
@@ -97,6 +98,7 @@ function MetricCard({ icon: Icon, label, value, hint }: { icon: any; label: stri
 }
 
 export default function GoogleAdsCampaigns() {
+  const navigate = useNavigate();
   const { data: workspace } = useWorkspace();
   const [customerId, setCustomerId] = useState<string>("");
   const [period, setPeriod] = useState<Period>("7d");
@@ -191,7 +193,8 @@ export default function GoogleAdsCampaigns() {
 
   const drillDown = (row: ReportRow) => {
     if (level === "campaigns") {
-      setBreadcrumb([...breadcrumb, { level: "ad_groups", id: row.id, name: row.name }]);
+      // Open dedicated detail page with all tabs (keywords, audiences, extensions, history, etc.)
+      navigate(`/google-ads-campaigns/${customerId}/${row.id}`);
     } else if (level === "ad_groups") {
       setBreadcrumb([...breadcrumb, { level: "ads", id: row.id, name: row.name }]);
     }
