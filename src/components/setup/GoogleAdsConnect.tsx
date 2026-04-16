@@ -68,13 +68,15 @@ export default function GoogleAdsConnect() {
       if (!ws) { setLoading(false); return; }
       setWorkspaceId(ws.id);
 
-      const { data: c } = await supabase
+      const { data: creds } = await supabase
         .from("google_ads_credentials")
         .select("workspace_id, customer_id, status, last_sync_at, last_error")
         .eq("workspace_id", ws.id)
-        .maybeSingle();
+        .order("is_default", { ascending: false })
+        .limit(1);
 
-      setCred(c as CredRow | null);
+      const c = (creds?.[0] ?? null) as CredRow | null;
+      setCred(c);
       if (c?.customer_id) setCustomerId(c.customer_id);
 
       const { data: camps } = await supabase
