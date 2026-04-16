@@ -535,6 +535,45 @@ const cloudfyHandler: GatewayHandler = {
   },
 };
 
+// ── QuantumPay (BR - PIX) ──
+// Doc: https://docs.quantumpay.com.br/webhook
+// Eventos: transaction_created, transaction_paid, transaction_refunded, transaction_infraction
+//          transfer_created, transfer_updated, transfer_completed, transfer_canceled
+// Valores em CENTAVOS (dividir por 100)
+const quantumpayHandler: GatewayHandler = {
+  extractEventType: (p) => str(p.event || p.type),
+  resolveInternalEvent: (e) => ({
+    "transaction_created": "checkout_created",
+    "transaction_paid": "order_paid",
+    "transaction_refunded": "order_refunded",
+    "transaction_infraction": "order_chargeback",
+    // transfer_* são PIX OUT (saídas) — não são eventos de marketing
+    "transfer_created": "payment_created",
+    "transfer_updated": "payment_pending",
+    "transfer_completed": "payment_paid",
+    "transfer_canceled": "order_canceled",
+  } as Record<string, InternalEvent>)[e] || "order_created",
+  normalize: (p) => {
+    const t = p.transaction || p.transfer || {};
+    const payer = dig(t, "pix", "payerInfo") || {};
+    const isTransfer = !!p.transfer;
+    return {
+      gateway: "quantumpay",
+      external_order_id: str(t.id || p.id),
+      external_payment_id: str(t.id || p.id),
+      customer: {
+        name: str(payer.name),
+        document: str(payer.document),
+      },
+      status: str(t.status),
+      total_value: num(t.amount) / 100, // centavos → reais
+      currency: "BRL",
+      payment_method: isTransfer ? "pix_out" : "pix",
+      raw_payload: p,
+    };
+  },
+};
+
 // ── Gumroad ──
 const gumroadHandler: GatewayHandler = {
   extractEventType: (p) => str(p.resource_name || "sale"),
@@ -588,6 +627,7 @@ const HANDLERS: Record<string, GatewayHandler> = {
   kiwify: kiwifyHandler, ticto: tictoHandler, greenn: greennHandler,
   shopify: shopifyHandler, paypal: paypalHandler, paddle: paddleHandler,
   fortpay: fortpayHandler, cloudfy: cloudfyHandler, gumroad: gumroadHandler,
+  quantumpay: quantumpayHandler,
 };
 
 // ── Auto-detection by headers/payload ──
@@ -598,6 +638,7 @@ function detectProvider(req: Request, payload: any): string {
   if (req.headers.get("x-shopify-hmac-sha256") || req.headers.get("x-shopify-topic")) return "shopify";
   if (req.headers.get("paypal-transmission-id")) return "paypal";
   if (req.headers.get("paddle-signature")) return "paddle";
+  if (req.headers.get("quantum-pay-signature")) return "quantumpay";
 
   // Payload-based detection
   if (payload?.hottok || payload?.data?.buyer?.hotmart_id) return "hotmart";
@@ -650,6 +691,21 @@ async function verifySignature(provider: string, rawBody: string, req: Request, 
       case "hotmart": {
         const hottok = req.headers.get("x-hotmart-hottok") || "";
         return { valid: hottok === webhookSecret, reason: hottok === webhookSecret ? "hotmart_verified" : "hotmart_mismatch" };
+      }
+      case "quantumpay": {
+        // Header: Quantum-Pay-Signature: t=<timestamp>,v1=<hmac_sha256>
+        // String assinada: `${timestamp}.${rawBody}` com SHA-256 + secret
+        const sigH = req.headers.get("quantum-pay-signature") || "";
+        if (!sigH) return { valid: false, reason: "missing_quantumpay_signature" };
+        let timestamp = "", v1 = "";
+        for (const el of sigH.split(",")) {
+          const [pref, val] = el.split("=");
+          if (pref === "t") timestamp = val;
+          else if (pref === "v1") v1 = val;
+        }
+        if (!timestamp || !v1) return { valid: false, reason: "invalid_quantumpay_format" };
+        const expected = await hmacHex(`${timestamp}.${rawBody}`);
+        return { valid: expected === v1, reason: expected === v1 ? "quantumpay_verified" : "quantumpay_mismatch" };
       }
       default: {
         const sig = req.headers.get("x-webhook-signature") || req.headers.get("x-signature") || req.headers.get("x-hub-signature-256") || "";

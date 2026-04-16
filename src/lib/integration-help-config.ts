@@ -1342,6 +1342,63 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
       "Teste com uma transação para validar",
     ],
   },
+
+  quantumpay: {
+    label: "Quantum Pay",
+    integrationType: "webhook_only",
+    emoji: "⚛️",
+    country: "br",
+    description: "Gateway brasileiro de PIX (PIX IN e PIX OUT) com webhooks assinados via HMAC-SHA256.",
+    checklist: [
+      "Acesse o Dashboard da Quantum Pay",
+      "Vá em Webhooks → Criar novo webhook",
+      "Cole a URL gerada abaixo como endpoint",
+      "Selecione os eventos: transaction_paid, transaction_refunded, transaction_created",
+      "Copie o signatureSecret (whk_live_...) que aparece após a criação",
+      "Cole o secret no campo abaixo",
+    ],
+    fields: [
+      {
+        key: "webhookSecret",
+        label: "Signature Secret (whk_live_...)",
+        placeholder: "whk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        type: "password",
+        direction: "paste_here",
+        required: true,
+        securityWarning: "Esse secret é usado para validar a autenticidade dos webhooks. Não compartilhe.",
+        help: {
+          title: "Como obter o Signature Secret?",
+          steps: [
+            "Acesse app.quantumpay.com.br e faça login",
+            "Vá em Configurações → Webhooks (ou similar)",
+            "Clique em Criar novo webhook",
+            "Cole a URL do CapiTrack (gerada abaixo) como endpoint",
+            "Selecione os eventos que deseja receber (recomendado: transaction_paid, transaction_refunded)",
+            "Após criar, a Quantum Pay exibirá um signatureSecret começando com whk_live_...",
+            "Copie esse secret e cole aqui — ele NÃO é exibido novamente!",
+          ],
+          note: "⚠️ A Quantum Pay também recomenda mTLS para servidores próprios, mas não é obrigatório aqui — a validação por assinatura HMAC-SHA256 já garante a autenticidade dos webhooks recebidos pelo CapiTrack.",
+          link: { url: "https://docs.quantumpay.com.br/webhook", label: "Documentação Quantum Pay Webhooks" },
+        },
+      },
+    ],
+    generatedOutputs: [
+      webhookOutput([
+        "No Dashboard da Quantum Pay, vá em Webhooks",
+        "Clique em Criar novo webhook",
+        "Cole esta URL no campo de endpoint",
+        "Selecione os eventos: transaction_paid (Purchase), transaction_refunded, transaction_created (opcional)",
+        "Salve e copie o signatureSecret gerado para o campo acima",
+      ]),
+    ],
+    docsLink: { url: "https://docs.quantumpay.com.br/", label: "Documentação Quantum Pay" },
+    nextSteps: [
+      "Copie a URL de webhook gerada acima",
+      "Cadastre no Dashboard da Quantum Pay → Webhooks",
+      "Cole o signatureSecret retornado no campo acima e salve",
+      "Faça uma transação PIX de teste — o evento transaction_paid deve aparecer em Event Logs",
+    ],
+  },
 };
 
 /** Retorna providers por país */
