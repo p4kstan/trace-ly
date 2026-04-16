@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Workflow, Monitor, Cloud, Database, Send, ArrowRight, Server } from "lucide-react";
+import { Workflow, Monitor, Cloud, Database, Send, ArrowRight, Server, BarChart3 } from "lucide-react";
 import PlatformWizard from "@/components/how-it-works/PlatformWizard";
 import ServerSelector from "@/components/how-it-works/ServerSelector";
 import { GOOGLE_STEPS } from "@/components/how-it-works/google-steps";
+import GoogleAdsConnect from "@/components/setup/GoogleAdsConnect";
 
 const SERVER_DONE_KEY = "wizard:google:serverDone";
 
@@ -83,6 +84,24 @@ export default function SetupGoogle() {
             platformBorder="border-amber-500/20"
             storageKey="google"
           />
+        </div>
+      </div>
+
+      {/* Step 3: Google Ads OAuth + Dashboard */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${serverDone ? "bg-primary/10 text-primary ring-1 ring-primary/20" : "bg-muted/30 text-muted-foreground"}`}>
+            3
+          </div>
+          <h2 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+            <BarChart3 className="w-4 h-4 text-primary" /> Conectar Google Ads (leitura de campanhas)
+          </h2>
+        </div>
+        <p className="text-xs text-muted-foreground pl-9">
+          Autorize o CapiTrack a ler suas campanhas via OAuth. Dados de gasto, ROAS, conversões e CTR aparecem aqui após sincronizar.
+        </p>
+        <div className={!serverDone ? "opacity-50 pointer-events-none" : ""}>
+          <GoogleAdsConnect />
         </div>
       </div>
     </div>
