@@ -243,9 +243,9 @@ export default function GoogleAdsCampaignDetail() {
                     <ReTooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", fontSize: 12 }} />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
                     <Line yAxisId="left" type="monotone" dataKey="cost" stroke="hsl(var(--primary))" name="Custo" dot={false} strokeWidth={2} />
-                    <Line yAxisId="left" type="monotone" dataKey="clicks" stroke="hsl(var(--chart-2, 200 100% 60%))" name="Cliques" dot={false} strokeWidth={2} />
-                    <Line yAxisId="right" type="monotone" dataKey="conversions" stroke="hsl(var(--chart-3, 140 70% 50%))" name="Conv." dot={false} strokeWidth={2} />
-                    <Line yAxisId="right" type="monotone" dataKey="roas" stroke="hsl(var(--chart-4, 40 100% 60%))" name="ROAS" dot={false} strokeWidth={2} />
+                    <Line yAxisId="left" type="monotone" dataKey="clicks" stroke="hsl(200 100% 60%)" name="Cliques" dot={false} strokeWidth={2} />
+                    <Line yAxisId="right" type="monotone" dataKey="conversions" stroke="hsl(140 70% 50%)" name="Conv." dot={false} strokeWidth={2} />
+                    <Line yAxisId="right" type="monotone" dataKey="roas" stroke="hsl(40 100% 60%)" name="ROAS" dot={false} strokeWidth={2} />
                   </LineChart>
                 </ResponsiveContainer>
               )}

@@ -46,6 +46,7 @@ const SetupGoogle = lazy(() => import("@/pages/SetupGoogle"));
 const ConnectedAccounts = lazy(() => import("@/pages/ConnectedAccounts"));
 const GoogleAdsAccountDetail = lazy(() => import("@/pages/GoogleAdsAccountDetail"));
 const GoogleAdsCampaigns = lazy(() => import("@/pages/GoogleAdsCampaigns"));
+const GoogleAdsCampaignDetail = lazy(() => import("@/pages/GoogleAdsCampaignDetail"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -88,6 +89,7 @@ function ProtectedRoutes() {
           <Route path="/contas-conectadas" element={<ConnectedAccounts />} />
           <Route path="/contas-conectadas/google/:customerId" element={<GoogleAdsAccountDetail />} />
           <Route path="/google-ads-campaigns" element={<GoogleAdsCampaigns />} />
+          <Route path="/google-ads-campaigns/:customerId/:campaignId" element={<GoogleAdsCampaignDetail />} />
           <Route path="/plans" element={<Plans />} />
           <Route path="/usage" element={<Usage />} />
           <Route path="/settings" element={<SettingsPage />} />
