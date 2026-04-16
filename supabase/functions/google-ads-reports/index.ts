@@ -114,6 +114,42 @@ function buildQuery(level: string, period: string, customFrom?: string, customTo
     `;
   }
 
+  if (level === "negative_keywords") {
+    // Campaign-level negatives
+    return `
+      SELECT
+        campaign_criterion.criterion_id,
+        campaign_criterion.keyword.text,
+        campaign_criterion.keyword.match_type,
+        campaign_criterion.negative,
+        campaign_criterion.type,
+        campaign.id, campaign.name
+      FROM campaign_criterion
+      WHERE campaign_criterion.negative = TRUE
+        AND campaign_criterion.type = 'KEYWORD'
+        ${campaignId ? `AND campaign.id = ${campaignId}` : ""}
+      LIMIT 500
+    `;
+  }
+
+  if (level === "negative_keywords_ad_group") {
+    // Ad-group-level negatives
+    return `
+      SELECT
+        ad_group_criterion.criterion_id,
+        ad_group_criterion.keyword.text,
+        ad_group_criterion.keyword.match_type,
+        ad_group_criterion.negative,
+        ad_group.id, ad_group.name,
+        campaign.id, campaign.name
+      FROM ad_group_criterion
+      WHERE ad_group_criterion.negative = TRUE
+        AND ad_group_criterion.type = 'KEYWORD'
+        ${campaignId ? `AND campaign.id = ${campaignId}` : ""}
+      LIMIT 500
+    `;
+  }
+
   if (level === "search_terms") {
     return `
       SELECT
@@ -333,6 +369,29 @@ function mapRow(level: string, r: any) {
       campaign_name: r.campaign?.name ?? "",
       search_impression_share: m.searchImpressionShare != null ? Number(m.searchImpressionShare) : null,
       ...base,
+    };
+  }
+
+  if (level === "negative_keywords") {
+    const c = r.campaignCriterion ?? {};
+    return {
+      id: String(c.criterionId ?? ""),
+      name: c.keyword?.text ?? "",
+      match_type: c.keyword?.matchType ?? null,
+      level: "Campanha",
+      campaign_name: r.campaign?.name ?? "",
+    };
+  }
+
+  if (level === "negative_keywords_ad_group") {
+    const c = r.adGroupCriterion ?? {};
+    return {
+      id: String(c.criterionId ?? ""),
+      name: c.keyword?.text ?? "",
+      match_type: c.keyword?.matchType ?? null,
+      level: "Grupo de anúncios",
+      ad_group_name: r.adGroup?.name ?? "",
+      campaign_name: r.campaign?.name ?? "",
     };
   }
 
