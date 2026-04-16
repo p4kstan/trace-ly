@@ -36,10 +36,36 @@ const AD_PROVIDERS: Record<string, { label: string; emoji: string; desc: string;
   google_ads: {
     label: "Google Ads", emoji: "🔍", desc: "Offline Conversions API",
     fields: [
-      { key: "destination_id", label: "Conversion Action ID", placeholder: "123456789", help: "Google Ads → Metas → Ações de conversão → Clique na conversão → O ID numérico aparece na URL", helpLink: { url: "https://ads.google.com/aw/conversions", label: "Abrir Google Ads Conversões" } },
-      { key: "access_token", label: "OAuth Access Token", placeholder: "ya29.xxxxxxx...", secret: true, help: "Gere um token OAuth 2.0 com escopo Google Ads via OAuth Playground", helpLink: { url: "https://developers.google.com/oauthplayground/", label: "Abrir OAuth Playground" } },
-      { key: "customer_id", label: "Customer ID", placeholder: "123-456-7890", help: "Google Ads → Canto superior direito → O ID do cliente aparece no formato XXX-XXX-XXXX", helpLink: { url: "https://ads.google.com", label: "Abrir Google Ads" } },
-      { key: "developer_token", label: "Developer Token", placeholder: "xxxxxxxxxxxxxxxx", secret: true, help: "Google Ads → Ferramentas → Centro de API → Token de desenvolvedor (requer conta MCC)", helpLink: { url: "https://ads.google.com/aw/apicenter", label: "Abrir Centro de API" } },
+      {
+        key: "destination_id",
+        label: "Conversion Action ID",
+        placeholder: "123456789",
+        help: "É o ID numérico da ação de conversão que você quer rastrear no Google Ads (ex: Compra, Lead).\n\nPasso a passo:\n1. Acesse ads.google.com e selecione a conta correta no canto superior direito.\n2. No menu esquerdo, clique em 'Metas' (ícone de alvo) → 'Conversões' → 'Resumo'.\n3. Se ainda não tiver uma conversão criada, clique em '+ Nova ação de conversão' → escolha 'Site' e configure (nome, valor, contagem).\n4. Clique no nome da conversão na lista — você será levado à página de detalhes.\n5. Olhe a URL do navegador: você verá algo como '...&ctId=123456789'. O número após 'ctId=' é o seu Conversion Action ID.\n6. Cole apenas os números aqui (sem letras nem traços).",
+        helpLink: { url: "https://ads.google.com/aw/conversions", label: "Abrir Google Ads Conversões" },
+      },
+      {
+        key: "access_token",
+        label: "OAuth Access Token",
+        placeholder: "ya29.xxxxxxx...",
+        secret: true,
+        help: "Token temporário (válido ~1h) que autoriza o CapiTrack a enviar conversões para sua conta Google Ads em seu nome.\n\nPasso a passo (via OAuth Playground — mais rápido para teste):\n1. Acesse developers.google.com/oauthplayground.\n2. Na lista da esquerda (Step 1), role até 'Google Ads API v15' (ou superior) e marque o escopo 'https://www.googleapis.com/auth/adwords'.\n3. Clique em 'Authorize APIs' (botão azul) e faça login com a conta Google que tem acesso ao Google Ads.\n4. Aceite as permissões solicitadas.\n5. Em 'Step 2', clique em 'Exchange authorization code for tokens'.\n6. Copie o valor do campo 'Access token' (começa com 'ya29.') e cole aqui.\n\n⚠️ Atenção: este token expira em 1 hora. Para produção, recomenda-se gerar um Refresh Token (procedimento avançado via Google Cloud Console).",
+        helpLink: { url: "https://developers.google.com/oauthplayground/", label: "Abrir OAuth Playground" },
+      },
+      {
+        key: "customer_id",
+        label: "Customer ID",
+        placeholder: "123-456-7890",
+        help: "É o identificador único da sua conta Google Ads, no formato XXX-XXX-XXXX.\n\nPasso a passo:\n1. Acesse ads.google.com e faça login.\n2. Olhe no canto superior direito da tela — abaixo do nome da conta aparecerá o ID (ex: 909-234-6354).\n3. Copie e cole aqui exatamente como aparece, COM os traços (ex: 909-234-6354).\n\n⚠️ Importante: NÃO use o Customer ID da sua MCC (conta Manager) aqui. Use o ID da conta normal onde estão as campanhas e conversões. A MCC só é usada para gerar o Developer Token.",
+        helpLink: { url: "https://ads.google.com", label: "Abrir Google Ads" },
+      },
+      {
+        key: "developer_token",
+        label: "Developer Token",
+        placeholder: "xxxxxxxxxxxxxxxx",
+        secret: true,
+        help: "Token que autoriza sua aplicação a usar a Google Ads API. ⚠️ Só pode ser gerado em uma conta MCC (Manager Account).\n\nPré-requisito: você precisa ter uma conta MCC criada e a sua conta normal vinculada a ela. Se ainda não tem, veja 'Como funciona → Setup Google' no menu lateral.\n\nPasso a passo:\n1. Faça login em ads.google.com com a conta MCC (troque a conta pelo avatar no canto superior direito se necessário).\n2. No menu esquerdo, vá em 'Ferramentas' (ícone de chave inglesa) → seção 'Configuração' → 'Central de API'.\n   Atalho: ads.google.com/aw/apicenter\n3. Se aparecer 'disponível apenas para contas de administrador', você NÃO está logado na MCC. Troque a conta.\n4. Na Central de API, clique em 'Aplicar para acesso básico'.\n5. Preencha o formulário (nome da empresa, site, caso de uso = 'Conversion tracking').\n6. Após aprovado (geralmente 24-48h, às vezes instantâneo), o Developer Token aparece no topo da página.\n7. Copie e cole aqui.",
+        helpLink: { url: "https://ads.google.com/aw/apicenter", label: "Abrir Centro de API" },
+      },
     ],
   },
   tiktok: {
