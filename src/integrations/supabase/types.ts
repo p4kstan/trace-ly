@@ -2749,14 +2749,19 @@ export type Database = {
       google_ads_credentials: {
         Row: {
           access_token: string | null
+          account_label: string | null
           created_at: string
           customer_id: string
           developer_token: string | null
           id: string
+          is_default: boolean
           last_error: string | null
           last_sync_at: string | null
           login_customer_id: string | null
           refresh_token: string | null
+          routing_domains: string[]
+          routing_mode: string
+          routing_tags: string[]
           status: string
           token_expires_at: string | null
           updated_at: string
@@ -2764,14 +2769,19 @@ export type Database = {
         }
         Insert: {
           access_token?: string | null
+          account_label?: string | null
           created_at?: string
           customer_id: string
           developer_token?: string | null
           id?: string
+          is_default?: boolean
           last_error?: string | null
           last_sync_at?: string | null
           login_customer_id?: string | null
           refresh_token?: string | null
+          routing_domains?: string[]
+          routing_mode?: string
+          routing_tags?: string[]
           status?: string
           token_expires_at?: string | null
           updated_at?: string
@@ -2779,14 +2789,19 @@ export type Database = {
         }
         Update: {
           access_token?: string | null
+          account_label?: string | null
           created_at?: string
           customer_id?: string
           developer_token?: string | null
           id?: string
+          is_default?: boolean
           last_error?: string | null
           last_sync_at?: string | null
           login_customer_id?: string | null
           refresh_token?: string | null
+          routing_domains?: string[]
+          routing_mode?: string
+          routing_tags?: string[]
           status?: string
           token_expires_at?: string | null
           updated_at?: string
@@ -3122,6 +3137,60 @@ export type Database = {
           permissions?: string[]
           revoked?: boolean
           token?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      meta_ad_accounts: {
+        Row: {
+          access_token: string
+          account_label: string | null
+          ad_account_id: string
+          created_at: string
+          id: string
+          is_default: boolean
+          last_error: string | null
+          last_sync_at: string | null
+          pixel_id: string | null
+          routing_domains: string[]
+          routing_mode: string
+          routing_tags: string[]
+          status: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          access_token: string
+          account_label?: string | null
+          ad_account_id: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          last_error?: string | null
+          last_sync_at?: string | null
+          pixel_id?: string | null
+          routing_domains?: string[]
+          routing_mode?: string
+          routing_tags?: string[]
+          status?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          access_token?: string
+          account_label?: string | null
+          ad_account_id?: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          last_error?: string | null
+          last_sync_at?: string | null
+          pixel_id?: string | null
+          routing_domains?: string[]
+          routing_mode?: string
+          routing_tags?: string[]
+          status?: string
+          updated_at?: string
           workspace_id?: string
         }
         Relationships: []
