@@ -75,6 +75,32 @@ export const GOOGLE_STEPS: WizardStep[] = [
     actionRoute: "/integrations",
   },
   {
+    title: "Criar Conta MCC (Manager) — Necessário para Developer Token",
+    subtitle: "O Developer Token só é gerado em contas Manager (MCC)",
+    explanation: [
+      "Se ao acessar a Central de API aparecer 'disponível apenas para contas de administrador', você precisa criar uma conta MCC (Manager Account). É 100% gratuita.",
+      "**Como criar a MCC corretamente:**",
+      "- Acesse https://ads.google.com/home/tools/manager-accounts/",
+      "- Clique em 'Criar uma conta de administrador'",
+      "- **Nome**: ex. 'CapiTrack Manager'",
+      "- **Esta conta será usada para**: selecione **'Gerenciar contas de outras pessoas'** ⚠️ (NÃO escolha 'minha própria conta')",
+      "- **País**: Brasil | **Fuso**: GMT-03:00 Brasília | **Moeda**: BRL (não dá para mudar depois!)",
+      "- Clique em 'Enviar' — você receberá um novo Customer ID (XXX-XXX-XXXX)",
+      "**Como vincular sua conta normal à MCC:**",
+      "- Estando logado na MCC, no menu esquerdo clique no **ícone de Contas** (👥)",
+      "- Abra **'Configurações da subconta'** (NÃO é em 'Acesso e segurança → Usuários')",
+      "- Clique no botão **+** (azul) → **'Vincular conta existente'**",
+      "- Cole o Customer ID da conta normal (ex: 909-234-6354) → 'Enviar solicitação'",
+      "- Faça login na conta normal e **aceite o convite** em Configurações → Administradores",
+    ],
+    tip: "Se não aparecer 'Configurações da subconta' no menu, você não está logado na MCC. Troque pelo avatar no canto superior direito.",
+    referenceLinks: [
+      { label: "Criar conta MCC", url: "https://ads.google.com/home/tools/manager-accounts/" },
+      { label: "Doc: Vincular contas à MCC", url: "https://support.google.com/google-ads/answer/7459601?hl=pt-BR" },
+      { label: "Doc: Sobre contas MCC", url: "https://support.google.com/google-ads/answer/6139186?hl=pt-BR" },
+    ],
+  },
+  {
     title: "Vincular Google Ads ao GA4",
     subtitle: "Importe conversões do GA4 para otimizar campanhas",
     explanation: [
