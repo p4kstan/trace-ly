@@ -194,6 +194,7 @@ function buildQuery(level: string, period: string, customFrom?: string, customTo
   if (level === "extensions") {
     return `
       SELECT
+        campaign.id, campaign.name,
         asset.id, asset.name, asset.type,
         asset.text_asset.text,
         asset.sitelink_asset.link_text,
@@ -236,7 +237,7 @@ function buildQuery(level: string, period: string, customFrom?: string, customTo
 
   if (level === "change_history") {
     const today = new Date();
-    const past = new Date(); past.setDate(today.getDate() - 30);
+    const past = new Date(); past.setDate(today.getDate() - 29);
     const from = past.toISOString().slice(0,10);
     const to = today.toISOString().slice(0,10);
     return `
