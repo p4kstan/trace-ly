@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Workflow, Monitor, Cloud, Database, Send, ArrowRight, Server } from "lucide-react";
+import { Workflow, Monitor, Cloud, Database, Send, ArrowRight, Server, BarChart3 } from "lucide-react";
 import PlatformWizard from "@/components/how-it-works/PlatformWizard";
 import ServerSelector from "@/components/how-it-works/ServerSelector";
 import { GOOGLE_STEPS } from "@/components/how-it-works/google-steps";
+import GoogleAdsConnect from "@/components/setup/GoogleAdsConnect";
 
 const SERVER_DONE_KEY = "wizard:google:serverDone";
 
