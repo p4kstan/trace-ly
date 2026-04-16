@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
       workspace_id,
       customer_id: customer_id.replace(/-/g, ""),
       return_url: return_url || "/setup-google",
-      user_id: claimsData.claims.sub,
+      user_id: userData.user.id,
       ts: Date.now(),
     }));
 
