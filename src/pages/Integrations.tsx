@@ -602,8 +602,14 @@ export default function Integrations() {
     setTestingId(integrationId);
     try {
       const testPayload = buildTestPayload(provider);
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "x-test-mode": "1",
+      };
+      if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
       const res = await fetch(getWebhookUrl(integrationId, provider), {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers,
         body: JSON.stringify(testPayload),
       });
       const data = await res.json();
