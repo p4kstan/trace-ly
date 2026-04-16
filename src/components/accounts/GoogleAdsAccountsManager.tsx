@@ -257,12 +257,16 @@ export default function GoogleAdsAccountsManager({ workspaceId }: { workspaceId:
       ) : (
         <div className="grid gap-3">
           {accounts.map((acc) => (
-            <Card key={acc.customer_id} className="glass-card">
+            <Card key={acc.customer_id} className="glass-card hover:border-primary/40 transition-colors">
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
+                  <a
+                    href={`/contas-conectadas/google/${acc.customer_id}`}
+                    onClick={(e) => { e.preventDefault(); window.history.pushState({}, "", `/contas-conectadas/google/${acc.customer_id}`); window.dispatchEvent(new PopStateEvent("popstate")); }}
+                    className="flex-1 min-w-0 cursor-pointer"
+                  >
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="text-sm font-semibold text-foreground truncate">
+                      <h4 className="text-sm font-semibold text-foreground truncate hover:text-primary transition-colors">
                         {acc.account_label || `Conta ${acc.customer_id}`}
                       </h4>
                       {acc.is_default && (
@@ -286,6 +290,7 @@ export default function GoogleAdsAccountsManager({ workspaceId }: { workspaceId:
                       <p>ID: <span className="font-mono text-foreground/80">{acc.customer_id}</span></p>
                       <p>Roteamento: <span className="text-foreground/80">{labelForMode(acc.routing_mode, acc.routing_domains, acc.routing_tags)}</span></p>
                       <p>Última sync: {acc.last_sync_at ? new Date(acc.last_sync_at).toLocaleString("pt-BR") : "nunca"}</p>
+                      <p className="text-primary/70 mt-1">→ Clique para ver detalhes</p>
                     </div>
                     {acc.last_error && (
                       <div className="mt-2 flex items-start gap-1.5 text-[11px] text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded p-2">
@@ -293,9 +298,9 @@ export default function GoogleAdsAccountsManager({ workspaceId }: { workspaceId:
                         <span className="break-all">{acc.last_error}</span>
                       </div>
                     )}
-                  </div>
+                  </a>
                   <div className="flex flex-col gap-1.5">
-                    {(acc.status === "error" || acc.last_error) && (
+                    {(acc.status === "error" || acc.status === "pending" || acc.last_error) && (
                       <Button size="sm" variant="outline" onClick={() => reconnect(acc)} title="Reconectar conta" className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10">
                         <Link2 className="w-3.5 h-3.5" />
                       </Button>
