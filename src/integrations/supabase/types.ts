@@ -2686,6 +2686,114 @@ export type Database = {
           },
         ]
       }
+      google_ads_campaigns: {
+        Row: {
+          average_cpc_micros: number | null
+          average_position: number | null
+          campaign_id: string
+          campaign_name: string | null
+          clicks: number | null
+          conversion_value: number | null
+          conversions: number | null
+          cost_micros: number | null
+          ctr: number | null
+          date: string
+          id: string
+          impressions: number | null
+          quality_score: number | null
+          search_impression_share: number | null
+          status: string | null
+          synced_at: string
+          workspace_id: string
+        }
+        Insert: {
+          average_cpc_micros?: number | null
+          average_position?: number | null
+          campaign_id: string
+          campaign_name?: string | null
+          clicks?: number | null
+          conversion_value?: number | null
+          conversions?: number | null
+          cost_micros?: number | null
+          ctr?: number | null
+          date: string
+          id?: string
+          impressions?: number | null
+          quality_score?: number | null
+          search_impression_share?: number | null
+          status?: string | null
+          synced_at?: string
+          workspace_id: string
+        }
+        Update: {
+          average_cpc_micros?: number | null
+          average_position?: number | null
+          campaign_id?: string
+          campaign_name?: string | null
+          clicks?: number | null
+          conversion_value?: number | null
+          conversions?: number | null
+          cost_micros?: number | null
+          ctr?: number | null
+          date?: string
+          id?: string
+          impressions?: number | null
+          quality_score?: number | null
+          search_impression_share?: number | null
+          status?: string | null
+          synced_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      google_ads_credentials: {
+        Row: {
+          access_token: string | null
+          created_at: string
+          customer_id: string
+          developer_token: string | null
+          id: string
+          last_error: string | null
+          last_sync_at: string | null
+          login_customer_id: string | null
+          refresh_token: string | null
+          status: string
+          token_expires_at: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          access_token?: string | null
+          created_at?: string
+          customer_id: string
+          developer_token?: string | null
+          id?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          login_customer_id?: string | null
+          refresh_token?: string | null
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          access_token?: string | null
+          created_at?: string
+          customer_id?: string
+          developer_token?: string | null
+          id?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          login_customer_id?: string | null
+          refresh_token?: string | null
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       identities: {
         Row: {
           email: string | null
