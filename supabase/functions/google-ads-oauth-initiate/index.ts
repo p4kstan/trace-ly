@@ -20,9 +20,8 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData?.user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
     }
 
@@ -40,7 +39,7 @@ Deno.serve(async (req) => {
       workspace_id,
       customer_id: customer_id.replace(/-/g, ""),
       return_url: return_url || "/setup-google",
-      user_id: claimsData.claims.sub,
+      user_id: userData.user.id,
       ts: Date.now(),
     }));
 
