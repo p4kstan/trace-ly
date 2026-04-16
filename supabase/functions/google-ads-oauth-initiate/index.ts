@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
     }
 
-    const { workspace_id, customer_id, return_url } = await req.json();
+    const { workspace_id, customer_id, account_label, return_url } = await req.json();
     if (!workspace_id || !customer_id) {
       return new Response(JSON.stringify({ error: "workspace_id and customer_id required" }), { status: 400, headers: corsHeaders });
     }
@@ -35,21 +35,46 @@ Deno.serve(async (req) => {
     const redirectUri = `${supabaseUrl}/functions/v1/google-ads-oauth-callback`;
 
     // State carries workspace_id + customer_id + return_url, signed-ish (base64). Real signing not critical here since callback verifies via DB lookup.
+    const cleanedCid = customer_id.replace(/-/g, "");
     const state = btoa(JSON.stringify({
       workspace_id,
-      customer_id: customer_id.replace(/-/g, ""),
-      return_url: return_url || "/setup-google",
+      customer_id: cleanedCid,
+      account_label: account_label || null,
+      return_url: return_url || "/contas-conectadas",
       user_id: userData.user.id,
       ts: Date.now(),
     }));
 
-    // Persist pending row
+    // Persist pending row (multi-account: unique on workspace_id + customer_id)
     const service = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    await service.from("google_ads_credentials").upsert({
-      workspace_id,
-      customer_id: customer_id.replace(/-/g, ""),
-      status: "pending",
-    }, { onConflict: "workspace_id" });
+    const { data: existing } = await service
+      .from("google_ads_credentials")
+      .select("customer_id, is_default")
+      .eq("workspace_id", workspace_id)
+      .eq("customer_id", cleanedCid)
+      .maybeSingle();
+    if (existing) {
+      await service.from("google_ads_credentials")
+        .update({ status: "pending", account_label: account_label || undefined })
+        .eq("workspace_id", workspace_id)
+        .eq("customer_id", cleanedCid);
+    } else {
+      // Check if any account exists — first one becomes default
+      const { count } = await service
+        .from("google_ads_credentials")
+        .select("customer_id", { count: "exact", head: true })
+        .eq("workspace_id", workspace_id);
+      await service.from("google_ads_credentials").insert({
+        workspace_id,
+        customer_id: cleanedCid,
+        status: "pending",
+        account_label: account_label || null,
+        is_default: (count || 0) === 0,
+        routing_mode: "all",
+        routing_domains: [],
+        routing_tags: [],
+      });
+    }
 
     const params = new URLSearchParams({
       client_id: clientId,

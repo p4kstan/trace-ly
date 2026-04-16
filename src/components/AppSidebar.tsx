@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, GitBranch, MonitorDot, ScrollText, Bug, Settings,
   Zap, Brain, CreditCard, HeartPulse, Key, LogOut, ShoppingCart, Webhook, Inbox, BookOpen, Cpu, Gauge,
-  Shield, TrendingUp, Lightbulb, Filter, Radio, Send, Code, FileText, HelpCircle,
+  Shield, TrendingUp, Lightbulb, Filter, Radio, Send, Code, FileText, HelpCircle, Layers,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -29,6 +29,7 @@ const mainItems = [
 ];
 
 const trackingHubItems = [
+  { title: "Contas Conectadas", url: "/contas-conectadas", icon: Layers },
   { title: "Fontes de Tracking", url: "/tracking-sources", icon: Radio },
   { title: "Destinos", url: "/destinations", icon: Send },
   { title: "Instalação SDK", url: "/sdk-setup", icon: Code },

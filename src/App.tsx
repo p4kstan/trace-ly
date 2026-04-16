@@ -43,6 +43,7 @@ const TrackingGuide = lazy(() => import("@/pages/TrackingGuide"));
 const HowItWorks = lazy(() => import("@/pages/HowItWorks"));
 const SetupFacebook = lazy(() => import("@/pages/SetupFacebook"));
 const SetupGoogle = lazy(() => import("@/pages/SetupGoogle"));
+const ConnectedAccounts = lazy(() => import("@/pages/ConnectedAccounts"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -82,6 +83,7 @@ function ProtectedRoutes() {
           <Route path="/how-it-works" element={<HowItWorks />} />
           <Route path="/setup-facebook" element={<SetupFacebook />} />
           <Route path="/setup-google" element={<SetupGoogle />} />
+          <Route path="/contas-conectadas" element={<ConnectedAccounts />} />
           <Route path="/plans" element={<Plans />} />
           <Route path="/usage" element={<Usage />} />
           <Route path="/settings" element={<SettingsPage />} />
