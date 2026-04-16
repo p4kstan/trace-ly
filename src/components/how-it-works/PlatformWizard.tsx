@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,15 +38,43 @@ interface PlatformWizardProps {
   platformColor: string;
   platformBg: string;
   platformBorder: string;
+  storageKey?: string;
 }
 
-export default function PlatformWizard({ steps, platformColor, platformBg, platformBorder }: PlatformWizardProps) {
+export default function PlatformWizard({ steps, platformColor, platformBg, platformBorder, storageKey }: PlatformWizardProps) {
   const navigate = useNavigate();
-  const [current, setCurrent] = useState(0);
-  const [completed, setCompleted] = useState<Set<number>>(new Set());
+  const STORAGE_KEY = storageKey ? `wizard:${storageKey}` : null;
+
+  const loadInitial = () => {
+    if (!STORAGE_KEY) return null;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw) as { current: number; completed: number[]; inputValues: Record<string, string> };
+    } catch {
+      return null;
+    }
+  };
+  const initial = loadInitial();
+
+  const [current, setCurrent] = useState(initial?.current ?? 0);
+  const [completed, setCompleted] = useState<Set<number>>(new Set(initial?.completed ?? []));
   const [copied, setCopied] = useState(false);
-  const [inputValues, setInputValues] = useState<Record<string, string>>({});
+  const [inputValues, setInputValues] = useState<Record<string, string>>(initial?.inputValues ?? {});
   const [inputErrors, setInputErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!STORAGE_KEY) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        current,
+        completed: Array.from(completed),
+        inputValues,
+      }));
+    } catch {
+      // ignore quota errors
+    }
+  }, [STORAGE_KEY, current, completed, inputValues]);
 
   const step = steps[current];
   const isLast = current === steps.length - 1;

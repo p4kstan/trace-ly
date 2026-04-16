@@ -1,12 +1,20 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Workflow, Monitor, Cloud, Database, Send, ArrowRight, Server } from "lucide-react";
 import PlatformWizard from "@/components/how-it-works/PlatformWizard";
 import ServerSelector from "@/components/how-it-works/ServerSelector";
 import { GOOGLE_STEPS } from "@/components/how-it-works/google-steps";
 
+const SERVER_DONE_KEY = "wizard:google:serverDone";
+
 export default function SetupGoogle() {
-  const [serverDone, setServerDone] = useState(false);
+  const [serverDone, setServerDone] = useState(() => {
+    try { return localStorage.getItem(SERVER_DONE_KEY) === "1"; } catch { return false; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem(SERVER_DONE_KEY, serverDone ? "1" : "0"); } catch { /* ignore */ }
+  }, [serverDone]);
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -73,6 +81,7 @@ export default function SetupGoogle() {
             platformColor="text-amber-400"
             platformBg="bg-amber-500/10"
             platformBorder="border-amber-500/20"
+            storageKey="google"
           />
         </div>
       </div>

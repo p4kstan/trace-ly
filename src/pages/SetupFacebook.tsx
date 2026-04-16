@@ -1,12 +1,20 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Workflow, Monitor, Cloud, Database, Send, ArrowRight, Server } from "lucide-react";
 import PlatformWizard from "@/components/how-it-works/PlatformWizard";
 import ServerSelector from "@/components/how-it-works/ServerSelector";
 import { FACEBOOK_STEPS } from "@/components/how-it-works/facebook-steps";
 
+const SERVER_DONE_KEY = "wizard:facebook:serverDone";
+
 export default function SetupFacebook() {
-  const [serverDone, setServerDone] = useState(false);
+  const [serverDone, setServerDone] = useState(() => {
+    try { return localStorage.getItem(SERVER_DONE_KEY) === "1"; } catch { return false; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem(SERVER_DONE_KEY, serverDone ? "1" : "0"); } catch { /* ignore */ }
+  }, [serverDone]);
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -73,6 +81,7 @@ export default function SetupFacebook() {
             platformColor="text-blue-400"
             platformBg="bg-blue-500/10"
             platformBorder="border-blue-500/20"
+            storageKey="facebook"
           />
         </div>
       </div>
