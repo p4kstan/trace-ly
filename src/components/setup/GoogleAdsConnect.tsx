@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, Link2, RefreshCw, CheckCircle2, AlertCircle, TrendingUp, MousePointerClick, Eye, DollarSign } from "lucide-react";
+import GoogleAdsCredentialsManager from "./GoogleAdsCredentialsManager";
 
 interface CredRow {
   workspace_id: string;
@@ -146,6 +147,9 @@ export default function GoogleAdsConnect() {
 
   return (
     <div className="space-y-4">
+      {/* Credentials manager (always visible) */}
+      <GoogleAdsCredentialsManager workspaceId={workspaceId} onChanged={loadAll} />
+
       {/* Connection card */}
       <Card className="glass-card">
         <CardContent className="p-5 space-y-4">
