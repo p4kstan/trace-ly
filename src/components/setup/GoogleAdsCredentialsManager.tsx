@@ -66,17 +66,10 @@ export default function GoogleAdsCredentialsManager({ workspaceId, onChanged }: 
   useEffect(() => { load(); }, [workspaceId]);
 
   const updateSecret = (name: string) => {
-    toast.message(
-      `Para atualizar ${name}, abra o menu de Secrets do Lovable Cloud`,
-      {
-        description: "Cloud → Secrets → encontre o nome → Update value",
-        action: {
-          label: "Abrir Cloud",
-          onClick: () => window.open(`https://supabase.com/dashboard/project/xpgsipmyrwyjerjvbhmb/settings/functions`, "_blank"),
-        },
-        duration: 8000,
-      }
-    );
+    toast.message(`Como atualizar ${name}`, {
+      description: "No menu lateral do Lovable, abra Cloud → Secrets → encontre o nome → clique em Update value. Depois volte aqui e clique no botão de refresh.",
+      duration: 10000,
+    });
   };
 
   const saveCustomerId = async () => {
