@@ -98,6 +98,8 @@ export default function GoogleAdsCampaignDetail() {
   // Per-tab data (lazy via tab change)
   const adGroups = useReport(workspace?.id, customerId, "ad_groups", period, campaignId, campaignId);
   const keywords = useReport(workspace?.id, customerId, "keywords", period, campaignId);
+  const negKeywordsCamp = useReport(workspace?.id, customerId, "negative_keywords", period, campaignId);
+  const negKeywordsAg = useReport(workspace?.id, customerId, "negative_keywords_ad_group", period, campaignId);
   const searchTerms = useReport(workspace?.id, customerId, "search_terms", period, campaignId);
   const ageData = useReport(workspace?.id, customerId, "age", period, campaignId);
   const genderData = useReport(workspace?.id, customerId, "gender", period, campaignId);
@@ -215,9 +217,10 @@ export default function GoogleAdsCampaignDetail() {
 
       {/* Tabs */}
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="grid grid-cols-3 md:grid-cols-6 lg:w-fit">
+        <TabsList className="grid grid-cols-3 md:grid-cols-7 lg:w-fit">
           <TabsTrigger value="overview">Visão geral</TabsTrigger>
           <TabsTrigger value="keywords">Palavras-chave</TabsTrigger>
+          <TabsTrigger value="negatives">Negativas</TabsTrigger>
           <TabsTrigger value="audiences">Públicos</TabsTrigger>
           <TabsTrigger value="extensions">Extensões</TabsTrigger>
           <TabsTrigger value="search_terms">Termos</TabsTrigger>
@@ -297,6 +300,38 @@ export default function GoogleAdsCampaignDetail() {
                 rows={keywords.data?.rows}
                 columns={["name", "match_type", "status", "quality_score", "impressions", "clicks", "ctr", "cost", "conversions", "cpa"]}
                 labels={{ name: "Palavra-chave", match_type: "Tipo", quality_score: "QS" }}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Negative Keywords */}
+        <TabsContent value="negatives" className="mt-4 space-y-4">
+          <Card className="glass-card">
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Palavras-chave negativas — nível Campanha</CardTitle>
+              <p className="text-[11px] text-muted-foreground mt-1">Termos que <strong>bloqueiam</strong> seus anúncios em toda a campanha (ex: "grátis", "barato").</p>
+            </CardHeader>
+            <CardContent className="p-0">
+              <SimpleTable
+                loading={negKeywordsCamp.isLoading}
+                rows={negKeywordsCamp.data?.rows}
+                columns={["name", "match_type", "level"]}
+                labels={{ name: "Palavra negativa", match_type: "Tipo", level: "Escopo" }}
+              />
+            </CardContent>
+          </Card>
+          <Card className="glass-card">
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Palavras-chave negativas — nível Grupo de anúncios</CardTitle>
+              <p className="text-[11px] text-muted-foreground mt-1">Negativas aplicadas apenas a grupos específicos desta campanha.</p>
+            </CardHeader>
+            <CardContent className="p-0">
+              <SimpleTable
+                loading={negKeywordsAg.isLoading}
+                rows={negKeywordsAg.data?.rows}
+                columns={["name", "match_type", "ad_group_name"]}
+                labels={{ name: "Palavra negativa", match_type: "Tipo", ad_group_name: "Grupo" }}
               />
             </CardContent>
           </Card>
