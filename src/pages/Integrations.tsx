@@ -291,7 +291,7 @@ function DestinationDialog({ open, onOpenChange, workspaceId }: { open: boolean;
               {f.help && (
                 <div className="text-[11px] text-muted-foreground leading-relaxed flex items-start gap-1.5">
                   <span className="text-primary mt-0.5 shrink-0">📍</span>
-                  <span>
+                  <span className="whitespace-pre-line">
                     {f.help}
                     {f.helpLink && (
                       <>
