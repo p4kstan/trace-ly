@@ -135,6 +135,24 @@ export default function GoogleAdsAccountsManager({ workspaceId }: { workspaceId:
     }
   };
 
+  const reconnect = async (acc: GAccount) => {
+    if (!workspaceId) return;
+    try {
+      const { data, error } = await supabase.functions.invoke("google-ads-oauth-initiate", {
+        body: {
+          workspace_id: workspaceId,
+          customer_id: acc.customer_id,
+          account_label: acc.account_label || null,
+          return_url: "/contas-conectadas",
+        },
+      });
+      if (error) throw error;
+      if (data?.auth_url) window.location.href = data.auth_url;
+    } catch (e: any) {
+      toast.error(`Erro ao reconectar: ${e.message}`);
+    }
+  };
+
   const openEdit = (acc: GAccount) => {
     setEditing(acc);
     setEditLabel(acc.account_label || "");
@@ -258,6 +276,11 @@ export default function GoogleAdsAccountsManager({ workspaceId }: { workspaceId:
                     )}
                   </div>
                   <div className="flex flex-col gap-1.5">
+                    {(acc.status === "error" || acc.last_error) && (
+                      <Button size="sm" variant="outline" onClick={() => reconnect(acc)} title="Reconectar conta" className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10">
+                        <Link2 className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
                     {!acc.is_default && (
                       <Button size="sm" variant="ghost" onClick={() => setDefault(acc)} title="Definir como padrão">
                         <Star className="w-3.5 h-3.5" />
