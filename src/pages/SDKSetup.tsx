@@ -52,6 +52,8 @@ export default function SDKSetup() {
   const publicKey = apiKeys[0]?.public_key || "pk_live_SUA_CHAVE_AQUI";
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://seu-projeto.supabase.co";
 
+  const sdkUrl = "https://trace-ly.lovable.app/sdk.js";
+
   const snippetHTML = `<!-- CapiTrack AI SDK v3 -->
 <script>
   !function(){
@@ -59,7 +61,7 @@ export default function SDKSetup() {
       (window.capitrack.q = window.capitrack.q || []).push(arguments);
     };
     var s = document.createElement("script");
-    s.src = "https://SEU_DOMINIO/sdk.js";
+    s.src = "${sdkUrl}";
     s.async = true;
     document.head.appendChild(s);
   }();
