@@ -877,7 +877,25 @@ Deno.serve(async (req) => {
       const { data } = await supabase.from("gateway_integrations").select("webhook_secret_encrypted").eq("id", integrationId).single();
       webhookSecret = data?.webhook_secret_encrypted || null;
     }
-    const sigResult = await verifySignature(provider, rawBody, req, webhookSecret);
+
+    // ── Test mode: authenticated workspace member can bypass signature check ──
+    let isTestMode = false;
+    if (req.headers.get("x-test-mode") === "1") {
+      const authHeader = req.headers.get("authorization") || "";
+      if (authHeader.startsWith("Bearer ")) {
+        const token = authHeader.slice(7);
+        const { data: claimsData } = await supabase.auth.getClaims(token);
+        const userId = claimsData?.claims?.sub;
+        if (userId) {
+          const { data: isMember } = await supabase.rpc("is_workspace_member", { _user_id: userId, _workspace_id: workspaceId });
+          if (isMember) isTestMode = true;
+        }
+      }
+    }
+
+    const sigResult = isTestMode
+      ? { valid: true, reason: "test_mode_bypass" }
+      : await verifySignature(provider, rawBody, req, webhookSecret);
     if (!sigResult.valid) {
       await supabase.from("gateway_webhook_logs").insert({
         workspace_id: workspaceId, gateway_integration_id: integrationId, provider,
