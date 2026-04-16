@@ -119,9 +119,33 @@ export default function GoogleAdsConnect() {
     setSyncing(true);
     try {
       const { data, error } = await supabase.functions.invoke("google-ads-sync", {
-        body: { workspace_id: workspaceId, days: 30 },
+        body: { workspace_id: workspaceId, customer_id: cred?.customer_id, days: 30 },
       });
-      if (error) throw error;
+
+      let info: any = null;
+      if (error) {
+        const ctx: any = (error as any)?.context;
+        try { info = await ctx?.json?.(); } catch { /* ignore */ }
+        if (!info) {
+          try { info = JSON.parse(error.message); } catch { /* ignore */ }
+        }
+      } else {
+        info = data;
+      }
+
+      if (info?.reconnect && cred?.customer_id) {
+        toast.error("Reconexão necessária. Redirecionando pro Google…");
+        const { data: reconnectData, error: reconnectError } = await supabase.functions.invoke("google-ads-oauth-initiate", {
+          body: { workspace_id: workspaceId, customer_id: cred.customer_id, return_url: "/setup-google" },
+        });
+        if (reconnectError) throw reconnectError;
+        if (reconnectData?.auth_url) {
+          window.location.href = reconnectData.auth_url;
+          return;
+        }
+      }
+
+      if (error) throw new Error(info?.error || error.message);
       toast.success(`Sincronizado: ${data?.synced ?? 0} registros`);
       await loadAll();
     } catch (e: any) {
