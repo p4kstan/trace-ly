@@ -186,14 +186,28 @@ Deno.serve(async (req) => {
       error?: string;
     }> = [];
 
-    // Send events to each pixel
-    for (const pixel of pixels) {
-      if (!pixel.access_token_encrypted) continue;
+    // Send events to each account, applying per-event routing
+    for (const account of accounts) {
+      if (!account.access_token) continue;
+
+      // Filter events that should be routed to this account (domain/tag/all)
+      const eventsForAccount = events.filter((event) => {
+        const ctx = {
+          url: event.event_source_url,
+          tag: extractTag(event as any),
+        };
+        return selectAccounts([account], ctx).length > 0;
+      });
+
+      if (eventsForAccount.length === 0) {
+        console.log(`No events routed to ${account.source}:${account.pixel_id}`);
+        continue;
+      }
 
       // Build Meta event data array
       const metaEvents: MetaEventData[] = [];
 
-      for (const event of events) {
+      for (const event of eventsForAccount) {
         const identity = event.identity_id ? identityMap.get(event.identity_id) : null;
         const session = event.identity_id ? sessionMap.get(event.identity_id) : null;
         const userData = event.user_data_json || {};
@@ -207,42 +221,18 @@ Deno.serve(async (req) => {
           fbp: session?.fbp || undefined,
         };
 
-        // Identity hashes are already SHA-256 (aligned with /track)
-        if (identity?.email_hash) {
-          userDataPayload.em = [identity.email_hash];
-        }
-        if (identity?.phone_hash) {
-          userDataPayload.ph = [identity.phone_hash];
-        }
-        if (identity?.external_id) {
-          userDataPayload.external_id = [identity.external_id];
-        }
+        if (identity?.email_hash) userDataPayload.em = [identity.email_hash];
+        if (identity?.phone_hash) userDataPayload.ph = [identity.phone_hash];
+        if (identity?.external_id) userDataPayload.external_id = [identity.external_id];
 
-        // Add any additional user data from the event payload (hash on the fly)
-        if (userData.email) {
-          userDataPayload.em = [await hashSHA256(userData.email as string)];
-        }
-        if (userData.phone) {
-          userDataPayload.ph = [await hashSHA256(userData.phone as string)];
-        }
-        if (userData.first_name) {
-          userDataPayload.fn = [await hashSHA256(userData.first_name as string)];
-        }
-        if (userData.last_name) {
-          userDataPayload.ln = [await hashSHA256(userData.last_name as string)];
-        }
-        if (userData.city) {
-          userDataPayload.ct = [await hashSHA256(userData.city as string)];
-        }
-        if (userData.state) {
-          userDataPayload.st = [await hashSHA256(userData.state as string)];
-        }
-        if (userData.zip) {
-          userDataPayload.zp = [await hashSHA256(userData.zip as string)];
-        }
-        if (userData.country) {
-          userDataPayload.country = [await hashSHA256(userData.country as string)];
-        }
+        if (userData.email) userDataPayload.em = [await hashSHA256(userData.email as string)];
+        if (userData.phone) userDataPayload.ph = [await hashSHA256(userData.phone as string)];
+        if (userData.first_name) userDataPayload.fn = [await hashSHA256(userData.first_name as string)];
+        if (userData.last_name) userDataPayload.ln = [await hashSHA256(userData.last_name as string)];
+        if (userData.city) userDataPayload.ct = [await hashSHA256(userData.city as string)];
+        if (userData.state) userDataPayload.st = [await hashSHA256(userData.state as string)];
+        if (userData.zip) userDataPayload.zp = [await hashSHA256(userData.zip as string)];
+        if (userData.country) userDataPayload.country = [await hashSHA256(userData.country as string)];
 
         const metaEvent: MetaEventData = {
           event_name: event.event_name,
@@ -253,7 +243,6 @@ Deno.serve(async (req) => {
           user_data: userDataPayload,
         };
 
-        // Add custom data
         if (customData.value || customData.currency || Object.keys(customData).length > 0) {
           metaEvent.custom_data = {};
           if (customData.value) metaEvent.custom_data.value = Number(customData.value);
@@ -269,20 +258,15 @@ Deno.serve(async (req) => {
         metaEvents.push(metaEvent);
       }
 
-      // POST to Meta Conversions API - token in Authorization header, NOT query string
-      const url = `${GRAPH_API_BASE}/${GRAPH_API_VERSION}/${pixel.pixel_id}/events`;
+      const url = `${GRAPH_API_BASE}/${GRAPH_API_VERSION}/${account.pixel_id}/events`;
       const requestBody: Record<string, unknown> = {
         data: metaEvents,
-        access_token: pixel.access_token_encrypted,
+        access_token: account.access_token,
       };
+      if (account.test_event_code) requestBody.test_event_code = account.test_event_code;
 
-      if (pixel.test_event_code) {
-        requestBody.test_event_code = pixel.test_event_code;
-      }
+      console.log(`Sending ${metaEvents.length} events to Meta ${account.source} pixel ${account.pixel_id}`);
 
-      console.log(`Sending ${metaEvents.length} events to Meta pixel ${pixel.pixel_id}`);
-
-      // Send token in POST body (Meta's recommended approach) instead of query string
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -291,34 +275,40 @@ Deno.serve(async (req) => {
 
       const responseData = await response.json();
 
-      // Log delivery for each event
-      for (const event of events) {
+      // Update last_sync / last_error on the source row
+      if (account.source === "ad_account") {
+        await supabase
+          .from("meta_ad_accounts")
+          .update({
+            last_sync_at: new Date().toISOString(),
+            last_error: response.ok ? null : JSON.stringify(responseData).slice(0, 500),
+          })
+          .eq("id", account.id);
+      }
+
+      for (const event of eventsForAccount) {
         const deliveryStatus = response.ok ? "delivered" : "failed";
 
         await supabase.from("event_deliveries").insert({
           event_id: event.id,
           workspace_id,
           provider: "meta",
-          destination: pixel.pixel_id,
+          destination: account.pixel_id,
           status: deliveryStatus,
           attempt_count: 1,
           last_attempt_at: new Date().toISOString(),
-          request_json: { pixel_id: pixel.pixel_id, event_count: metaEvents.length },
+          request_json: { pixel_id: account.pixel_id, event_count: metaEvents.length, source: account.source },
           response_json: responseData,
           error_message: response.ok ? null : JSON.stringify(responseData),
         });
 
-        // Update event processing status
         if (response.ok) {
-          await supabase
-            .from("events")
-            .update({ processing_status: "delivered" })
-            .eq("id", event.id);
+          await supabase.from("events").update({ processing_status: "delivered" }).eq("id", event.id);
         }
 
         results.push({
           event_id: event.id,
-          pixel_id: pixel.pixel_id,
+          pixel_id: account.pixel_id,
           status: deliveryStatus,
           response: responseData,
           error: response.ok ? undefined : responseData?.error?.message,
