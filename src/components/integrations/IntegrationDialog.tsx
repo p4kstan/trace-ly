@@ -14,7 +14,7 @@ import { toast } from "sonner";
 interface IntegrationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: { provider: string; name: string; credentials: string; webhookSecret: string; environment: string }) => void;
+  onSubmit: (data: { provider: string; name: string; environment: string; fieldValues: Record<string, string> }) => void;
   isPending: boolean;
   supabaseUrl: string;
   workspaceId: string;
@@ -29,11 +29,13 @@ const TYPE_META: Record<IntegrationType, { label: string; icon: typeof Key; colo
 
 const MIN_NAME_LENGTH = 3;
 
+const buildInitialFieldValues = (providerKey: string) =>
+  Object.fromEntries(PROVIDER_CONFIGS[providerKey].fields.map((field) => [field.key, ""]));
+
 export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, supabaseUrl, workspaceId }: IntegrationDialogProps) {
   const [provider, setProvider] = useState("stripe");
   const [name, setName] = useState("");
-  const [credentials, setCredentials] = useState("");
-  const [webhookSecret, setWebhookSecret] = useState("");
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>(() => buildInitialFieldValues("stripe"));
   const [environment, setEnvironment] = useState("production");
   const [nameError, setNameError] = useState("");
 
@@ -41,12 +43,15 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
   const brProviders = getProvidersByCountry("br");
   const intProviders = getProvidersByCountry("int");
 
-  const reset = () => {
+  const reset = (nextProvider = provider) => {
     setName("");
-    setCredentials("");
-    setWebhookSecret("");
+    setFieldValues(buildInitialFieldValues(nextProvider));
     setEnvironment("production");
     setNameError("");
+  };
+
+  const updateFieldValue = (key: string, value: string) => {
+    setFieldValues((current) => ({ ...current, [key]: value }));
   };
 
   const handleSubmit = () => {
@@ -58,26 +63,24 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
     }
     setNameError("");
 
-    if (config?.integrationType !== "webhook_only") {
-      const missingRequired = config?.fields.filter(f => f.required && !fieldValues[f.key]);
-      if (missingRequired && missingRequired.length > 0) {
-        toast.error(`Preencha o campo obrigatório: ${missingRequired[0].label}`);
-        return;
-      }
+    const missingRequired = config?.fields.filter((field) => field.required && !fieldValues[field.key]?.trim());
+    if (missingRequired && missingRequired.length > 0) {
+      toast.error(`Preencha o campo obrigatório: ${missingRequired[0].label}`);
+      return;
     }
-    onSubmit({ provider, name: trimmedName, credentials, webhookSecret, environment });
+
+    onSubmit({
+      provider,
+      name: trimmedName,
+      environment,
+      fieldValues: Object.fromEntries(Object.entries(fieldValues).map(([key, value]) => [key, value.trim()])),
+    });
     reset();
   };
 
   const copyValue = (val: string) => {
     navigator.clipboard.writeText(val);
     toast.success("Copiado!");
-  };
-
-  const fieldValues: Record<string, string> = { credentials, webhookSecret };
-  const fieldSetters: Record<string, (v: string) => void> = {
-    credentials: setCredentials,
-    webhookSecret: setWebhookSecret,
   };
 
   const typeMeta = config ? TYPE_META[config.integrationType] : null;
@@ -93,7 +96,6 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
           </DialogTitle>
         </DialogHeader>
 
-        {/* Provider selector */}
         <Tabs defaultValue="br">
           <TabsList className="w-full">
             <TabsTrigger value="br" className="flex-1">🇧🇷 Brasil ({brProviders.length})</TabsTrigger>
@@ -105,7 +107,10 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
                 {(tab === "br" ? brProviders : intProviders).map(p => (
                   <button
                     key={p.value}
-                    onClick={() => { setProvider(p.value); reset(); }}
+                    onClick={() => {
+                      setProvider(p.value);
+                      reset(p.value);
+                    }}
                     className={`p-2.5 rounded-lg border text-center text-xs transition-all ${provider === p.value ? "border-primary bg-primary/10 text-primary ring-1 ring-primary/30" : "border-border hover:border-muted-foreground/30 hover:bg-muted/30"}`}
                   >
                     <span className="text-lg block mb-0.5">{p.emoji}</span>
@@ -119,7 +124,6 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
 
         {config && (
           <div className="space-y-4 mt-1">
-            {/* Integration type badge */}
             {typeMeta && (
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="outline" className={`text-[11px] gap-1 px-2 py-0.5 ${typeMeta.color}`}>
@@ -130,10 +134,8 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
               </div>
             )}
 
-            {/* Description */}
             <p className="text-xs text-muted-foreground leading-relaxed">{config.description}</p>
 
-            {/* Visual step flow */}
             {config.checklist.length > 0 && (
               <div className="rounded-lg border border-border bg-muted/20 p-3">
                 <p className="text-xs font-medium text-foreground mb-2.5 flex items-center gap-1.5">
@@ -156,7 +158,6 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
               </div>
             )}
 
-            {/* Name field — required with validation */}
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <Label className="text-xs">Nome interno</Label>
@@ -177,7 +178,6 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
               )}
             </div>
 
-            {/* Webhook-only message */}
             {config.integrationType === "webhook_only" && (
               <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
                 <div className="flex items-center gap-2 mb-1">
@@ -190,7 +190,6 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
               </div>
             )}
 
-            {/* Dynamic fields from config */}
             {config.fields.map(field => (
               <div key={field.key} className="space-y-1.5">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -209,7 +208,7 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
                   type={field.type}
                   placeholder={field.placeholder}
                   value={fieldValues[field.key] || ""}
-                  onChange={e => fieldSetters[field.key]?.(e.target.value)}
+                  onChange={e => updateFieldValue(field.key, e.target.value)}
                 />
                 {field.securityWarning && (
                   <div className="flex items-center gap-1.5">
@@ -228,7 +227,6 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
               </div>
             ))}
 
-            {/* Environment */}
             <div>
               <Label className="text-xs">Ambiente</Label>
               <Select value={environment} onValueChange={setEnvironment}>
@@ -240,7 +238,6 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
               </Select>
             </div>
 
-            {/* Generated outputs */}
             {config.generatedOutputs.length > 0 && (
               <div className="space-y-3 pt-3 border-t border-border">
                 <p className="text-xs font-medium text-foreground flex items-center gap-1.5">
@@ -279,7 +276,6 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
               </div>
             )}
 
-            {/* Next Steps block */}
             {config.nextSteps && config.nextSteps.length > 0 && (
               <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
                 <p className="text-xs font-semibold text-primary flex items-center gap-1.5">
@@ -299,7 +295,6 @@ export function IntegrationDialog({ open, onOpenChange, onSubmit, isPending, sup
               </div>
             )}
 
-            {/* External docs link */}
             {config.docsLink && (
               <a
                 href={config.docsLink.url}

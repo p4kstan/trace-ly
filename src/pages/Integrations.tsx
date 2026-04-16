@@ -537,12 +537,24 @@ export default function Integrations() {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (form: { provider: string; name: string; credentials: string; webhookSecret: string; environment: string }) => {
+    mutationFn: async (form: { provider: string; name: string; environment: string; fieldValues: Record<string, string> }) => {
       if (!workspace?.id) throw new Error("No workspace");
+
+      const credentials = form.fieldValues.credentials || form.fieldValues.apiSecret || null;
+      const webhookSecret = form.fieldValues.webhookSecret || null;
+      const extraSettings = Object.fromEntries(
+        Object.entries(form.fieldValues).filter(([key, value]) => !["credentials", "webhookSecret", "apiSecret"].includes(key) && value)
+      );
+
       const { error } = await supabase.from("gateway_integrations").insert({
-        workspace_id: workspace.id, provider: form.provider, name: form.name,
-        credentials_encrypted: form.credentials, webhook_secret_encrypted: form.webhookSecret,
-        environment: form.environment, status: "active",
+        workspace_id: workspace.id,
+        provider: form.provider,
+        name: form.name,
+        credentials_encrypted: credentials,
+        webhook_secret_encrypted: webhookSecret,
+        settings_json: Object.keys(extraSettings).length > 0 ? extraSettings : null,
+        environment: form.environment,
+        status: "active",
       });
       if (error) throw error;
     },
