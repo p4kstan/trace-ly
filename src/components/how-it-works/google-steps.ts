@@ -132,7 +132,7 @@ export const GOOGLE_STEPS: WizardStep[] = [
         id: "gads_customer_id",
         label: "Google Ads Customer ID",
         placeholder: "123-456-7890",
-        helpText: "Encontrado no canto superior direito do Google Ads (formato XXX-XXX-XXXX)",
+        helpText: "📍 Onde achar: no canto superior DIREITO do Google Ads, LOGO ACIMA do seu e-mail (ex: aparece '909-234-6354' acima de 'seuemail@gmail.com'). Formato: XXX-XXX-XXXX. ⚠️ Use o ID da CONTA NORMAL (onde rodam as campanhas), NÃO da MCC Manager.",
         validation: /^\d{3}-\d{3}-\d{4}$/,
         validationMessage: "O Customer ID deve seguir o formato XXX-XXX-XXXX",
       },
