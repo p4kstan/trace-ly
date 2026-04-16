@@ -125,7 +125,26 @@ export default function GoogleAdsAccountsManager({ workspaceId }: { workspaceId:
       const { data, error } = await supabase.functions.invoke("google-ads-sync", {
         body: { workspace_id: workspaceId, customer_id: acc.customer_id, days: 30 },
       });
-      if (error) throw error;
+
+      // Detect reconnect signal from FunctionsHttpError body or data
+      let info: any = null;
+      if (error) {
+        const ctx: any = (error as any)?.context;
+        try { info = await ctx?.json?.(); } catch { /* ignore */ }
+        if (!info) {
+          try { info = JSON.parse(error.message); } catch { /* ignore */ }
+        }
+      } else {
+        info = data;
+      }
+
+      if (info?.reconnect) {
+        toast.error("Reconexão necessária. Redirecionando pro Google…");
+        await reconnect(acc);
+        return;
+      }
+      if (error) throw new Error(info?.error || error.message);
+
       toast.success(`Sincronizado: ${data?.synced ?? 0} registros`);
       load();
     } catch (e: any) {
