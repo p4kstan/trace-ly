@@ -236,19 +236,20 @@ function buildQuery(level: string, period: string, customFrom?: string, customTo
   }
 
   if (level === "change_history") {
-    const today = new Date();
-    const past = new Date(); past.setDate(today.getDate() - 29);
-    const from = past.toISOString().slice(0,10);
-    const to = today.toISOString().slice(0,10);
+    const now = new Date();
+    const past = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+    const fmt = (d: Date) => d.toISOString().slice(0, 19).replace("T", " ");
     return `
       SELECT
         change_event.change_date_time, change_event.change_resource_type,
         change_event.client_type, change_event.user_email,
         change_event.resource_change_operation, change_event.changed_fields,
-        change_event.campaign, change_event.ad_group
+        change_event.campaign, change_event.ad_group,
+        campaign.id
       FROM change_event
-      WHERE change_event.change_date_time BETWEEN '${from} 00:00:00' AND '${to} 23:59:59'
-      ${campaignId ? `AND change_event.campaign = 'customers/CUSTOMER_ID/campaigns/${campaignId}'` : ""}
+      WHERE change_event.change_date_time >= '${fmt(past)}'
+        AND change_event.change_date_time <= '${fmt(now)}'
+      ${campaignId ? `AND campaign.id = ${campaignId}` : ""}
       ORDER BY change_event.change_date_time DESC
       LIMIT 100
     `;
