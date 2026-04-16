@@ -147,6 +147,9 @@ export default function GoogleAdsConnect() {
 
   return (
     <div className="space-y-4">
+      {/* Credentials manager (always visible) */}
+      <GoogleAdsCredentialsManager workspaceId={workspaceId} onChanged={loadAll} />
+
       {/* Connection card */}
       <Card className="glass-card">
         <CardContent className="p-5 space-y-4">
