@@ -348,7 +348,50 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
             )}
           </div>
 
-          <div className="rounded-lg bg-muted/30 border border-border/30 p-3 text-xs space-y-1 font-mono">
+          {isDynamic && (
+            <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
+              <div className="text-xs font-semibold text-foreground flex items-center gap-1">
+                <Wand2 className="w-3.5 h-3.5 text-primary" />
+                Add-ons (modo dinâmico)
+              </div>
+              <div className="grid gap-2 sm:grid-cols-3">
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <Switch checked={enablePiiCookies} onCheckedChange={setEnablePiiCookies} />
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-medium flex items-center gap-1">
+                      <Cookie className="w-3 h-3" /> Cookies PII
+                    </div>
+                    <div className="text-[10px] text-muted-foreground leading-snug">
+                      Grava nome/email/telefone em cookies 1st-party para Advanced Matching (+EMQ).
+                    </div>
+                  </div>
+                </label>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <Switch checked={enableWhatsAppClick} onCheckedChange={setEnableWhatsAppClick} />
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-medium flex items-center gap-1">
+                      <MessageCircle className="w-3 h-3" /> WhatsApp Click
+                    </div>
+                    <div className="text-[10px] text-muted-foreground leading-snug">
+                      Dispara Meta Lead + GA4 generate_lead em cliques wa.me/api.whatsapp.
+                    </div>
+                  </div>
+                </label>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <Switch checked={enableJsErrorTracking} onCheckedChange={setEnableJsErrorTracking} />
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-medium flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" /> JS Error
+                    </div>
+                    <div className="text-[10px] text-muted-foreground leading-snug">
+                      Captura erros JS do site e envia como GA4 exception.
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
+          )}
+
             <div>
               <span className="text-muted-foreground">Endpoint:</span> {endpoint}
             </div>
