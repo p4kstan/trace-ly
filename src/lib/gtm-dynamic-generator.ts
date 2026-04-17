@@ -48,7 +48,7 @@ interface BuildState {
 function dlVar(state: BuildState, name: string, dlKey: string) {
   const id = nextId();
   state.variables.push({
-    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, variableId: id, name,
+    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, variableId: id, name: `${PREFIX} ${name}`,
     type: "v",
     parameter: [
       { type: "INTEGER", key: "dataLayerVersion", value: "2" },
@@ -57,24 +57,24 @@ function dlVar(state: BuildState, name: string, dlKey: string) {
     ],
     fingerprint: fp(),
   });
-  return name;
+  return `${PREFIX} ${name}`;
 }
 
 function constVar(state: BuildState, name: string, value: string) {
   const id = nextId();
   state.variables.push({
-    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, variableId: id, name,
+    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, variableId: id, name: `${PREFIX} ${name}`,
     type: "c",
     parameter: [{ type: "TEMPLATE", key: "value", value }],
     fingerprint: fp(),
   });
-  return name;
+  return `${PREFIX} ${name}`;
 }
 
 function customEventTrigger(state: BuildState, name: string, eventName: string) {
   const id = nextId();
   state.triggers.push({
-    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, triggerId: id, name,
+    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, triggerId: id, name: `${PREFIX} ${name}`,
     type: "CUSTOM_EVENT",
     customEventFilter: [{
       type: "EQUALS",
