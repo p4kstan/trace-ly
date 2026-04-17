@@ -22,8 +22,8 @@ export interface DynamicGtmServerConfig {
   sgtmDomain?: string;
 }
 
-const ACCOUNT_ID = "7000000";
-const CONTAINER_ID = "7000000";
+const ACCOUNT_ID = "6004299956";
+const CONTAINER_ID = "176842811";
 
 let _idSeq = 100;
 const nextId = () => String(++_idSeq);
