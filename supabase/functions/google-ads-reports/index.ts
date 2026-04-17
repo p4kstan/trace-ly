@@ -109,6 +109,7 @@ function buildQuery(level: string, period: string, customFrom?: string, customTo
         metrics.cost_per_conversion, metrics.search_impression_share
       FROM keyword_view
       WHERE ${dateClause} ${campFilter}
+        AND ad_group_criterion.negative = FALSE
       ORDER BY metrics.cost_micros DESC
       LIMIT 500
     `;
