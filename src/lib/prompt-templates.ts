@@ -244,8 +244,10 @@ export function generateAuditPrompt(cfg: ProjectConfig): string {
     cfg.hasTikTokAds && "TikTok Ads (Pixel + Events API)",
   ].filter(Boolean).join(", ") || "(definir)";
 
-  return `Faça uma AUDITORIA COMPLETA de tracking neste projeto, SEM alterar nenhum arquivo. Responda em formato de relatório.
+  return `${aiPreamble(cfg.targetAI)}
 
+Faça uma AUDITORIA COMPLETA de tracking neste projeto, SEM alterar nenhum arquivo. Responda em formato de relatório.
+${detectionBlock(cfg)}
 ═══════════════════════════════════════════════
 CONTEXTO DO PROJETO
 ═══════════════════════════════════════════════
