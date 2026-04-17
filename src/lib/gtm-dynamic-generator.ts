@@ -136,17 +136,36 @@ fbq('track', '${opts.eventName}'${opts.withValue ? `, {
 function ga4EventTag(state: BuildState, opts: {
   name: string; ga4Var: string; eventName: string; triggerId: string;
 }) {
-  // Tag NATIVA do GTM: GA4 Event (type: "gaawe") — não precisa de HTML inline
+  // GA4 via gtag.js inline (HTML) — funciona sem depender do template nativo
+  // resolver corretamente o measurementIdOverride no import.
+  const html = `<script>
+(function(){
+  var id = '{{${opts.ga4Var}}}';
+  if (!window.gtag) {
+    var s=document.createElement('script');
+    s.async=true; s.src='https://www.googletagmanager.com/gtag/js?id='+id;
+    document.head.appendChild(s);
+    window.dataLayer=window.dataLayer||[];
+    window.gtag=function(){window.dataLayer.push(arguments);};
+    gtag('js', new Date());
+    gtag('config', id, {send_page_view:false});
+  }
+  gtag('event', '${opts.eventName}', {
+    send_to: id,
+    value: {{[CT] DLV - ecommerce.value}} || {{[CT] DLV - value}} || undefined,
+    currency: {{[CT] DLV - ecommerce.currency}} || undefined,
+    transaction_id: {{[CT] DLV - ecommerce.transaction_id}} || undefined,
+    items: {{[CT] DLV - ecommerce.items}} || undefined
+  });
+})();
+</script>`;
   state.tags.push({
     accountId: ACCOUNT_ID, containerId: CONTAINER_ID, tagId: nextId(),
     name: `${PREFIX} ${opts.name}`,
-    type: "gaawe",
+    type: "html",
     parameter: [
-      { type: "TEMPLATE", key: "eventName", value: opts.eventName },
-      { type: "TEMPLATE", key: "measurementIdOverride", value: `{{${opts.ga4Var}}}` },
-      { type: "BOOLEAN", key: "sendEcommerceData", value: "true" },
-      { type: "TEMPLATE", key: "getEcommerceDataFrom", value: "dataLayer" },
-      { type: "BOOLEAN", key: "enhancedUserId", value: "true" },
+      { type: "TEMPLATE", key: "html", value: html },
+      { type: "BOOLEAN", key: "supportDocumentWrite", value: "false" },
     ],
     fingerprint: fp(),
     firingTriggerId: [opts.triggerId],
@@ -159,18 +178,36 @@ function ga4EventTag(state: BuildState, opts: {
 function googleAdsConversionTag(state: BuildState, opts: {
   name: string; awVar: string; conversionLabel?: string; triggerId: string;
 }) {
-  // Tag NATIVA do GTM: Google Ads Conversion Tracking (type: "awct")
+  // Google Ads conversion via gtag.js inline (HTML) — não depende de template "awct"
+  // que pode falhar no import se o tagId não bater com a galeria atual.
+  const html = `<script>
+(function(){
+  var awid = '{{${opts.awVar}}}';
+  var label = ${JSON.stringify(opts.conversionLabel || "ABCDEFGHIJK")};
+  if (!window.gtag) {
+    var s=document.createElement('script');
+    s.async=true; s.src='https://www.googletagmanager.com/gtag/js?id='+awid;
+    document.head.appendChild(s);
+    window.dataLayer=window.dataLayer||[];
+    window.gtag=function(){window.dataLayer.push(arguments);};
+    gtag('js', new Date());
+    gtag('config', awid);
+  }
+  gtag('event', 'conversion', {
+    send_to: awid + '/' + label,
+    value: {{[CT] DLV - ecommerce.value}} || 0,
+    currency: {{[CT] DLV - ecommerce.currency}} || 'BRL',
+    transaction_id: {{[CT] DLV - ecommerce.transaction_id}} || ''
+  });
+})();
+</script>`;
   state.tags.push({
     accountId: ACCOUNT_ID, containerId: CONTAINER_ID, tagId: nextId(),
     name: `${PREFIX} ${opts.name}`,
-    type: "awct",
+    type: "html",
     parameter: [
-      { type: "TEMPLATE", key: "conversionId", value: `{{${opts.awVar}}}` },
-      { type: "TEMPLATE", key: "conversionLabel", value: opts.conversionLabel || "ABCDEFGHIJK" },
-      { type: "TEMPLATE", key: "conversionValue", value: "{{[CT] DLV - ecommerce.value}}" },
-      { type: "TEMPLATE", key: "currencyCode", value: "{{[CT] DLV - ecommerce.currency}}" },
-      { type: "TEMPLATE", key: "orderId", value: "{{[CT] DLV - ecommerce.transaction_id}}" },
-      { type: "BOOLEAN", key: "enableConversionLinker", value: "true" },
+      { type: "TEMPLATE", key: "html", value: html },
+      { type: "BOOLEAN", key: "supportDocumentWrite", value: "false" },
     ],
     fingerprint: fp(),
     firingTriggerId: [opts.triggerId],
