@@ -147,15 +147,21 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
   // Synthetic meta for dynamic mode (so the rest of the form can render the right inputs)
   const dynamicMeta = dynamicBusiness && {
     id: templateId,
-    name: `Dinâmico — ${BUSINESS_PROFILES[dynamicBusiness].label}`,
+    name: isDynamicServer
+      ? `Dinâmico Server — ${BUSINESS_PROFILES[dynamicBusiness].label}`
+      : `Dinâmico — ${BUSINESS_PROFILES[dynamicBusiness].label}`,
     platform: BUSINESS_PROFILES[dynamicBusiness].label,
-    usageContext: "WEB" as const,
-    description: `Container Web gerado dinamicamente para ${BUSINESS_PROFILES[dynamicBusiness].label}, com TODOS os eventos do funil: ${BUSINESS_PROFILES[dynamicBusiness].funnel.join(" → ")}.`,
-    variableMap: {
-      fbPixelId: "0.01 Facebook Pixel",
-      ga4MeasurementId: "0.02 GA4 ID",
-      googleAdsId: "0.03 Google Ads ID",
-    } as Partial<{ fbPixelId: string; fbAccessToken: string; ga4MeasurementId: string; googleAdsId: string; transportUrl: string }>,
+    usageContext: (isDynamicServer ? "SERVER" : "WEB") as "WEB" | "SERVER",
+    description: isDynamicServer
+      ? `Container SERVER (sGTM) gerado dinamicamente para ${BUSINESS_PROFILES[dynamicBusiness].label}. Inclui Client GA4, tag GA4 server e encaminhamento de cada evento (${BUSINESS_PROFILES[dynamicBusiness].funnel.join(", ")}) ao endpoint CapiTrack — que dispara Meta CAPI / Google Ads / TikTok pelo backend.`
+      : `Container Web gerado dinamicamente para ${BUSINESS_PROFILES[dynamicBusiness].label}, com TODOS os eventos do funil: ${BUSINESS_PROFILES[dynamicBusiness].funnel.join(" → ")}. Usa tags NATIVAS GA4 (gaawe) e Google Ads (awct).`,
+    variableMap: isDynamicServer
+      ? ({ ga4MeasurementId: "[VAR] GA4 Measurement ID" } as Partial<{ fbPixelId: string; fbAccessToken: string; ga4MeasurementId: string; googleAdsId: string; transportUrl: string }>)
+      : ({
+          fbPixelId: "0.01 Facebook Pixel",
+          ga4MeasurementId: "0.02 GA4 ID",
+          googleAdsId: "0.03 Google Ads ID",
+        } as Partial<{ fbPixelId: string; fbAccessToken: string; ga4MeasurementId: string; googleAdsId: string; transportUrl: string }>),
     domainPlaceholders: [] as string[],
   };
   const meta = isDynamic ? dynamicMeta! : GTM_TEMPLATES[templateId as GtmTemplateId].meta;
