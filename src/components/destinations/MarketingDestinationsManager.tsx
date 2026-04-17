@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Megaphone, BarChart2, Trash2, Plus, CheckCircle2, AlertCircle, Target } from "lucide-react";
+import { Megaphone, BarChart2, Trash2, Plus, CheckCircle2, AlertCircle, Target, RefreshCw } from "lucide-react";
 
 interface Props {
   workspaceId: string;
@@ -115,6 +115,15 @@ export function MarketingDestinationsManager({ workspaceId }: Props) {
           <Badge variant="outline" className="text-[10px]">
             {totalActive} ativo{totalActive !== 1 ? "s" : ""}
           </Badge>
+          <SyncButton
+            workspaceId={workspaceId}
+            pixels={pixels}
+            destinations={destinations}
+            onSynced={() => {
+              qc.invalidateQueries({ queryKey: ["meta-pixels", workspaceId] });
+              qc.invalidateQueries({ queryKey: ["integration-destinations", workspaceId] });
+            }}
+          />
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="h-8">
@@ -384,5 +393,98 @@ function GA4Form({ workspaceId, onSuccess }: { workspaceId: string; onSuccess: (
         </Button>
       </DialogFooter>
     </div>
+  );
+}
+
+function SyncButton({
+  workspaceId, pixels, destinations, onSynced,
+}: {
+  workspaceId: string;
+  pixels: any[];
+  destinations: any[];
+  onSynced: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+
+  async function sync() {
+    setLoading(true);
+    try {
+      // Procura pixels e destinos INATIVOS já cadastrados no workspace
+      const [pixRes, destRes, gwRes] = await Promise.all([
+        supabase
+          .from("meta_pixels")
+          .select("id, pixel_id, name, is_active")
+          .eq("workspace_id", workspaceId)
+          .eq("is_active", false),
+        supabase
+          .from("integration_destinations")
+          .select("id, provider, destination_id, display_name, is_active")
+          .eq("workspace_id", workspaceId)
+          .eq("is_active", false),
+        // Também procura pixels Meta cadastrados em gateway_integrations (legado)
+        supabase
+          .from("gateway_integrations")
+          .select("id, provider, name, public_config_json, status")
+          .eq("workspace_id", workspaceId),
+      ]);
+
+      let activated = 0;
+
+      // Reativa Meta Pixels inativos
+      if (pixRes.data?.length) {
+        const ids = pixRes.data.map((p: any) => p.id);
+        const { error } = await supabase
+          .from("meta_pixels")
+          .update({ is_active: true })
+          .in("id", ids);
+        if (!error) activated += ids.length;
+      }
+
+      // Reativa destinos GA4/Google Ads inativos
+      if (destRes.data?.length) {
+        const ids = destRes.data.map((d: any) => d.id);
+        const { error } = await supabase
+          .from("integration_destinations")
+          .update({ is_active: true })
+          .in("id", ids);
+        if (!error) activated += ids.length;
+      }
+
+      // Detecta integrações em gateway_integrations que ainda não viraram destino
+      const existingPixelIds = new Set(pixels.map((p: any) => p.pixel_id));
+      const existingDestIds = new Set(destinations.map((d: any) => d.destination_id));
+      let imported = 0;
+
+      for (const gw of gwRes.data || []) {
+        const cfg = (gw.public_config_json || {}) as any;
+        if (gw.provider === "meta" && cfg.pixel_id && !existingPixelIds.has(cfg.pixel_id)) {
+          imported++;
+        } else if ((gw.provider === "ga4" || gw.provider === "google_ads") &&
+                   cfg.destination_id && !existingDestIds.has(cfg.destination_id)) {
+          imported++;
+        }
+      }
+
+      if (activated === 0 && imported === 0) {
+        toast.info("Nenhum destino pendente encontrado no sistema.");
+      } else {
+        const parts = [];
+        if (activated) parts.push(`${activated} reativado${activated > 1 ? "s" : ""}`);
+        if (imported) parts.push(`${imported} disponível${imported > 1 ? "is" : ""} para importar (use 'Adicionar destino')`);
+        toast.success("Sincronizado: " + parts.join(", "));
+      }
+      onSynced();
+    } catch (e) {
+      toast.error("Erro ao sincronizar: " + (e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Button size="sm" variant="outline" className="h-8" onClick={sync} disabled={loading}>
+      <RefreshCw className={`w-3.5 h-3.5 mr-1 ${loading ? "animate-spin" : ""}`} />
+      {loading ? "Sincronizando..." : "Sincronizar"}
+    </Button>
   );
 }
