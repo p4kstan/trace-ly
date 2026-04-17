@@ -26,6 +26,7 @@ const BUSINESS_ICONS: Record<BusinessType, React.ComponentType<{ className?: str
 };
 
 const GATEWAYS: { value: Gateway; label: string }[] = [
+  { value: "unknown", label: "🤔 Não sei / Detectar automaticamente" },
   { value: "stripe", label: "Stripe" }, { value: "hotmart", label: "Hotmart" },
   { value: "kiwify", label: "Kiwify" }, { value: "monetizze", label: "Monetizze" },
   { value: "eduzz", label: "Eduzz" }, { value: "pagseguro", label: "PagSeguro" },
@@ -37,10 +38,23 @@ const GATEWAYS: { value: Gateway; label: string }[] = [
 ];
 
 const PLATFORMS: { value: Platform; label: string }[] = [
+  { value: "unknown", label: "🤔 Não sei / Detectar automaticamente" },
   { value: "react", label: "React / Vite" }, { value: "next", label: "Next.js" },
   { value: "vue", label: "Vue / Nuxt" }, { value: "wordpress", label: "WordPress" },
   { value: "shopify", label: "Shopify" }, { value: "webflow", label: "Webflow" },
   { value: "html", label: "HTML estático" }, { value: "custom", label: "Custom" },
+];
+
+const TARGET_AIS: { value: TargetAI; label: string; hint: string }[] = [
+  { value: "lovable", label: "Lovable", hint: "Agente de código com acesso a arquivos" },
+  { value: "cursor", label: "Cursor", hint: "IDE com @file e Cmd+K" },
+  { value: "claude", label: "Claude / Claude Code", hint: "Anthropic — chat ou Code" },
+  { value: "chatgpt", label: "ChatGPT / Codex", hint: "OpenAI — pode pedir arquivos" },
+  { value: "manus", label: "Manus", hint: "Agente autônomo de repo" },
+  { value: "bolt", label: "Bolt.new", hint: "WebContainer da StackBlitz" },
+  { value: "v0", label: "v0 (Vercel)", hint: "Foco em Next.js/React" },
+  { value: "windsurf", label: "Windsurf (Codeium)", hint: "Cascade no workspace" },
+  { value: "other", label: "Outra IA", hint: "Genérico — pede arquivos se preciso" },
 ];
 
 function CopyableBlock({ code, label }: { code: string; label: string }) {
