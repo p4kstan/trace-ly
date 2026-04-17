@@ -429,6 +429,8 @@ function addJsErrorTracking(state: BuildState, ga4Var: string | null) {
     });
   }
 }
+
+export function buildDynamicGtmContainer(cfg: DynamicGtmConfig): string {
   _idSeq = 100;
   const profile = BUSINESS_PROFILES[cfg.businessType];
   const state: BuildState = { tags: [], triggers: [], variables: [] };
@@ -450,6 +452,19 @@ function addJsErrorTracking(state: BuildState, ga4Var: string | null) {
 
   // CapiTrack bridge — every dataLayer push goes to CapiTrack endpoint
   capitrackBridgeTag(state, cfg.publicKey, cfg.capitrackEndpoint);
+
+  // PII Cookies (Advanced Matching) — opcional
+  if (cfg.enablePiiCookies) {
+    addPiiCookieSystem(state, cfg.domain || "seudominio.com.br");
+  }
+  // WhatsApp click tracking — opcional
+  if (cfg.enableWhatsAppClick) {
+    addWhatsAppTracking(state, pixelVar, ga4Var);
+  }
+  // JS Error tracking — opcional
+  if (cfg.enableJsErrorTracking) {
+    addJsErrorTracking(state, ga4Var);
+  }
 
   // Build one set per critical event (PageView is always first)
   // PageView (All Pages)
