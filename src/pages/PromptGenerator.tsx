@@ -13,11 +13,11 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import {
   Wand2, Copy, Search, Wrench, CheckCircle2, ShoppingBag, GraduationCap,
-  Cloud, Users, UtensilsCrossed, Store, Briefcase, Sparkles, Info,
+  Cloud, Users, UtensilsCrossed, Store, Briefcase, Sparkles, Info, HelpCircle, Bot,
 } from "lucide-react";
 import {
   BUSINESS_PROFILES, generateAuditPrompt, generateFixPrompt, generateValidationPrompt,
-  type BusinessType, type Gateway, type Platform, type ProjectConfig,
+  type BusinessType, type Gateway, type Platform, type ProjectConfig, type TargetAI,
 } from "@/lib/prompt-templates";
 
 const BUSINESS_ICONS: Record<BusinessType, React.ComponentType<{ className?: string }>> = {
