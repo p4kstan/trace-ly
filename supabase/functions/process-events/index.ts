@@ -223,11 +223,27 @@ async function dispatchToProvider(
     const result = await res.json();
     if (res.ok && (result.status === "ok" || result.status === "partial")) {
       const deliveredCount = result.delivered || 0;
-      if (deliveredCount > 0) await markDelivered(items.slice(0, deliveredCount), stats);
       const failedCount = result.failed || 0;
+      const skippedCount = result.skipped || 0;
+
+      if (deliveredCount > 0) await markDelivered(items.slice(0, deliveredCount), stats);
       if (failedCount > 0) {
         for (const item of items.slice(items.length - failedCount)) {
           await handleFailure(item, `${provider} dispatch failed`, stats);
+        }
+      }
+      // Items that were neither delivered nor failed are "skipped" by the provider
+      // (e.g. Google Ads: no gclid/email/phone identifiers to match). Don't leave
+      // them stuck in `processing` forever — mark as dead_letter with clear reason.
+      const accountedFor = deliveredCount + failedCount;
+      if (accountedFor < items.length) {
+        const skippedItems = items.slice(deliveredCount, items.length - failedCount);
+        const reason = skippedCount > 0
+          ? `${provider} skipped: ${result.message || "no matching identifiers (gclid/email/phone)"}`
+          : `${provider} returned no delivered/failed counts`;
+        for (const item of skippedItems) {
+          // Force max attempts so handleFailure dead-letters immediately
+          await handleFailure({ ...item, attempt_count: item.max_attempts - 1 }, reason, stats);
         }
       }
     } else {

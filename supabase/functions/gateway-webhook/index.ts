@@ -822,6 +822,16 @@ async function enqueueForOtherProviders(
 
   if (!destinations?.length) return;
 
+  // Pre-hash customer PII for Enhanced Conversions (Google Ads / GA4 user-provided data)
+  const c = order.customer || {};
+  const emailHash = c.email ? await sha256(c.email.toLowerCase().trim()) : null;
+  const phoneDigits = c.phone ? c.phone.replace(/\D/g, "") : "";
+  const phoneHash = phoneDigits
+    ? await sha256(phoneDigits.startsWith("55") ? phoneDigits : "55" + phoneDigits)
+    : null;
+  const documentHash = c.document ? await sha256(c.document.replace(/\D/g, "")) : null;
+  const enrichedCustomer = { ...c, email_hash: emailHash, phone_hash: phoneHash, document_hash: documentHash };
+
   for (const dest of destinations) {
     await supabase.from("event_queue").insert({
       workspace_id: workspaceId,
@@ -833,7 +843,7 @@ async function enqueueForOtherProviders(
       payload_json: {
         marketing_event: marketingEvent,
         order: { total_value: order.total_value, currency: order.currency, external_order_id: order.external_order_id, payment_method: order.payment_method, items: order.items },
-        customer: order.customer,
+        customer: enrichedCustomer,
         session: sessionData ? { fbp: sessionData.fbp, fbc: sessionData.fbc, ip_hash: sessionData.ip_hash, user_agent: sessionData.user_agent, landing_page: sessionData.landing_page, gclid: sessionData.gclid, ttclid: sessionData.ttclid, ttp: sessionData.ttp, gbraid: sessionData.gbraid, wbraid: sessionData.wbraid, referrer: sessionData.referrer, utm_source: sessionData.utm_source, utm_medium: sessionData.utm_medium, utm_campaign: sessionData.utm_campaign, client_id: sessionData.ga_client_id } : null,
         identity_id: identityId,
       },
