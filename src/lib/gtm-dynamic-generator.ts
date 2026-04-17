@@ -127,32 +127,17 @@ fbq('track', '${opts.eventName}'${opts.withValue ? `, {
 function ga4EventTag(state: BuildState, opts: {
   name: string; ga4Var: string; eventName: string; triggerId: string;
 }) {
-  const html = `<script>
-(function(){
-  if (!window.gtag) {
-    window.dataLayer = window.dataLayer || [];
-    window.gtag = function(){window.dataLayer.push(arguments);};
-    var s = document.createElement('script');
-    s.async = true;
-    s.src = 'https://www.googletagmanager.com/gtag/js?id={{${opts.ga4Var}}}';
-    document.head.appendChild(s);
-    gtag('js', new Date());
-    gtag('config', '{{${opts.ga4Var}}}');
-  }
-  var ec = ({{DLV - ecommerce}} || {});
-  gtag('event', '${opts.eventName}', Object.assign({
-    send_to: '{{${opts.ga4Var}}}'
-  }, ec));
-})();
-</script>`;
-
+  // Tag NATIVA do GTM: GA4 Event (type: "gaawe") — não precisa de HTML inline
   state.tags.push({
     accountId: ACCOUNT_ID, containerId: CONTAINER_ID, tagId: nextId(),
     name: opts.name,
-    type: "html",
+    type: "gaawe",
     parameter: [
-      { type: "TEMPLATE", key: "html", value: html },
-      { type: "BOOLEAN", key: "supportDocumentWrite", value: "false" },
+      { type: "TEMPLATE", key: "eventName", value: opts.eventName },
+      { type: "TEMPLATE", key: "measurementIdOverride", value: `{{${opts.ga4Var}}}` },
+      { type: "BOOLEAN", key: "sendEcommerceData", value: "true" },
+      { type: "TEMPLATE", key: "getEcommerceDataFrom", value: "dataLayer" },
+      { type: "BOOLEAN", key: "enhancedUserId", value: "true" },
     ],
     fingerprint: fp(),
     firingTriggerId: [opts.triggerId],
