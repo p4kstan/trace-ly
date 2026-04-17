@@ -150,37 +150,18 @@ function ga4EventTag(state: BuildState, opts: {
 function googleAdsConversionTag(state: BuildState, opts: {
   name: string; awVar: string; conversionLabel?: string; triggerId: string;
 }) {
-  const sendTo = opts.conversionLabel
-    ? `'{{${opts.awVar}}}/${opts.conversionLabel}'`
-    : `'{{${opts.awVar}}}'`;
-  const html = `<script>
-(function(){
-  if (!window.gtag) {
-    window.dataLayer = window.dataLayer || [];
-    window.gtag = function(){window.dataLayer.push(arguments);};
-    var s = document.createElement('script');
-    s.async = true;
-    s.src = 'https://www.googletagmanager.com/gtag/js?id={{${opts.awVar}}}';
-    document.head.appendChild(s);
-    gtag('js', new Date());
-    gtag('config', '{{${opts.awVar}}}');
-  }
-  gtag('event', 'conversion', {
-    send_to: ${sendTo},
-    value: {{DLV - ecommerce.value}} || {{DLV - value}} || 0,
-    currency: {{DLV - ecommerce.currency}} || 'BRL',
-    transaction_id: {{DLV - ecommerce.transaction_id}} || ''
-  });
-})();
-</script>`;
-
+  // Tag NATIVA do GTM: Google Ads Conversion Tracking (type: "awct")
   state.tags.push({
     accountId: ACCOUNT_ID, containerId: CONTAINER_ID, tagId: nextId(),
     name: opts.name,
-    type: "html",
+    type: "awct",
     parameter: [
-      { type: "TEMPLATE", key: "html", value: html },
-      { type: "BOOLEAN", key: "supportDocumentWrite", value: "false" },
+      { type: "TEMPLATE", key: "conversionId", value: `{{${opts.awVar}}}` },
+      { type: "TEMPLATE", key: "conversionLabel", value: opts.conversionLabel || "ABCDEFGHIJK" },
+      { type: "TEMPLATE", key: "conversionValue", value: "{{DLV - ecommerce.value}}" },
+      { type: "TEMPLATE", key: "currencyCode", value: "{{DLV - ecommerce.currency}}" },
+      { type: "TEMPLATE", key: "orderId", value: "{{DLV - ecommerce.transaction_id}}" },
+      { type: "BOOLEAN", key: "enableConversionLinker", value: "true" },
     ],
     fingerprint: fp(),
     firingTriggerId: [opts.triggerId],
