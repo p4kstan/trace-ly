@@ -13,11 +13,11 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import {
   Wand2, Copy, Search, Wrench, CheckCircle2, ShoppingBag, GraduationCap,
-  Cloud, Users, UtensilsCrossed, Store, Briefcase, Sparkles, Info,
+  Cloud, Users, UtensilsCrossed, Store, Briefcase, Sparkles, Info, HelpCircle, Bot,
 } from "lucide-react";
 import {
   BUSINESS_PROFILES, generateAuditPrompt, generateFixPrompt, generateValidationPrompt,
-  type BusinessType, type Gateway, type Platform, type ProjectConfig,
+  type BusinessType, type Gateway, type Platform, type ProjectConfig, type TargetAI,
 } from "@/lib/prompt-templates";
 
 const BUSINESS_ICONS: Record<BusinessType, React.ComponentType<{ className?: string }>> = {
@@ -26,6 +26,7 @@ const BUSINESS_ICONS: Record<BusinessType, React.ComponentType<{ className?: str
 };
 
 const GATEWAYS: { value: Gateway; label: string }[] = [
+  { value: "unknown", label: "🤔 Não sei / Detectar automaticamente" },
   { value: "stripe", label: "Stripe" }, { value: "hotmart", label: "Hotmart" },
   { value: "kiwify", label: "Kiwify" }, { value: "monetizze", label: "Monetizze" },
   { value: "eduzz", label: "Eduzz" }, { value: "pagseguro", label: "PagSeguro" },
@@ -37,10 +38,23 @@ const GATEWAYS: { value: Gateway; label: string }[] = [
 ];
 
 const PLATFORMS: { value: Platform; label: string }[] = [
+  { value: "unknown", label: "🤔 Não sei / Detectar automaticamente" },
   { value: "react", label: "React / Vite" }, { value: "next", label: "Next.js" },
   { value: "vue", label: "Vue / Nuxt" }, { value: "wordpress", label: "WordPress" },
   { value: "shopify", label: "Shopify" }, { value: "webflow", label: "Webflow" },
   { value: "html", label: "HTML estático" }, { value: "custom", label: "Custom" },
+];
+
+const TARGET_AIS: { value: TargetAI; label: string; hint: string }[] = [
+  { value: "lovable", label: "Lovable", hint: "Agente de código com acesso a arquivos" },
+  { value: "cursor", label: "Cursor", hint: "IDE com @file e Cmd+K" },
+  { value: "claude", label: "Claude / Claude Code", hint: "Anthropic — chat ou Code" },
+  { value: "chatgpt", label: "ChatGPT / Codex", hint: "OpenAI — pode pedir arquivos" },
+  { value: "manus", label: "Manus", hint: "Agente autônomo de repo" },
+  { value: "bolt", label: "Bolt.new", hint: "WebContainer da StackBlitz" },
+  { value: "v0", label: "v0 (Vercel)", hint: "Foco em Next.js/React" },
+  { value: "windsurf", label: "Windsurf (Codeium)", hint: "Cascade no workspace" },
+  { value: "other", label: "Outra IA", hint: "Genérico — pede arquivos se preciso" },
 ];
 
 function CopyableBlock({ code, label }: { code: string; label: string }) {
@@ -83,20 +97,21 @@ export default function PromptGenerator() {
   });
 
   const [businessType, setBusinessType] = useState<BusinessType>("ecommerce");
-  const [gateway, setGateway] = useState<Gateway>("stripe");
-  const [platform, setPlatform] = useState<Platform>("react");
+  const [gateway, setGateway] = useState<Gateway>("unknown");
+  const [platform, setPlatform] = useState<Platform>("unknown");
+  const [targetAI, setTargetAI] = useState<TargetAI>("lovable");
   const [hasMetaAds, setHasMetaAds] = useState(true);
   const [hasGoogleAds, setHasGoogleAds] = useState(true);
   const [hasGA4, setHasGA4] = useState(true);
   const [hasTikTokAds, setHasTikTokAds] = useState(false);
 
   const config = useMemo<ProjectConfig>(() => ({
-    businessType, gateway, platform,
+    businessType, gateway, platform, targetAI,
     publicKey: apiKeys[0]?.public_key || "",
     workspaceId: workspace?.id || "",
     endpoint: `${supabaseUrl}/functions/v1/track`,
     hasMetaAds, hasGoogleAds, hasGA4, hasTikTokAds,
-  }), [businessType, gateway, platform, apiKeys, workspace, supabaseUrl, hasMetaAds, hasGoogleAds, hasGA4, hasTikTokAds]);
+  }), [businessType, gateway, platform, targetAI, apiKeys, workspace, supabaseUrl, hasMetaAds, hasGoogleAds, hasGA4, hasTikTokAds]);
 
   const auditPrompt = useMemo(() => generateAuditPrompt(config), [config]);
   const fixPrompt = useMemo(() => generateFixPrompt(config), [config]);
@@ -136,7 +151,7 @@ export default function PromptGenerator() {
           <CardDescription>Quanto mais preciso, melhor o prompt gerado.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <div>
               <Label className="text-xs">Tipo de negócio</Label>
               <Select value={businessType} onValueChange={(v) => setBusinessType(v as BusinessType)}>
@@ -179,7 +194,35 @@ export default function PromptGenerator() {
                 </SelectContent>
               </Select>
             </div>
+
+            <div>
+              <Label className="text-xs flex items-center gap-1">
+                <Bot className="w-3 h-3" /> IA do projeto-alvo
+              </Label>
+              <Select value={targetAI} onValueChange={(v) => setTargetAI(v as TargetAI)}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent className="max-h-[300px]">
+                  {TARGET_AIS.map((a) => (
+                    <SelectItem key={a.value} value={a.value}>
+                      <span className="flex flex-col">
+                        <span>{a.label}</span>
+                        <span className="text-[10px] text-muted-foreground">{a.hint}</span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+
+          {(platform === "unknown" || gateway === "unknown") && (
+            <Alert className="border-primary/30 bg-primary/5">
+              <HelpCircle className="w-4 h-4 text-primary" />
+              <AlertDescription className="text-xs">
+                <strong>Modo detecção ativado.</strong> O prompt vai pedir para a IA-alvo inspecionar o projeto e descobrir sozinha {platform === "unknown" && "a stack"}{platform === "unknown" && gateway === "unknown" && " e "}{gateway === "unknown" && "o gateway"} antes de aplicar qualquer correção.
+              </AlertDescription>
+            </Alert>
+          )}
 
           <div>
             <Label className="text-xs mb-2 block">Destinos ativos</Label>
