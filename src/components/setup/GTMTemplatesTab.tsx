@@ -7,11 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, Sparkles, Server, Globe, FileJson, RefreshCw, Save, Wand2 } from "lucide-react";
+import { Download, Sparkles, Server, Globe, FileJson, RefreshCw, Save, Wand2, Cookie, MessageCircle, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { GTM_TEMPLATES, GtmTemplateId, downloadGtmTemplate } from "@/lib/gtm-templates";
 import { downloadDynamicGtmContainer } from "@/lib/gtm-dynamic-generator";
 import { BUSINESS_PROFILES, type BusinessType } from "@/lib/prompt-templates";
+import { Switch } from "@/components/ui/switch";
 
 type SelectionId = GtmTemplateId | `dynamic:${BusinessType}`;
 
@@ -35,6 +36,10 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
   const [domain, setDomain] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Add-ons (apenas modo Dinâmico)
+  const [enablePiiCookies, setEnablePiiCookies] = useState(true);
+  const [enableWhatsAppClick, setEnableWhatsAppClick] = useState(false);
+  const [enableJsErrorTracking, setEnableJsErrorTracking] = useState(false);
 
   const saveDefaults = async () => {
     if (!workspace?.id) return;
@@ -175,8 +180,16 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
         ga4MeasurementId: ga4Id.trim() || undefined,
         googleAdsId: adsId.trim() || undefined,
         domain: domain.trim() || undefined,
+        enablePiiCookies,
+        enableWhatsAppClick,
+        enableJsErrorTracking,
       });
-      toast.success(`Container dinâmico "${meta.name}" gerado com TODOS os eventos do funil!`);
+      const extras = [
+        enablePiiCookies && "Cookies PII",
+        enableWhatsAppClick && "WhatsApp",
+        enableJsErrorTracking && "JS Error",
+      ].filter(Boolean).join(" + ");
+      toast.success(`Container "${meta.name}" gerado${extras ? ` (com ${extras})` : ""}!`);
       return;
     }
     downloadGtmTemplate(templateId as GtmTemplateId, {
@@ -334,6 +347,50 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
               </div>
             )}
           </div>
+
+          {isDynamic && (
+            <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
+              <div className="text-xs font-semibold text-foreground flex items-center gap-1">
+                <Wand2 className="w-3.5 h-3.5 text-primary" />
+                Add-ons (modo dinâmico)
+              </div>
+              <div className="grid gap-2 sm:grid-cols-3">
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <Switch checked={enablePiiCookies} onCheckedChange={setEnablePiiCookies} />
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-medium flex items-center gap-1">
+                      <Cookie className="w-3 h-3" /> Cookies PII
+                    </div>
+                    <div className="text-[10px] text-muted-foreground leading-snug">
+                      Grava nome/email/telefone em cookies 1st-party para Advanced Matching (+EMQ).
+                    </div>
+                  </div>
+                </label>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <Switch checked={enableWhatsAppClick} onCheckedChange={setEnableWhatsAppClick} />
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-medium flex items-center gap-1">
+                      <MessageCircle className="w-3 h-3" /> WhatsApp Click
+                    </div>
+                    <div className="text-[10px] text-muted-foreground leading-snug">
+                      Dispara Meta Lead + GA4 generate_lead em cliques wa.me/api.whatsapp.
+                    </div>
+                  </div>
+                </label>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <Switch checked={enableJsErrorTracking} onCheckedChange={setEnableJsErrorTracking} />
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-medium flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" /> JS Error
+                    </div>
+                    <div className="text-[10px] text-muted-foreground leading-snug">
+                      Captura erros JS do site e envia como GA4 exception.
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
+          )}
 
           <div className="rounded-lg bg-muted/30 border border-border/30 p-3 text-xs space-y-1 font-mono">
             <div>
