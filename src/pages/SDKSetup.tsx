@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Copy, CheckCircle, Code, Terminal, Zap, Globe } from "lucide-react";
+import { Copy, CheckCircle, Code, Terminal, Zap, Globe, Layers } from "lucide-react";
+import { GTMTab } from "@/components/setup/GTMTab";
 
 function CodeBlock({ code, language = "html" }: { code: string; language?: string }) {
   const copyCode = () => {
@@ -230,6 +231,10 @@ const response = await fetch("${supabaseUrl}/functions/v1/track", {
       <Tabs defaultValue="install">
         <TabsList className="bg-muted/30">
           <TabsTrigger value="install">Instalação</TabsTrigger>
+          <TabsTrigger value="gtm">
+            <Layers className="w-3.5 h-3.5 mr-1" />
+            Google Tag Manager
+          </TabsTrigger>
           <TabsTrigger value="events">Eventos</TabsTrigger>
           <TabsTrigger value="ecommerce">E-commerce</TabsTrigger>
           <TabsTrigger value="server">Server-Side</TabsTrigger>
@@ -256,6 +261,10 @@ const response = await fetch("${supabaseUrl}/functions/v1/track", {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="gtm" className="mt-4">
+          <GTMTab publicKey={publicKey} supabaseUrl={supabaseUrl} sdkUrl={sdkUrl} />
         </TabsContent>
 
         <TabsContent value="events" className="mt-4">
