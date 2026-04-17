@@ -99,6 +99,7 @@ export default function GoogleAdsCampaignDetail() {
   const adGroups = useReport(workspace?.id, customerId, "ad_groups", period, campaignId, campaignId);
   const keywords = useReport(workspace?.id, customerId, "keywords", period, campaignId);
   const negKeywordsCamp = useReport(workspace?.id, customerId, "negative_keywords", period, campaignId);
+  const negKeywordsShared = useReport(workspace?.id, customerId, "negative_keywords_shared", period, campaignId);
   const negKeywordsAg = useReport(workspace?.id, customerId, "negative_keywords_ad_group", period, campaignId);
   const searchTerms = useReport(workspace?.id, customerId, "search_terms", period, campaignId);
   const ageData = useReport(workspace?.id, customerId, "age", period, campaignId);
