@@ -336,6 +336,20 @@ export default function GoogleAdsCampaignDetail() {
               />
             </CardContent>
           </Card>
+          <Card className="glass-card">
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Listas de negativas compartilhadas</CardTitle>
+              <p className="text-[11px] text-muted-foreground mt-1">Negativas em listas reutilizáveis que podem estar aplicadas a esta campanha.</p>
+            </CardHeader>
+            <CardContent className="p-0">
+              <SimpleTable
+                loading={negKeywordsShared.isLoading}
+                rows={negKeywordsShared.data?.rows}
+                columns={["name", "match_type", "shared_set_name"]}
+                labels={{ name: "Palavra negativa", match_type: "Tipo", shared_set_name: "Lista" }}
+              />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Audiences (mix age/gender/audience) */}
