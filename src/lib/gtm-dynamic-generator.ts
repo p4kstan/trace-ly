@@ -17,6 +17,12 @@ export interface DynamicGtmConfig {
   googleAdsId?: string; // AW-XXXXXXX
   googleAdsConversionLabel?: string; // optional purchase conversion label
   domain?: string;
+  /** Adiciona cookies 1st-party first_name/last_name/email/fone + variáveis jsm para Advanced Matching */
+  enablePiiCookies?: boolean;
+  /** Adiciona trigger de clique em links wa.me/api.whatsapp.com + tags Meta Lead/GA4 generate_lead */
+  enableWhatsAppClick?: boolean;
+  /** Adiciona trigger JS Error + tag GA4 exception */
+  enableJsErrorTracking?: boolean;
 }
 
 const ACCOUNT_ID = "6000000";
