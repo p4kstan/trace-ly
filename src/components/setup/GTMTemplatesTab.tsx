@@ -180,8 +180,16 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
         ga4MeasurementId: ga4Id.trim() || undefined,
         googleAdsId: adsId.trim() || undefined,
         domain: domain.trim() || undefined,
+        enablePiiCookies,
+        enableWhatsAppClick,
+        enableJsErrorTracking,
       });
-      toast.success(`Container dinâmico "${meta.name}" gerado com TODOS os eventos do funil!`);
+      const extras = [
+        enablePiiCookies && "Cookies PII",
+        enableWhatsAppClick && "WhatsApp",
+        enableJsErrorTracking && "JS Error",
+      ].filter(Boolean).join(" + ");
+      toast.success(`Container "${meta.name}" gerado${extras ? ` (com ${extras})` : ""}!`);
       return;
     }
     downloadGtmTemplate(templateId as GtmTemplateId, {
