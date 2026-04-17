@@ -180,7 +180,7 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
                   onChange={(e) => setGa4Id(e.target.value)}
                 />
                 <p className="text-[11px] text-muted-foreground leading-snug">
-                  Onde pegar: <b>Google Analytics 4</b> → <b>Admin</b> (engrenagem) → <b>Fluxos de dados</b> → clique no fluxo Web do seu site → o <b>ID de avaliação</b> aparece no topo no formato <code>G-XXXXXXXXXX</code>.
+                  Onde pegar: <b>Google Analytics 4</b> → <b>Admin</b> (engrenagem) → <b>Fluxos de dados</b> → clique no fluxo Web do seu site → copie o campo <b>ID DA MÉTRICA</b> (também chamado de <i>Measurement ID</i> / <i>ID de avaliação</i>) no formato <code>G-XXXXXXXXXX</code>. ⚠️ Não confunda com <b>Código do fluxo</b> (número longo) nem com <b>ID da propriedade</b> — o que vai aqui é só o que começa com <code>G-</code>.
                 </p>
               </div>
             )}
