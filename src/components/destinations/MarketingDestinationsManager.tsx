@@ -211,7 +211,7 @@ function DestinationRow({
           <span className="font-medium text-sm">{name || label}</span>
           <Badge variant="outline" className="text-[9px] h-4 px-1">{label}</Badge>
           {active ? (
-            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+            <CheckCircle2 className="w-3 h-3 text-success" />
           ) : null}
         </div>
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
