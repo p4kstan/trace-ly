@@ -52,7 +52,7 @@ export function generateGtmContainer(opts: GtmContainerOptions): string {
         accountId,
         containerId,
         name: "CapiTrack AI Container",
-        publicId: containerId,
+        publicId,
         usageContext: ["WEB"],
         fingerprint: String(Date.now()),
         tagManagerUrl: `https://tagmanager.google.com/#/container/accounts/${accountId}/containers/${containerId}`,
