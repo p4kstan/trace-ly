@@ -151,7 +151,7 @@ export default function PromptGenerator() {
           <CardDescription>Quanto mais preciso, melhor o prompt gerado.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <div>
               <Label className="text-xs">Tipo de negócio</Label>
               <Select value={businessType} onValueChange={(v) => setBusinessType(v as BusinessType)}>
