@@ -136,7 +136,21 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
   // auto-sync once on workspace load
   useEffect(() => { if (workspace?.id) sync(false); /* eslint-disable-next-line */ }, [workspace?.id]);
 
-  const meta = GTM_TEMPLATES[templateId].meta;
+  // Synthetic meta for dynamic mode (so the rest of the form can render the right inputs)
+  const dynamicMeta = dynamicBusiness && {
+    id: templateId,
+    name: `Dinâmico — ${BUSINESS_PROFILES[dynamicBusiness].label}`,
+    platform: BUSINESS_PROFILES[dynamicBusiness].label,
+    usageContext: "WEB" as const,
+    description: `Container Web gerado dinamicamente para ${BUSINESS_PROFILES[dynamicBusiness].label}, com TODOS os eventos do funil: ${BUSINESS_PROFILES[dynamicBusiness].funnel.join(" → ")}.`,
+    variableMap: {
+      fbPixelId: "0.01 Facebook Pixel",
+      ga4MeasurementId: "0.02 GA4 ID",
+      googleAdsId: "0.03 Google Ads ID",
+    },
+    domainPlaceholders: [],
+  };
+  const meta = isDynamic ? dynamicMeta! : GTM_TEMPLATES[templateId as GtmTemplateId].meta;
 
   const endpoint = useMemo(
     () =>
@@ -151,7 +165,21 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
       toast.error("Crie uma API Key primeiro em Configurações → API Keys.");
       return;
     }
-    downloadGtmTemplate(templateId, {
+    if (isDynamic && dynamicBusiness) {
+      downloadDynamicGtmContainer({
+        businessType: dynamicBusiness,
+        publicKey,
+        capitrackEndpoint: endpoint,
+        fbPixelId: fbPixelId.trim() || undefined,
+        fbAccessToken: fbAccessToken.trim() || undefined,
+        ga4MeasurementId: ga4Id.trim() || undefined,
+        googleAdsId: adsId.trim() || undefined,
+        domain: domain.trim() || undefined,
+      });
+      toast.success(`Container dinâmico "${meta.name}" gerado com TODOS os eventos do funil!`);
+      return;
+    }
+    downloadGtmTemplate(templateId as GtmTemplateId, {
       publicKey,
       capitrackEndpoint: endpoint,
       fbPixelId: fbPixelId.trim() || undefined,
@@ -176,11 +204,28 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Escolha o template</Label>
-            <Select value={templateId} onValueChange={(v) => setTemplateId(v as GtmTemplateId)}>
+            <Select value={templateId} onValueChange={(v) => setTemplateId(v as SelectionId)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <div className="px-2 py-1 text-[10px] uppercase text-muted-foreground font-semibold">
+                  🎯 Dinâmico (funil completo por tipo de negócio)
+                </div>
+                {Object.values(BUSINESS_PROFILES).map((p) => (
+                  <SelectItem key={`dynamic:${p.id}`} value={`dynamic:${p.id}`}>
+                    <div className="flex items-center gap-2">
+                      <Wand2 className="w-3.5 h-3.5 text-primary" />
+                      Dinâmico — {p.label}
+                      <Badge variant="outline" className="text-[10px]">
+                        {p.funnel.length} eventos
+                      </Badge>
+                    </div>
+                  </SelectItem>
+                ))}
+                <div className="px-2 py-1 mt-2 text-[10px] uppercase text-muted-foreground font-semibold border-t border-border/30">
+                  📦 Templates fixos (plataformas específicas)
+                </div>
                 {Object.values(GTM_TEMPLATES).map((t) => (
                   <SelectItem key={t.meta.id} value={t.meta.id}>
                     <div className="flex items-center gap-2">
