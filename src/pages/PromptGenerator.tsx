@@ -97,20 +97,21 @@ export default function PromptGenerator() {
   });
 
   const [businessType, setBusinessType] = useState<BusinessType>("ecommerce");
-  const [gateway, setGateway] = useState<Gateway>("stripe");
-  const [platform, setPlatform] = useState<Platform>("react");
+  const [gateway, setGateway] = useState<Gateway>("unknown");
+  const [platform, setPlatform] = useState<Platform>("unknown");
+  const [targetAI, setTargetAI] = useState<TargetAI>("lovable");
   const [hasMetaAds, setHasMetaAds] = useState(true);
   const [hasGoogleAds, setHasGoogleAds] = useState(true);
   const [hasGA4, setHasGA4] = useState(true);
   const [hasTikTokAds, setHasTikTokAds] = useState(false);
 
   const config = useMemo<ProjectConfig>(() => ({
-    businessType, gateway, platform,
+    businessType, gateway, platform, targetAI,
     publicKey: apiKeys[0]?.public_key || "",
     workspaceId: workspace?.id || "",
     endpoint: `${supabaseUrl}/functions/v1/track`,
     hasMetaAds, hasGoogleAds, hasGA4, hasTikTokAds,
-  }), [businessType, gateway, platform, apiKeys, workspace, supabaseUrl, hasMetaAds, hasGoogleAds, hasGA4, hasTikTokAds]);
+  }), [businessType, gateway, platform, targetAI, apiKeys, workspace, supabaseUrl, hasMetaAds, hasGoogleAds, hasGA4, hasTikTokAds]);
 
   const auditPrompt = useMemo(() => generateAuditPrompt(config), [config]);
   const fixPrompt = useMemo(() => generateFixPrompt(config), [config]);
