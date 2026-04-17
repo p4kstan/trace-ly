@@ -422,6 +422,26 @@ Use APENAS UM webhook (não duplique). O CapiTrack distribui para todos os desti
 CRÍTICO para dedup: o transaction_id enviado no purchase client-side deve ser EXATAMENTE o mesmo que o webhook do gateway envia.` : "Sem gateway — pular esta etapa."}
 
 ═══════════════════════════════════════════════
+5) ALTERNATIVA — IMPORTAR CONTAINER GTM (opcional)
+═══════════════════════════════════════════════
+Se o usuário usa Google Tag Manager, há um container PRONTO gerado pelo CapiTrack
+que faz tudo isso via GTM (sem precisar editar o código manualmente):
+
+➜ Painel CapiTrack → /sdk-setup → aba "Templates GTM" → escolha:
+   • "Dinâmico — ${profile.label}" (Web — ${profile.criticalEvents.length} eventos do funil)
+   • OU "Server — ${profile.label}" (sGTM com forward p/ CapiTrack)
+
+O container gerado já inclui (todos com prefixo \`[CT]\` para não conflitar com tags existentes):
+- Tag NATIVA Meta Pixel para cada evento (${profile.criticalEvents.map(e => e.meta).join(", ")})
+- Tag NATIVA GA4 Event (\`gaawe\`) para cada evento (${profile.criticalEvents.map(e => e.ga4).join(", ")})
+- Tag NATIVA Google Ads Conversion (\`awct\`) no purchase
+- Bridge automático: TODO push em \`window.dataLayer\` → CapiTrack → multi-provider
+- Add-ons opcionais: Cookies PII (Advanced Matching), WhatsApp click, JS Error tracking
+
+Ambos os caminhos (SDK direto OU container GTM) usam o MESMO schema dataLayer
+descrito acima (eventos GA4 padrão), então são 100% compatíveis e podem coexistir.
+
+═══════════════════════════════════════════════
 NÃO FAÇA
 ═══════════════════════════════════════════════
 - NÃO remova nenhuma chamada de tracking existente
@@ -460,15 +480,17 @@ ANTES DE COMEÇAR
 4. Vá em /event-logs no CapiTrack para acompanhar em tempo real
 
 ═══════════════════════════════════════════════
-TESTE 1: SDK CARREGOU
+TESTE 1: SDK / GTM CARREGOU
 ═══════════════════════════════════════════════
 No console do site, rode:
 \`\`\`js
-window.CapiTrack
-window.dataLayer
+window.CapiTrack          // SDK direto
+window.dataLayer          // dataLayer (SDK + GTM)
+window.google_tag_manager // GTM container (se via GTM)
 \`\`\`
-- [ ] window.CapiTrack existe (objeto com .track, .init)
-- [ ] window.dataLayer é array (não undefined)
+- [ ] window.dataLayer é array (não undefined) — OBRIGATÓRIO em ambos os caminhos
+- [ ] (Caminho SDK) window.CapiTrack existe com .track, .init
+- [ ] (Caminho GTM) Tags com prefixo \`[CT]\` aparecem no GTM Preview
 - [ ] PageView aparece em /event-logs em <5s
 
 ═══════════════════════════════════════════════
