@@ -105,6 +105,16 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
       const ga4 = src?.settings_json?.ga4_measurement_id || src?.settings_json?.ga4 || "";
       if (ga4) { setGa4Id((c) => c || ga4); filled.push("GA4"); }
       if (src?.primary_domain) { setDomain((c) => c || src.primary_domain); filled.push("Domínio"); }
+      // Saved template defaults override (user explicitly saved before)
+      const saved = src?.settings_json?.gtm_template_defaults;
+      if (saved) {
+        if (saved.fb_pixel_id) setFbPixelId((c) => c || saved.fb_pixel_id);
+        if (saved.fb_access_token) setFbAccessToken((c) => c || saved.fb_access_token);
+        if (saved.google_ads_id) setAdsId((c) => c || saved.google_ads_id);
+        if (saved.transport_url) setTransportUrl((c) => c || saved.transport_url);
+        if (saved.domain) setDomain((c) => c || saved.domain);
+        filled.push("Salvos");
+      }
       if (showToast) {
         if (filled.length) toast.success(`Sincronizado: ${filled.join(", ")}`);
         else toast.info("Nada para sincronizar. Cadastre Pixel/Ads/GA4 nas configurações.");
