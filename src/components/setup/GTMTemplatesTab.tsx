@@ -26,7 +26,9 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
   const { data: workspace } = useWorkspace();
   const [templateId, setTemplateId] = useState<SelectionId>("yampi");
 
-  const isDynamic = templateId.startsWith("dynamic:");
+  const isDynamicWeb = templateId.startsWith("dynamic:");
+  const isDynamicServer = templateId.startsWith("dynamic-server:");
+  const isDynamic = isDynamicWeb || isDynamicServer;
   const dynamicBusiness = isDynamic ? (templateId.split(":")[1] as BusinessType) : null;
 
   const [fbPixelId, setFbPixelId] = useState("");
