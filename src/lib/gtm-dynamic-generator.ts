@@ -295,12 +295,14 @@ function cookieVar(state: BuildState, name: string, cookieName: string) {
 }
 
 function piiCookieTag(state: BuildState, opts: {
-  name: string; cookieName: string; valueVar: string; domain: string; triggerId: string;
+  name: string; cookieName: string; readValueJs: string; domain: string; triggerId: string;
 }) {
   const html = `<script>
 (function(){
   var cookieName = ${JSON.stringify(opts.cookieName)};
-  var cookieValue = {{${opts.valueVar}}};
+  var cookieValue = (function(){
+${opts.readValueJs}
+  })();
   if (!cookieValue || cookieValue === 'T') return;
   var date = new Date();
   date.setTime(date.getTime() + (2 * 365 * 24 * 60 * 60 * 1000));
@@ -326,34 +328,6 @@ function piiCookieTag(state: BuildState, opts: {
 }
 
 function addPiiCookieSystem(state: BuildState, domain: string) {
-  // jsm vars que leem inputs do checkout (text/email/tel) — retornam nome com prefixo [CT]
-  const vFirstName = jsmVar(state, "3.01 JS Primeiro Nome", `function(){
-  var i = document.querySelector('input[name*="nome" i],input[name*="name" i]');
-  if (i && i.value) return i.value.trim().toLowerCase().split(' ')[0];
-  return 'T';
-}`);
-  const vLastName = jsmVar(state, "3.02 JS Sobrenome", `function(){
-  var i = document.querySelector('input[name*="nome" i],input[name*="name" i]');
-  if (i && i.value) { var p = i.value.trim().toLowerCase().split(' '); return p.slice(1).join(' ') || 'T'; }
-  return 'T';
-}`);
-  const vEmail = jsmVar(state, "3.03 JS E-mail", `function(){
-  var i = document.querySelector('input[type="email"],input[name*="email" i]');
-  if (i && i.value) return i.value.trim().toLowerCase();
-  return 'T';
-}`);
-  const vPhone = jsmVar(state, "3.04 JS Telefone", `function(){
-  var i = document.querySelector('input[type="tel"],input[name*="phone" i],input[name*="telefone" i],input[name*="celular" i]');
-  if (i && i.value) return '55' + i.value.replace(/[^0-9]/g, '');
-  return 'T';
-}`);
-  // cookie reader vars
-  cookieVar(state, "1.01 cookie_first_name", "cookie_first_name");
-  cookieVar(state, "1.02 cookie_last_name", "cookie_last_name");
-  cookieVar(state, "1.03 cookie_email", "cookie_email");
-  cookieVar(state, "1.04 cookie_fone", "cookie_fone");
-
-  // trigger: form submit ou input change
   const trigId = nextId();
   state.triggers.push({
     accountId: ACCOUNT_ID, containerId: CONTAINER_ID, triggerId: trigId,
@@ -365,11 +339,42 @@ function addPiiCookieSystem(state: BuildState, domain: string) {
     fingerprint: fp(),
   });
 
-  // tags — usar nome COMPLETO da variável (com prefixo [CT])
-  piiCookieTag(state, { name: "000 - 🍪 Cookie - first_name",  cookieName: "cookie_first_name", valueVar: vFirstName, domain, triggerId: trigId });
-  piiCookieTag(state, { name: "000 - 🍪 Cookie - last_name",   cookieName: "cookie_last_name",  valueVar: vLastName,  domain, triggerId: trigId });
-  piiCookieTag(state, { name: "000 - 🍪 Cookie - email",       cookieName: "cookie_email",      valueVar: vEmail,     domain, triggerId: trigId });
-  piiCookieTag(state, { name: "000 - 🍪 Cookie - telefone",    cookieName: "cookie_fone",       valueVar: vPhone,     domain, triggerId: trigId });
+  piiCookieTag(state, {
+    name: "000 - 🍪 Cookie - first_name",
+    cookieName: "cookie_first_name",
+    readValueJs: `    var i = document.querySelector('input[name*="nome" i],input[name*="name" i]');
+    if (i && i.value) return i.value.trim().toLowerCase().split(' ')[0];
+    return 'T';`,
+    domain,
+    triggerId: trigId,
+  });
+  piiCookieTag(state, {
+    name: "000 - 🍪 Cookie - last_name",
+    cookieName: "cookie_last_name",
+    readValueJs: `    var i = document.querySelector('input[name*="nome" i],input[name*="name" i]');
+    if (i && i.value) { var p = i.value.trim().toLowerCase().split(' '); return p.slice(1).join(' ') || 'T'; }
+    return 'T';`,
+    domain,
+    triggerId: trigId,
+  });
+  piiCookieTag(state, {
+    name: "000 - 🍪 Cookie - email",
+    cookieName: "cookie_email",
+    readValueJs: `    var i = document.querySelector('input[type="email"],input[name*="email" i]');
+    if (i && i.value) return i.value.trim().toLowerCase();
+    return 'T';`,
+    domain,
+    triggerId: trigId,
+  });
+  piiCookieTag(state, {
+    name: "000 - 🍪 Cookie - telefone",
+    cookieName: "cookie_fone",
+    readValueJs: `    var i = document.querySelector('input[type="tel"],input[name*="phone" i],input[name*="telefone" i],input[name*="celular" i]');
+    if (i && i.value) return '55' + i.value.replace(/[^0-9]/g, '');
+    return 'T';`,
+    domain,
+    triggerId: trigId,
+  });
 }
 
 // ===== WhatsApp click =====
