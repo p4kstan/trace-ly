@@ -480,15 +480,17 @@ ANTES DE COMEÇAR
 4. Vá em /event-logs no CapiTrack para acompanhar em tempo real
 
 ═══════════════════════════════════════════════
-TESTE 1: SDK CARREGOU
+TESTE 1: SDK / GTM CARREGOU
 ═══════════════════════════════════════════════
 No console do site, rode:
 \`\`\`js
-window.CapiTrack
-window.dataLayer
+window.CapiTrack          // SDK direto
+window.dataLayer          // dataLayer (SDK + GTM)
+window.google_tag_manager // GTM container (se via GTM)
 \`\`\`
-- [ ] window.CapiTrack existe (objeto com .track, .init)
-- [ ] window.dataLayer é array (não undefined)
+- [ ] window.dataLayer é array (não undefined) — OBRIGATÓRIO em ambos os caminhos
+- [ ] (Caminho SDK) window.CapiTrack existe com .track, .init
+- [ ] (Caminho GTM) Tags com prefixo \`[CT]\` aparecem no GTM Preview
 - [ ] PageView aparece em /event-logs em <5s
 
 ═══════════════════════════════════════════════
