@@ -263,7 +263,9 @@ const response = await fetch("${supabaseUrl}/functions/v1/track", {
           </Card>
         </TabsContent>
 
-        <TabsContent value="events" className="mt-4">
+        <TabsContent value="gtm" className="mt-4">
+          <GTMTab publicKey={publicKey} supabaseUrl={supabaseUrl} sdkUrl={sdkUrl} />
+        </TabsContent>
           <Card className="glass-card">
             <CardHeader>
               <CardTitle className="text-base">Rastreamento de Eventos</CardTitle>
