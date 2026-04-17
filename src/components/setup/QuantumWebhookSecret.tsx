@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { KeyRound, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 export function QuantumWebhookSecret() {
   const { data: workspace } = useWorkspace();
@@ -37,7 +37,7 @@ export function QuantumWebhookSecret() {
 
   const save = async () => {
     if (!workspace?.id || !secret.trim()) {
-      toast({ title: "Cole o Signing Secret antes de salvar", variant: "destructive" });
+      toast.error("Cole o Signing Secret antes de salvar");
       return;
     }
     setSaving(true);
@@ -55,12 +55,12 @@ export function QuantumWebhookSecret() {
       : await supabase.from("gateway_integrations").insert(payload);
     setSaving(false);
     if (error) {
-      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+      toast.error("Erro ao salvar", { description: error.message });
       return;
     }
     setHasSecret(true);
     setSecret("");
-    toast({ title: "✅ Signing Secret salvo", description: "Webhooks Quantum agora serão validados via HMAC-SHA256." });
+    toast.success("✅ Signing Secret salvo", { description: "Webhooks Quantum agora serão validados via HMAC-SHA256." });
     // refresh id
     const { data } = await supabase
       .from("gateway_integrations")
