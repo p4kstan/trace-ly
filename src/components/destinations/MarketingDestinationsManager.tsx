@@ -230,8 +230,8 @@ function DestinationRow({
 }
 
 function AddDestinationDialog({
-  workspaceId, onSuccess,
-}: { workspaceId: string; onSuccess: () => void }) {
+  workspaceId, pixels, destinations, onSuccess,
+}: { workspaceId: string; pixels: any[]; destinations: any[]; onSuccess: () => void }) {
   return (
     <DialogContent className="max-w-lg">
       <DialogHeader>
@@ -240,6 +240,15 @@ function AddDestinationDialog({
           Configure para onde os eventos <strong>Purchase</strong> serão enviados quando seu gateway confirmar uma compra.
         </DialogDescription>
       </DialogHeader>
+
+      <div className="flex justify-end -mt-2">
+        <SyncButton
+          workspaceId={workspaceId}
+          pixels={pixels}
+          destinations={destinations}
+          onSynced={onSuccess}
+        />
+      </div>
 
       <Tabs defaultValue="meta">
         <TabsList className="grid grid-cols-2 w-full">
