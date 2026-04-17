@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Send, RefreshCw, CheckCircle, XCircle, Clock } from "lucide-react";
+import { MarketingDestinationsManager } from "@/components/destinations/MarketingDestinationsManager";
 
 const PROVIDER_META: Record<string, { label: string; color: string }> = {
   meta: { label: "Meta CAPI", color: "hsl(214 89% 52%)" },
@@ -63,9 +64,11 @@ export default function Destinations() {
       <div>
         <h1 className="text-2xl font-bold text-gradient-primary">Destinos</h1>
         <p className="text-sm text-muted-foreground">
-          Destinos de eventos configurados via Integrações. Aqui você monitora o status de entrega.
+          Configure para onde os eventos de compra serão enviados e monitore as entregas em tempo real.
         </p>
       </div>
+
+      {workspace?.id && <MarketingDestinationsManager workspaceId={workspace.id} />}
 
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2">
