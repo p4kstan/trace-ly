@@ -11,10 +11,11 @@ import { Download, Sparkles, Server, Globe, FileJson, RefreshCw, Save, Wand2, Co
 import { toast } from "sonner";
 import { GTM_TEMPLATES, GtmTemplateId, downloadGtmTemplate } from "@/lib/gtm-templates";
 import { downloadDynamicGtmContainer } from "@/lib/gtm-dynamic-generator";
+import { downloadDynamicGtmServerContainer } from "@/lib/gtm-dynamic-server-generator";
 import { BUSINESS_PROFILES, type BusinessType } from "@/lib/prompt-templates";
 import { Switch } from "@/components/ui/switch";
 
-type SelectionId = GtmTemplateId | `dynamic:${BusinessType}`;
+type SelectionId = GtmTemplateId | `dynamic:${BusinessType}` | `dynamic-server:${BusinessType}`;
 
 interface Props {
   publicKey: string;
@@ -25,7 +26,9 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
   const { data: workspace } = useWorkspace();
   const [templateId, setTemplateId] = useState<SelectionId>("yampi");
 
-  const isDynamic = templateId.startsWith("dynamic:");
+  const isDynamicWeb = templateId.startsWith("dynamic:");
+  const isDynamicServer = templateId.startsWith("dynamic-server:");
+  const isDynamic = isDynamicWeb || isDynamicServer;
   const dynamicBusiness = isDynamic ? (templateId.split(":")[1] as BusinessType) : null;
 
   const [fbPixelId, setFbPixelId] = useState("");
@@ -144,15 +147,21 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
   // Synthetic meta for dynamic mode (so the rest of the form can render the right inputs)
   const dynamicMeta = dynamicBusiness && {
     id: templateId,
-    name: `Dinâmico — ${BUSINESS_PROFILES[dynamicBusiness].label}`,
+    name: isDynamicServer
+      ? `Dinâmico Server — ${BUSINESS_PROFILES[dynamicBusiness].label}`
+      : `Dinâmico — ${BUSINESS_PROFILES[dynamicBusiness].label}`,
     platform: BUSINESS_PROFILES[dynamicBusiness].label,
-    usageContext: "WEB" as const,
-    description: `Container Web gerado dinamicamente para ${BUSINESS_PROFILES[dynamicBusiness].label}, com TODOS os eventos do funil: ${BUSINESS_PROFILES[dynamicBusiness].funnel.join(" → ")}.`,
-    variableMap: {
-      fbPixelId: "0.01 Facebook Pixel",
-      ga4MeasurementId: "0.02 GA4 ID",
-      googleAdsId: "0.03 Google Ads ID",
-    } as Partial<{ fbPixelId: string; fbAccessToken: string; ga4MeasurementId: string; googleAdsId: string; transportUrl: string }>,
+    usageContext: (isDynamicServer ? "SERVER" : "WEB") as "WEB" | "SERVER",
+    description: isDynamicServer
+      ? `Container SERVER (sGTM) gerado dinamicamente para ${BUSINESS_PROFILES[dynamicBusiness].label}. Inclui Client GA4, tag GA4 server e encaminhamento de cada evento (${BUSINESS_PROFILES[dynamicBusiness].funnel.join(", ")}) ao endpoint CapiTrack — que dispara Meta CAPI / Google Ads / TikTok pelo backend.`
+      : `Container Web gerado dinamicamente para ${BUSINESS_PROFILES[dynamicBusiness].label}, com TODOS os eventos do funil: ${BUSINESS_PROFILES[dynamicBusiness].funnel.join(" → ")}. Usa tags NATIVAS GA4 (gaawe) e Google Ads (awct).`,
+    variableMap: isDynamicServer
+      ? ({ ga4MeasurementId: "[VAR] GA4 Measurement ID" } as Partial<{ fbPixelId: string; fbAccessToken: string; ga4MeasurementId: string; googleAdsId: string; transportUrl: string }>)
+      : ({
+          fbPixelId: "0.01 Facebook Pixel",
+          ga4MeasurementId: "0.02 GA4 ID",
+          googleAdsId: "0.03 Google Ads ID",
+        } as Partial<{ fbPixelId: string; fbAccessToken: string; ga4MeasurementId: string; googleAdsId: string; transportUrl: string }>),
     domainPlaceholders: [] as string[],
   };
   const meta = isDynamic ? dynamicMeta! : GTM_TEMPLATES[templateId as GtmTemplateId].meta;
@@ -170,7 +179,18 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
       toast.error("Crie uma API Key primeiro em Configurações → API Keys.");
       return;
     }
-    if (isDynamic && dynamicBusiness) {
+    if (isDynamicServer && dynamicBusiness) {
+      downloadDynamicGtmServerContainer({
+        businessType: dynamicBusiness,
+        publicKey,
+        capitrackEndpoint: endpoint,
+        ga4MeasurementId: ga4Id.trim() || undefined,
+        sgtmDomain: domain.trim() || undefined,
+      });
+      toast.success(`Container SERVER "${meta.name}" gerado!`);
+      return;
+    }
+    if (isDynamicWeb && dynamicBusiness) {
       downloadDynamicGtmContainer({
         businessType: dynamicBusiness,
         publicKey,
@@ -232,6 +252,20 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
                       Dinâmico — {p.label}
                       <Badge variant="outline" className="text-[10px]">
                         {p.funnel.length} eventos
+                      </Badge>
+                    </div>
+                  </SelectItem>
+                ))}
+                <div className="px-2 py-1 mt-2 text-[10px] uppercase text-muted-foreground font-semibold border-t border-border/30">
+                  🖥️ Dinâmico Server (sGTM — estilo Kiwify)
+                </div>
+                {Object.values(BUSINESS_PROFILES).map((p) => (
+                  <SelectItem key={`dynamic-server:${p.id}`} value={`dynamic-server:${p.id}`}>
+                    <div className="flex items-center gap-2">
+                      <Server className="w-3.5 h-3.5 text-accent" />
+                      Server — {p.label}
+                      <Badge variant="outline" className="text-[10px]">
+                        sGTM
                       </Badge>
                     </div>
                   </SelectItem>
@@ -348,7 +382,7 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
             )}
           </div>
 
-          {isDynamic && (
+          {isDynamicWeb && (
             <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
               <div className="text-xs font-semibold text-foreground flex items-center gap-1">
                 <Wand2 className="w-3.5 h-3.5 text-primary" />
