@@ -464,8 +464,24 @@ export function buildDynamicGtmContainer(cfg: DynamicGtmConfig): string {
   dlVar(state, "DLV - ecommerce.transaction_id", "ecommerce.transaction_id");
   dlVar(state, "DLV - value", "value");
 
+  // Triggers explícitos (NÃO usar built-in IDs que não estão declarados — quebra import)
+  const initTrigId = nextId();
+  state.triggers.push({
+    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, triggerId: initTrigId,
+    name: `${PREFIX} TRG - Initialization`,
+    type: "INIT",
+    fingerprint: fp(),
+  });
+  const allPagesTrigId = nextId();
+  state.triggers.push({
+    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, triggerId: allPagesTrigId,
+    name: `${PREFIX} TRG - All Pages`,
+    type: "PAGEVIEW",
+    fingerprint: fp(),
+  });
+
   // CapiTrack bridge — every dataLayer push goes to CapiTrack endpoint
-  capitrackBridgeTag(state, cfg.publicKey, cfg.capitrackEndpoint);
+  capitrackBridgeTagWithTrig(state, cfg.publicKey, cfg.capitrackEndpoint, initTrigId);
 
   // PII Cookies (Advanced Matching) — opcional
   if (cfg.enablePiiCookies) {
@@ -485,13 +501,13 @@ export function buildDynamicGtmContainer(cfg: DynamicGtmConfig): string {
   if (pixelVar) {
     metaPixelTag(state, {
       name: "001 - 🔵 Meta - PageView",
-      pixelVar, eventName: "PageView", triggerId: ALL_PAGES_TRIGGER_ID,
+      pixelVar, eventName: "PageView", triggerId: allPagesTrigId,
     });
   }
   if (ga4Var) {
     ga4EventTag(state, {
       name: "002 - 🟠 GA4 - page_view",
-      ga4Var, eventName: "page_view", triggerId: ALL_PAGES_TRIGGER_ID,
+      ga4Var, eventName: "page_view", triggerId: allPagesTrigId,
     });
   }
 
