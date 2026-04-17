@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { ShoppingCart, CreditCard, CheckCircle2, Info, Webhook, Code2 } from "lucide-react";
 import { CodeBlock } from "./CodeBlock";
 import { QuantumWebhookSecret } from "./QuantumWebhookSecret";
+import { AllowedDomainsManager } from "./AllowedDomainsManager";
 
 interface Props {
   publicKey: string;
@@ -332,6 +333,9 @@ await track("purchase", {
 
       {/* Signing Secret */}
       <QuantumWebhookSecret />
+
+      {/* Allowed Domains */}
+      <AllowedDomainsManager />
 
       {/* Aviso Pixel ausente */}
       {cfg.pixelId === "SEU_PIXEL_ID" && (
