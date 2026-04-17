@@ -11,10 +11,11 @@ import { Download, Sparkles, Server, Globe, FileJson, RefreshCw, Save, Wand2, Co
 import { toast } from "sonner";
 import { GTM_TEMPLATES, GtmTemplateId, downloadGtmTemplate } from "@/lib/gtm-templates";
 import { downloadDynamicGtmContainer } from "@/lib/gtm-dynamic-generator";
+import { downloadDynamicGtmServerContainer } from "@/lib/gtm-dynamic-server-generator";
 import { BUSINESS_PROFILES, type BusinessType } from "@/lib/prompt-templates";
 import { Switch } from "@/components/ui/switch";
 
-type SelectionId = GtmTemplateId | `dynamic:${BusinessType}`;
+type SelectionId = GtmTemplateId | `dynamic:${BusinessType}` | `dynamic-server:${BusinessType}`;
 
 interface Props {
   publicKey: string;
