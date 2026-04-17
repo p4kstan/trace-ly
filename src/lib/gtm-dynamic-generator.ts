@@ -34,6 +34,8 @@ const CONTAINER_ID = "176842810";
 // Prefixo único — evita que o "Mesclar" do GTM exclua tags por conflito de
 // nome com containers pré-existentes (Hotmart/Yampi/etc).
 const PREFIX = "[CT]";
+const VARIABLE_PREFIX = "CT";
+const variableName = (name: string) => `${VARIABLE_PREFIX} - ${name}`;
 
 let _idSeq = 100;
 const nextId = () => String(++_idSeq);
@@ -48,8 +50,9 @@ interface BuildState {
 
 function dlVar(state: BuildState, name: string, dlKey: string) {
   const id = nextId();
+  const fullName = variableName(name);
   state.variables.push({
-    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, variableId: id, name: `${PREFIX} ${name}`,
+    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, variableId: id, name: fullName,
     type: "v",
     parameter: [
       { type: "INTEGER", key: "dataLayerVersion", value: "2" },
@@ -58,18 +61,19 @@ function dlVar(state: BuildState, name: string, dlKey: string) {
     ],
     fingerprint: fp(),
   });
-  return `${PREFIX} ${name}`;
+  return fullName;
 }
 
 function constVar(state: BuildState, name: string, value: string) {
   const id = nextId();
+  const fullName = variableName(name);
   state.variables.push({
-    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, variableId: id, name: `${PREFIX} ${name}`,
+    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, variableId: id, name: fullName,
     type: "c",
     parameter: [{ type: "TEMPLATE", key: "value", value }],
     fingerprint: fp(),
   });
-  return `${PREFIX} ${name}`;
+  return fullName;
 }
 
 function customEventTrigger(state: BuildState, name: string, eventName: string) {
@@ -264,7 +268,7 @@ function capitrackBridgeTagWithTrig(state: BuildState, publicKey: string, endpoi
 
 function jsmVar(state: BuildState, name: string, jsCode: string) {
   const id = nextId();
-  const fullName = `${PREFIX} ${name}`;
+  const fullName = variableName(name);
   state.variables.push({
     accountId: ACCOUNT_ID, containerId: CONTAINER_ID, variableId: id, name: fullName,
     type: "jsm",
@@ -277,7 +281,7 @@ function jsmVar(state: BuildState, name: string, jsCode: string) {
 
 function cookieVar(state: BuildState, name: string, cookieName: string) {
   const id = nextId();
-  const fullName = `${PREFIX} ${name}`;
+  const fullName = variableName(name);
   state.variables.push({
     accountId: ACCOUNT_ID, containerId: CONTAINER_ID, variableId: id, name: fullName,
     type: "k",
@@ -419,7 +423,7 @@ function addJsErrorTracking(state: BuildState, ga4Var: string | null) {
   }
   gtag('event', 'exception', {
     send_to: '{{${ga4Var}}}',
-    description: ({{Error Message}} || '') + ' @ ' + ({{Error URL}} || '') + ':' + ({{Error Line}} || ''),
+    description: 'js_error',
     fatal: false
   });
 })();
