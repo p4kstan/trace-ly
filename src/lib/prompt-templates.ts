@@ -158,6 +158,7 @@ export const BUSINESS_PROFILES: Record<BusinessType, BusinessProfile> = {
 };
 
 const GATEWAY_LABELS: Record<Gateway, string> = {
+  unknown: "Não sei / Detectar",
   stripe: "Stripe", hotmart: "Hotmart", kiwify: "Kiwify", monetizze: "Monetizze",
   eduzz: "Eduzz", pagseguro: "PagSeguro", mercadopago: "Mercado Pago", asaas: "Asaas",
   pagarme: "Pagar.me", yampi: "Yampi", appmax: "Appmax", quantumpay: "Quantum Pay",
@@ -165,9 +166,70 @@ const GATEWAY_LABELS: Record<Gateway, string> = {
 };
 
 const PLATFORM_LABELS: Record<Platform, string> = {
+  unknown: "Não sei / Detectar",
   react: "React/Vite", next: "Next.js", vue: "Vue/Nuxt", wordpress: "WordPress",
   shopify: "Shopify", webflow: "Webflow", html: "HTML estático", custom: "Custom",
 };
+
+const TARGET_AI_LABELS: Record<TargetAI, string> = {
+  lovable: "Lovable", cursor: "Cursor", claude: "Claude (claude.ai / Code)",
+  chatgpt: "ChatGPT", manus: "Manus", bolt: "Bolt.new", v0: "v0 (Vercel)",
+  windsurf: "Windsurf", other: "Outra IA",
+};
+
+/** Tom/instruções iniciais adaptados para cada IA-alvo */
+function aiPreamble(ai: TargetAI): string {
+  switch (ai) {
+    case "lovable":
+      return "Você é o agente de código do Lovable. Use as ferramentas de leitura/edição de arquivos do projeto. Faça batch de leituras em paralelo. Responda em português.";
+    case "cursor":
+      return "Use o Cursor com acesso ao workspace. Leia os arquivos relevantes via @file e proponha edits aplicáveis com Cmd+K. Responda em português.";
+    case "claude":
+      return "Você é o Claude. Se estiver no Claude Code, leia os arquivos do projeto. Se for chat web, peça ao usuário para colar os arquivos relevantes. Responda em português.";
+    case "chatgpt":
+      return "Você é o ChatGPT. Se houver acesso ao repositório (Codex/Canvas), use-o; senão peça ao usuário para colar os arquivos críticos (index.html, package.json, componentes de checkout/carrinho). Responda em português.";
+    case "manus":
+      return "Você é o Manus. Use seus agentes para inspecionar o repositório, identificar stack e arquivos de tracking automaticamente. Responda em português.";
+    case "bolt":
+      return "Você é o Bolt.new. Inspecione o WebContainer do projeto. Liste arquivos com tracking antes de editar. Responda em português.";
+    case "v0":
+      return "Você é o v0 da Vercel. Foque em Next.js/React. Mostre os blocos de código completos para o usuário aplicar. Responda em português.";
+    case "windsurf":
+      return "Você é o Windsurf (Codeium). Use Cascade para ler/editar arquivos do workspace. Responda em português.";
+    default:
+      return "Leia o código deste projeto. Se não tiver acesso direto aos arquivos, liste exatamente quais arquivos precisa que o usuário cole. Responda em português.";
+  }
+}
+
+/** Bloco extra quando o usuário não sabe a stack/gateway — pede detecção primeiro */
+function detectionBlock(cfg: ProjectConfig): string {
+  const needPlatform = cfg.platform === "unknown";
+  const needGateway = cfg.gateway === "unknown";
+  if (!needPlatform && !needGateway) return "";
+  return `
+═══════════════════════════════════════════════
+0) DETECÇÃO AUTOMÁTICA (faça ANTES de tudo)
+═══════════════════════════════════════════════
+O usuário não tem certeza da stack. Detecte sozinho lendo os arquivos do projeto:
+
+${needPlatform ? `**Stack/Plataforma** — inspecione:
+- package.json (dependências: react, next, vue, nuxt, vite, etc.)
+- vite.config.*, next.config.*, nuxt.config.*
+- index.html, public/, app/, pages/
+- Se for WordPress: wp-config.php, wp-content/themes
+- Se for Shopify: theme.liquid, sections/
+- Reporte: stack detectada + versão
+` : ""}
+${needGateway ? `**Gateway de pagamento** — procure por:
+- Strings: "stripe", "hotmart", "kiwify", "mercadopago", "pagseguro", "yampi", "appmax", "quantum"
+- Endpoints de webhook em /api, /functions, supabase/functions
+- Componentes de checkout (Checkout.tsx, PixPayment.tsx, etc.)
+- Variáveis de ambiente .env (STRIPE_KEY, HOTMART_TOKEN, etc.)
+- Reporte: gateway(s) detectado(s) + arquivo onde aparece
+` : ""}
+Confirme a detecção em 1 parágrafo antes de prosseguir com a auditoria/correção abaixo.
+`;
+}
 
 // ──────────────────────────────────────────────────────────────────────────
 // PROMPT 1 — AUDITORIA
