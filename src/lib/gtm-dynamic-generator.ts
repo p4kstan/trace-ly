@@ -250,6 +250,37 @@ ${configCalls}
   });
 }
 
+function metaPixelBootstrapTag(state: BuildState, opts: {
+  pixelVar: string; triggerId: string;
+}) {
+  const html = `<script>
+(function(){
+  if (window.__ct_meta_pixel_bootstrapped) return;
+  window.__ct_meta_pixel_bootstrapped = true;
+  !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+  n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+  n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+  t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
+  document,'script','https://connect.facebook.net/en_US/fbevents.js');
+  fbq('init', '{{${opts.pixelVar}}}');
+})();
+</script>`;
+  state.tags.push({
+    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, tagId: nextId(),
+    name: `${PREFIX} 000 - 🔵 Meta Pixel - Bootstrap`,
+    type: "html",
+    parameter: [
+      { type: "TEMPLATE", key: "html", value: html },
+      { type: "BOOLEAN", key: "supportDocumentWrite", value: "false" },
+    ],
+    fingerprint: fp(),
+    firingTriggerId: [opts.triggerId],
+    tagFiringOption: "ONCE_PER_LOAD",
+    monitoringMetadata: { type: "MAP" },
+    consentSettings: { consentStatus: "NOT_SET" },
+  });
+}
+
 function capitrackBridgeTagWithTrig(state: BuildState, publicKey: string, endpoint: string, triggerId: string) {
   const html = `<script>
 (function(){
