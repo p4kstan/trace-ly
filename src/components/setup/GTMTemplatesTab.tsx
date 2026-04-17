@@ -179,7 +179,18 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
       toast.error("Crie uma API Key primeiro em Configurações → API Keys.");
       return;
     }
-    if (isDynamic && dynamicBusiness) {
+    if (isDynamicServer && dynamicBusiness) {
+      downloadDynamicGtmServerContainer({
+        businessType: dynamicBusiness,
+        publicKey,
+        capitrackEndpoint: endpoint,
+        ga4MeasurementId: ga4Id.trim() || undefined,
+        sgtmDomain: domain.trim() || undefined,
+      });
+      toast.success(`Container SERVER "${meta.name}" gerado!`);
+      return;
+    }
+    if (isDynamicWeb && dynamicBusiness) {
       downloadDynamicGtmContainer({
         businessType: dynamicBusiness,
         publicKey,
