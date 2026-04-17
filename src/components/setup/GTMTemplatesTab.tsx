@@ -283,10 +283,16 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
             </div>
           </div>
 
-          <Button onClick={handleDownload} className="w-full" size="lg">
-            <Download className="w-4 h-4 mr-2" />
-            Baixar JSON ({meta.name})
-          </Button>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button onClick={saveDefaults} variant="outline" size="lg" disabled={saving}>
+              <Save className={`w-4 h-4 mr-2 ${saving ? "animate-pulse" : ""}`} />
+              {saving ? "Salvando..." : "Salvar configurações"}
+            </Button>
+            <Button onClick={handleDownload} size="lg">
+              <Download className="w-4 h-4 mr-2" />
+              Gerar e baixar JSON
+            </Button>
+          </div>
 
           <div className="rounded-lg bg-accent/10 border border-accent/30 p-3 text-xs text-muted-foreground space-y-1">
             <div className="flex items-center gap-1 font-medium text-foreground">
