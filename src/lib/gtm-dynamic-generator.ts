@@ -30,9 +30,14 @@ const CONTAINER_ID = "6000000";
 const INIT_TRIGGER_ID = "2147479553"; // Initialization - All Pages
 const ALL_PAGES_TRIGGER_ID = "2147479572"; // All Pages
 
+// Prefixo único — evita que o "Mesclar" do GTM exclua tags por conflito de
+// nome com containers pré-existentes (Hotmart/Yampi/etc).
+const PREFIX = "[CT]";
+
 let _idSeq = 100;
 const nextId = () => String(++_idSeq);
-const fp = () => String(Date.now());
+let _fpSeq = 0;
+const fp = () => String(Date.now() + (++_fpSeq));
 
 interface BuildState {
   tags: any[];
@@ -43,7 +48,7 @@ interface BuildState {
 function dlVar(state: BuildState, name: string, dlKey: string) {
   const id = nextId();
   state.variables.push({
-    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, variableId: id, name,
+    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, variableId: id, name: `${PREFIX} ${name}`,
     type: "v",
     parameter: [
       { type: "INTEGER", key: "dataLayerVersion", value: "2" },
@@ -52,24 +57,24 @@ function dlVar(state: BuildState, name: string, dlKey: string) {
     ],
     fingerprint: fp(),
   });
-  return name;
+  return `${PREFIX} ${name}`;
 }
 
 function constVar(state: BuildState, name: string, value: string) {
   const id = nextId();
   state.variables.push({
-    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, variableId: id, name,
+    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, variableId: id, name: `${PREFIX} ${name}`,
     type: "c",
     parameter: [{ type: "TEMPLATE", key: "value", value }],
     fingerprint: fp(),
   });
-  return name;
+  return `${PREFIX} ${name}`;
 }
 
 function customEventTrigger(state: BuildState, name: string, eventName: string) {
   const id = nextId();
   state.triggers.push({
-    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, triggerId: id, name,
+    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, triggerId: id, name: `${PREFIX} ${name}`,
     type: "CUSTOM_EVENT",
     customEventFilter: [{
       type: "EQUALS",
@@ -99,17 +104,17 @@ t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
 document,'script','https://connect.facebook.net/en_US/fbevents.js');
 fbq('init', '{{${opts.pixelVar}}}');
 fbq('track', '${opts.eventName}'${opts.withValue ? `, {
-  value: {{DLV - ecommerce.value}} || {{DLV - value}} || 0,
-  currency: {{DLV - ecommerce.currency}} || 'BRL',
-  content_ids: ((({{DLV - ecommerce.items}}||[]).map(function(i){return i.item_id})) || []),
-  contents: (({{DLV - ecommerce.items}}||[]).map(function(i){return {id: i.item_id, quantity: i.quantity, item_price: i.price}})),
-  num_items: (({{DLV - ecommerce.items}}||[]).length || 1)
+  value: {{[CT] DLV - ecommerce.value}} || {{[CT] DLV - value}} || 0,
+  currency: {{[CT] DLV - ecommerce.currency}} || 'BRL',
+  content_ids: ((({{[CT] DLV - ecommerce.items}}||[]).map(function(i){return i.item_id})) || []),
+  contents: (({{[CT] DLV - ecommerce.items}}||[]).map(function(i){return {id: i.item_id, quantity: i.quantity, item_price: i.price}})),
+  num_items: (({{[CT] DLV - ecommerce.items}}||[]).length || 1)
 }` : ""});
 </script>`;
 
   state.tags.push({
     accountId: ACCOUNT_ID, containerId: CONTAINER_ID, tagId: nextId(),
-    name: opts.name,
+    name: `${PREFIX} ${opts.name}`,
     type: "html",
     parameter: [
       { type: "TEMPLATE", key: "html", value: html },
@@ -130,7 +135,7 @@ function ga4EventTag(state: BuildState, opts: {
   // Tag NATIVA do GTM: GA4 Event (type: "gaawe") — não precisa de HTML inline
   state.tags.push({
     accountId: ACCOUNT_ID, containerId: CONTAINER_ID, tagId: nextId(),
-    name: opts.name,
+    name: `${PREFIX} ${opts.name}`,
     type: "gaawe",
     parameter: [
       { type: "TEMPLATE", key: "eventName", value: opts.eventName },
@@ -153,14 +158,14 @@ function googleAdsConversionTag(state: BuildState, opts: {
   // Tag NATIVA do GTM: Google Ads Conversion Tracking (type: "awct")
   state.tags.push({
     accountId: ACCOUNT_ID, containerId: CONTAINER_ID, tagId: nextId(),
-    name: opts.name,
+    name: `${PREFIX} ${opts.name}`,
     type: "awct",
     parameter: [
       { type: "TEMPLATE", key: "conversionId", value: `{{${opts.awVar}}}` },
       { type: "TEMPLATE", key: "conversionLabel", value: opts.conversionLabel || "ABCDEFGHIJK" },
-      { type: "TEMPLATE", key: "conversionValue", value: "{{DLV - ecommerce.value}}" },
-      { type: "TEMPLATE", key: "currencyCode", value: "{{DLV - ecommerce.currency}}" },
-      { type: "TEMPLATE", key: "orderId", value: "{{DLV - ecommerce.transaction_id}}" },
+      { type: "TEMPLATE", key: "conversionValue", value: "{{[CT] DLV - ecommerce.value}}" },
+      { type: "TEMPLATE", key: "currencyCode", value: "{{[CT] DLV - ecommerce.currency}}" },
+      { type: "TEMPLATE", key: "orderId", value: "{{[CT] DLV - ecommerce.transaction_id}}" },
       { type: "BOOLEAN", key: "enableConversionLinker", value: "true" },
     ],
     fingerprint: fp(),
@@ -203,7 +208,7 @@ function capitrackBridgeTag(state: BuildState, publicKey: string, endpoint: stri
 </script>`;
   state.tags.push({
     accountId: ACCOUNT_ID, containerId: CONTAINER_ID, tagId: nextId(),
-    name: "🚀 CapiTrack — Bridge (All Events)",
+    name: `${PREFIX} 🚀 CapiTrack — Bridge (All Events)`,
     type: "html",
     parameter: [
       { type: "TEMPLATE", key: "html", value: html },
@@ -221,20 +226,22 @@ function capitrackBridgeTag(state: BuildState, publicKey: string, endpoint: stri
 
 function jsmVar(state: BuildState, name: string, jsCode: string) {
   const id = nextId();
+  const fullName = `${PREFIX} ${name}`;
   state.variables.push({
-    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, variableId: id, name,
+    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, variableId: id, name: fullName,
     type: "jsm",
     parameter: [{ type: "TEMPLATE", key: "javascript", value: jsCode }],
     fingerprint: fp(),
     formatValue: {},
   });
-  return name;
+  return fullName;
 }
 
 function cookieVar(state: BuildState, name: string, cookieName: string) {
   const id = nextId();
+  const fullName = `${PREFIX} ${name}`;
   state.variables.push({
-    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, variableId: id, name,
+    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, variableId: id, name: fullName,
     type: "k",
     parameter: [
       { type: "BOOLEAN", key: "decodeCookie", value: "true" },
@@ -242,7 +249,7 @@ function cookieVar(state: BuildState, name: string, cookieName: string) {
     ],
     fingerprint: fp(),
   });
-  return name;
+  return fullName;
 }
 
 function piiCookieTag(state: BuildState, opts: {
@@ -262,7 +269,7 @@ function piiCookieTag(state: BuildState, opts: {
 </script>`;
   state.tags.push({
     accountId: ACCOUNT_ID, containerId: CONTAINER_ID, tagId: nextId(),
-    name: opts.name,
+    name: `${PREFIX} ${opts.name}`,
     type: "html",
     parameter: [
       { type: "TEMPLATE", key: "html", value: html },
@@ -308,7 +315,7 @@ function addPiiCookieSystem(state: BuildState, domain: string) {
   const trigId = nextId();
   state.triggers.push({
     accountId: ACCOUNT_ID, containerId: CONTAINER_ID, triggerId: trigId,
-    name: "TRG - PII Capture (forms)",
+    name: `${PREFIX} TRG - PII Capture (forms)`,
     type: "FORM_SUBMISSION",
     customEventFilter: [],
     waitForTags: { type: "BOOLEAN", value: "false" },
@@ -329,7 +336,7 @@ function addWhatsAppTracking(state: BuildState, pixelVar: string | null, ga4Var:
   const trigId = nextId();
   state.triggers.push({
     accountId: ACCOUNT_ID, containerId: CONTAINER_ID, triggerId: trigId,
-    name: "TRG - WhatsApp Click",
+    name: `${PREFIX} TRG - WhatsApp Click`,
     type: "CLICK",
     filter: [{
       type: "MATCH_REGEX",
@@ -361,7 +368,7 @@ function addJsErrorTracking(state: BuildState, ga4Var: string | null) {
   const trigId = nextId();
   state.triggers.push({
     accountId: ACCOUNT_ID, containerId: CONTAINER_ID, triggerId: trigId,
-    name: "TRG - JS Error",
+    name: `${PREFIX} TRG - JS Error`,
     type: "JS_ERROR",
     fingerprint: fp(),
   });
@@ -381,7 +388,7 @@ function addJsErrorTracking(state: BuildState, ga4Var: string | null) {
 </script>`;
     state.tags.push({
       accountId: ACCOUNT_ID, containerId: CONTAINER_ID, tagId: nextId(),
-      name: "00.3 - ⚠️ GA4 - exception (JS Error)",
+      name: `${PREFIX} 00.3 - ⚠️ GA4 - exception (JS Error)`,
       type: "html",
       parameter: [
         { type: "TEMPLATE", key: "html", value: html },

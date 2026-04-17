@@ -59,7 +59,7 @@ function eventDataVar(state: BuildState, name: string, key: string) {
 function ga4Client(state: BuildState) {
   state.clients.push({
     accountId: ACCOUNT_ID, containerId: CONTAINER_ID, clientId: nextId(),
-    name: "Cliente GA4",
+    name: "[CT-SRV] Cliente GA4",
     type: "gaaw_client",
     parameter: [
       { type: "TEMPLATE", key: "cookieDomain", value: "auto" },
@@ -79,7 +79,7 @@ function allEventsTrigger(state: BuildState) {
   const id = nextId();
   state.triggers.push({
     accountId: ACCOUNT_ID, containerId: CONTAINER_ID, triggerId: id,
-    name: "Trigger - All Events",
+    name: "[CT-SRV] Trigger - All Events",
     type: "ALWAYS",
     fingerprint: fp(),
   });
@@ -106,7 +106,7 @@ function customEventTrigger(state: BuildState, name: string, eventName: string) 
 function ga4ServerTag(state: BuildState, ga4Var: string, triggerId: string) {
   state.tags.push({
     accountId: ACCOUNT_ID, containerId: CONTAINER_ID, tagId: nextId(),
-    name: "↩ GA4 Server (forward all events)",
+    name: "[CT-SRV] ↩ GA4 Server (forward all events)",
     type: "sgtmgaaw",
     parameter: [
       { type: "BOOLEAN", key: "redactVisitorIp", value: "false" },
@@ -133,7 +133,7 @@ function capitrackForwardTag(state: BuildState, opts: {
   // Encaminha o evento para o CapiTrack que dispara Meta CAPI / Ads / TikTok
   state.tags.push({
     accountId: ACCOUNT_ID, containerId: CONTAINER_ID, tagId: nextId(),
-    name: opts.name,
+    name: `[CT-SRV] ${opts.name}`,
     type: "rh",
     parameter: [
       { type: "TEMPLATE", key: "url", value: opts.endpoint },
