@@ -551,7 +551,14 @@ export function buildDynamicGtmContainer(cfg: DynamicGtmConfig): string {
 
   // CapiTrack bridge — every dataLayer push goes to CapiTrack endpoint
   capitrackBridgeTagWithTrig(state, cfg.publicKey, cfg.capitrackEndpoint, initTrigId);
+  // Bootstraps de bibliotecas externas (gtag.js, fbevents.js) — ÚNICO LUGAR
+  // autorizado a injetar <script> de provedores. Tags de evento NÃO podem
+  // mais carregar libs (evita loop de injeção quando GTM tem Custom HTML
+  // recursiva no container do cliente).
   googleTagBootstrapTag(state, { ga4Var, awVar: adsVar, triggerId: initTrigId });
+  if (pixelVar) {
+    metaPixelBootstrapTag(state, { pixelVar, triggerId: initTrigId });
+  }
 
   // PII Cookies (Advanced Matching) — opcional
   if (cfg.enablePiiCookies) {
@@ -610,6 +617,23 @@ export function buildDynamicGtmContainer(cfg: DynamicGtmConfig): string {
   }
 
   const container = {
+    // ⚠️ CapiTrack Dynamic GTM Container ⚠️
+    // -----------------------------------------------------------------
+    // REGRAS CRÍTICAS deste container (não quebrar ao editar manualmente):
+    //
+    //   1. Bibliotecas externas (gtag.js, fbevents.js) são carregadas
+    //      EXCLUSIVAMENTE pelas tags "000 - Bootstrap" (ONCE_PER_LOAD,
+    //      com guard window.__ct_*_bootstrapped).
+    //   2. Tags de evento (Meta/GA4/Ads) JAMAIS devem chamar
+    //      document.createElement("script") apontando para
+    //      googletagmanager.com ou connect.facebook.net.
+    //   3. Tags de evento apenas chamam fbq('track', ...) ou
+    //      gtag('event', ...) assumindo que a lib já está carregada.
+    //
+    // Se essas regras forem violadas, GTM Custom HTML pode entrar em
+    // loop infinito (createElement → gtag → dataLayer.push → re-trigger
+    // → createElement) e travar a página do cliente.
+    // -----------------------------------------------------------------
     exportFormatVersion: 2,
     exportTime: new Date().toISOString(),
     containerVersion: {

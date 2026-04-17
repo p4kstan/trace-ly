@@ -36,6 +36,8 @@ export default function Debugger() {
         <p className="text-muted-foreground text-sm mt-1">Inspecione payloads de eventos e respostas da API</p>
       </div>
 
+      <LoopDetectionPanel />
+
       {!deliveries?.length ? (
         <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
           <Inbox className="w-16 h-16 mb-4" />
