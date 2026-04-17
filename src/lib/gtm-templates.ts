@@ -159,36 +159,16 @@ export function buildGtmContainer(templateId: GtmTemplateId, cfg: GtmTemplateCon
   const cv = out.containerVersion;
   const c = cv.container;
 
-  // Neutralize internal IDs so any GTM workspace can import via "Mesclar"
-  const neutralAccount = "1";
-  const neutralContainer = "1";
-  const oldAccount = c.accountId;
-  const oldContainer = c.containerId;
-
-  c.accountId = neutralAccount;
-  c.containerId = neutralContainer;
-  cv.accountId = neutralAccount;
-  cv.containerId = neutralContainer;
-  cv.path = `accounts/${neutralAccount}/containers/${neutralContainer}/versions/0`;
-  c.path = `accounts/${neutralAccount}/containers/${neutralContainer}`;
-  c.tagManagerUrl = `https://tagmanager.google.com/#/container/accounts/${neutralAccount}/containers/${neutralContainer}/workspaces?apiLink=container`;
-  cv.tagManagerUrl = `https://tagmanager.google.com/#/versions/accounts/${neutralAccount}/containers/${neutralContainer}/versions/0`;
+  // IMPORTANT: Do NOT neutralize accountId/containerId.
+  // The tag.type for custom templates uses the original numericContainerId
+  // (e.g. "cvt_225191795_16"). If we change containerId, GTM throws
+  // "Tipo de entidade desconhecido". Keep original IDs — GTM "Mesclar"
+  // handles importing into a different destination container fine.
   c.fingerprint = String(Date.now());
   cv.fingerprint = String(Date.now());
 
-  // Cascade old account/container references inside any nested path string
-  replaceInAllStrings(cv, `accounts/${oldAccount}/containers/${oldContainer}`, `accounts/${neutralAccount}/containers/${neutralContainer}`);
-  replaceInAllStrings(cv, `"accountId":"${oldAccount}"`, `"accountId":"${neutralAccount}"`); // safety
-  // Update accountId / containerId fields that exist on every tag/trigger/variable entry
-  for (const arr of ["tag", "trigger", "variable", "builtInVariable", "folder", "customTemplate", "client", "zone"]) {
-    const list = cv[arr];
-    if (Array.isArray(list)) {
-      for (const item of list) {
-        if (item.accountId) item.accountId = neutralAccount;
-        if (item.containerId) item.containerId = neutralContainer;
-      }
-    }
-  }
+  const neutralAccount = c.accountId;
+  const neutralContainer = c.containerId;
 
   // Apply variable substitutions for marketing IDs
   const map = tpl.meta.variableMap;
