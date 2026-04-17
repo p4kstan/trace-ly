@@ -153,6 +153,9 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
                   value={fbPixelId}
                   onChange={(e) => setFbPixelId(e.target.value)}
                 />
+                <p className="text-[11px] text-muted-foreground leading-snug">
+                  Onde pegar: <b>Meta Events Manager</b> → <i>business.facebook.com/events_manager</i> → selecione o Pixel → o número de 15-16 dígitos no topo é o seu <b>Pixel ID</b>. (Sincronize para puxar do que já está cadastrado em <b>Configurações → Meta</b>.)
+                </p>
               </div>
             )}
             {meta.variableMap.fbAccessToken && (
@@ -163,6 +166,9 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
                   value={fbAccessToken}
                   onChange={(e) => setFbAccessToken(e.target.value)}
                 />
+                <p className="text-[11px] text-muted-foreground leading-snug">
+                  Onde pegar: <b>Events Manager</b> → seu Pixel → aba <b>Configurações</b> → role até <b>Conversions API</b> → <b>Generate access token</b>. Token longo começando com <code>EAAG…</code>. Guarde com segurança — ele dá acesso de envio CAPI.
+                </p>
               </div>
             )}
             {meta.variableMap.ga4MeasurementId && (
@@ -173,6 +179,9 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
                   value={ga4Id}
                   onChange={(e) => setGa4Id(e.target.value)}
                 />
+                <p className="text-[11px] text-muted-foreground leading-snug">
+                  Onde pegar: <b>Google Analytics 4</b> → <b>Admin</b> (engrenagem) → <b>Fluxos de dados</b> → clique no fluxo Web do seu site → o <b>ID de avaliação</b> aparece no topo no formato <code>G-XXXXXXXXXX</code>.
+                </p>
               </div>
             )}
             {meta.variableMap.googleAdsId && (
@@ -183,6 +192,9 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
                   value={adsId}
                   onChange={(e) => setAdsId(e.target.value)}
                 />
+                <p className="text-[11px] text-muted-foreground leading-snug">
+                  Onde pegar: <b>Google Ads</b> → <b>Ferramentas</b> → <b>Conversões</b> → escolha a conversão → <b>Configuração da tag</b> → <b>Usar o Google Tag Manager</b>. Copie o <b>ID de conversão</b> e prefixe com <code>AW-</code> (ex.: <code>AW-123456789</code>).
+                </p>
               </div>
             )}
             {meta.variableMap.transportUrl && (
@@ -193,6 +205,9 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
                   value={transportUrl}
                   onChange={(e) => setTransportUrl(e.target.value)}
                 />
+                <p className="text-[11px] text-muted-foreground leading-snug">
+                  O que é: URL do seu <b>Server-Side GTM</b> (Stape, mmprod, Cloud Run). Se você ainda não tem sGTM próprio, <b>deixe em branco</b> — os eventos vão direto para o endpoint CapiTrack acima. Use somente se quiser passar pelo seu container server primeiro.
+                </p>
               </div>
             )}
             {meta.domainPlaceholders.length > 0 && (
@@ -203,6 +218,9 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
                   value={domain}
                   onChange={(e) => setDomain(e.target.value)}
                 />
+                <p className="text-[11px] text-muted-foreground leading-snug">
+                  É o domínio raiz do seu site, <b>sem https:// e sem www</b> (ex.: <code>minhaloja.com.br</code>). Usado para gravar cookies de identidade <b>1st-party</b> no domínio correto e melhorar o match quality (EMQ) do Meta.
+                </p>
               </div>
             )}
           </div>
