@@ -25,10 +25,11 @@ export interface DynamicGtmConfig {
   enableJsErrorTracking?: boolean;
 }
 
-const ACCOUNT_ID = "6000000";
-const CONTAINER_ID = "6000000";
-const INIT_TRIGGER_ID = "2147479553"; // Initialization - All Pages
-const ALL_PAGES_TRIGGER_ID = "2147479572"; // All Pages
+// IDs reais de uma conta GTM válida (formato aceito pelo importador).
+// Quando o usuário faz "Importar → Mesclar", o GTM reescreve estes IDs
+// automaticamente para o container destino — só precisam ser numéricos válidos.
+const ACCOUNT_ID = "6004299956";
+const CONTAINER_ID = "176842810";
 
 // Prefixo único — evita que o "Mesclar" do GTM exclua tags por conflito de
 // nome com containers pré-existentes (Hotmart/Yampi/etc).
@@ -132,17 +133,36 @@ fbq('track', '${opts.eventName}'${opts.withValue ? `, {
 function ga4EventTag(state: BuildState, opts: {
   name: string; ga4Var: string; eventName: string; triggerId: string;
 }) {
-  // Tag NATIVA do GTM: GA4 Event (type: "gaawe") — não precisa de HTML inline
+  // GA4 via gtag.js inline (HTML) — funciona sem depender do template nativo
+  // resolver corretamente o measurementIdOverride no import.
+  const html = `<script>
+(function(){
+  var id = '{{${opts.ga4Var}}}';
+  if (!window.gtag) {
+    var s=document.createElement('script');
+    s.async=true; s.src='https://www.googletagmanager.com/gtag/js?id='+id;
+    document.head.appendChild(s);
+    window.dataLayer=window.dataLayer||[];
+    window.gtag=function(){window.dataLayer.push(arguments);};
+    gtag('js', new Date());
+    gtag('config', id, {send_page_view:false});
+  }
+  gtag('event', '${opts.eventName}', {
+    send_to: id,
+    value: {{[CT] DLV - ecommerce.value}} || {{[CT] DLV - value}} || undefined,
+    currency: {{[CT] DLV - ecommerce.currency}} || undefined,
+    transaction_id: {{[CT] DLV - ecommerce.transaction_id}} || undefined,
+    items: {{[CT] DLV - ecommerce.items}} || undefined
+  });
+})();
+</script>`;
   state.tags.push({
     accountId: ACCOUNT_ID, containerId: CONTAINER_ID, tagId: nextId(),
     name: `${PREFIX} ${opts.name}`,
-    type: "gaawe",
+    type: "html",
     parameter: [
-      { type: "TEMPLATE", key: "eventName", value: opts.eventName },
-      { type: "TEMPLATE", key: "measurementIdOverride", value: `{{${opts.ga4Var}}}` },
-      { type: "BOOLEAN", key: "sendEcommerceData", value: "true" },
-      { type: "TEMPLATE", key: "getEcommerceDataFrom", value: "dataLayer" },
-      { type: "BOOLEAN", key: "enhancedUserId", value: "true" },
+      { type: "TEMPLATE", key: "html", value: html },
+      { type: "BOOLEAN", key: "supportDocumentWrite", value: "false" },
     ],
     fingerprint: fp(),
     firingTriggerId: [opts.triggerId],
@@ -155,18 +175,36 @@ function ga4EventTag(state: BuildState, opts: {
 function googleAdsConversionTag(state: BuildState, opts: {
   name: string; awVar: string; conversionLabel?: string; triggerId: string;
 }) {
-  // Tag NATIVA do GTM: Google Ads Conversion Tracking (type: "awct")
+  // Google Ads conversion via gtag.js inline (HTML) — não depende de template "awct"
+  // que pode falhar no import se o tagId não bater com a galeria atual.
+  const html = `<script>
+(function(){
+  var awid = '{{${opts.awVar}}}';
+  var label = ${JSON.stringify(opts.conversionLabel || "ABCDEFGHIJK")};
+  if (!window.gtag) {
+    var s=document.createElement('script');
+    s.async=true; s.src='https://www.googletagmanager.com/gtag/js?id='+awid;
+    document.head.appendChild(s);
+    window.dataLayer=window.dataLayer||[];
+    window.gtag=function(){window.dataLayer.push(arguments);};
+    gtag('js', new Date());
+    gtag('config', awid);
+  }
+  gtag('event', 'conversion', {
+    send_to: awid + '/' + label,
+    value: {{[CT] DLV - ecommerce.value}} || 0,
+    currency: {{[CT] DLV - ecommerce.currency}} || 'BRL',
+    transaction_id: {{[CT] DLV - ecommerce.transaction_id}} || ''
+  });
+})();
+</script>`;
   state.tags.push({
     accountId: ACCOUNT_ID, containerId: CONTAINER_ID, tagId: nextId(),
     name: `${PREFIX} ${opts.name}`,
-    type: "awct",
+    type: "html",
     parameter: [
-      { type: "TEMPLATE", key: "conversionId", value: `{{${opts.awVar}}}` },
-      { type: "TEMPLATE", key: "conversionLabel", value: opts.conversionLabel || "ABCDEFGHIJK" },
-      { type: "TEMPLATE", key: "conversionValue", value: "{{[CT] DLV - ecommerce.value}}" },
-      { type: "TEMPLATE", key: "currencyCode", value: "{{[CT] DLV - ecommerce.currency}}" },
-      { type: "TEMPLATE", key: "orderId", value: "{{[CT] DLV - ecommerce.transaction_id}}" },
-      { type: "BOOLEAN", key: "enableConversionLinker", value: "true" },
+      { type: "TEMPLATE", key: "html", value: html },
+      { type: "BOOLEAN", key: "supportDocumentWrite", value: "false" },
     ],
     fingerprint: fp(),
     firingTriggerId: [opts.triggerId],
@@ -176,7 +214,7 @@ function googleAdsConversionTag(state: BuildState, opts: {
   });
 }
 
-function capitrackBridgeTag(state: BuildState, publicKey: string, endpoint: string) {
+function capitrackBridgeTagWithTrig(state: BuildState, publicKey: string, endpoint: string, triggerId: string) {
   const html = `<script>
 (function(){
   if (window.__capitrack_bridge) return;
@@ -215,7 +253,7 @@ function capitrackBridgeTag(state: BuildState, publicKey: string, endpoint: stri
       { type: "BOOLEAN", key: "supportDocumentWrite", value: "false" },
     ],
     fingerprint: fp(),
-    firingTriggerId: [INIT_TRIGGER_ID],
+    firingTriggerId: [triggerId],
     tagFiringOption: "ONCE_PER_LOAD",
     monitoringMetadata: { type: "MAP" },
     consentSettings: { consentStatus: "NOT_SET" },
@@ -423,8 +461,24 @@ export function buildDynamicGtmContainer(cfg: DynamicGtmConfig): string {
   dlVar(state, "DLV - ecommerce.transaction_id", "ecommerce.transaction_id");
   dlVar(state, "DLV - value", "value");
 
+  // Triggers explícitos (NÃO usar built-in IDs que não estão declarados — quebra import)
+  const initTrigId = nextId();
+  state.triggers.push({
+    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, triggerId: initTrigId,
+    name: `${PREFIX} TRG - Initialization`,
+    type: "INIT",
+    fingerprint: fp(),
+  });
+  const allPagesTrigId = nextId();
+  state.triggers.push({
+    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, triggerId: allPagesTrigId,
+    name: `${PREFIX} TRG - All Pages`,
+    type: "PAGEVIEW",
+    fingerprint: fp(),
+  });
+
   // CapiTrack bridge — every dataLayer push goes to CapiTrack endpoint
-  capitrackBridgeTag(state, cfg.publicKey, cfg.capitrackEndpoint);
+  capitrackBridgeTagWithTrig(state, cfg.publicKey, cfg.capitrackEndpoint, initTrigId);
 
   // PII Cookies (Advanced Matching) — opcional
   if (cfg.enablePiiCookies) {
@@ -444,13 +498,13 @@ export function buildDynamicGtmContainer(cfg: DynamicGtmConfig): string {
   if (pixelVar) {
     metaPixelTag(state, {
       name: "001 - 🔵 Meta - PageView",
-      pixelVar, eventName: "PageView", triggerId: ALL_PAGES_TRIGGER_ID,
+      pixelVar, eventName: "PageView", triggerId: allPagesTrigId,
     });
   }
   if (ga4Var) {
     ga4EventTag(state, {
       name: "002 - 🟠 GA4 - page_view",
-      ga4Var, eventName: "page_view", triggerId: ALL_PAGES_TRIGGER_ID,
+      ga4Var, eventName: "page_view", triggerId: allPagesTrigId,
     });
   }
 
