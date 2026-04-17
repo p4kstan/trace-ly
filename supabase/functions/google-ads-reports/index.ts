@@ -151,6 +151,26 @@ function buildQuery(level: string, period: string, customFrom?: string, customTo
     `;
   }
 
+  if (level === "negative_keywords_shared") {
+    // Shared negative keyword lists attached to the campaign
+    return `
+      SELECT
+        shared_criterion.criterion_id,
+        shared_criterion.keyword.text,
+        shared_criterion.keyword.match_type,
+        shared_criterion.type,
+        shared_set.id,
+        shared_set.name,
+        shared_set.type,
+        shared_set.status
+      FROM shared_criterion
+      WHERE shared_criterion.type = KEYWORD
+        AND shared_set.type = NEGATIVE_KEYWORDS
+        AND shared_set.status = ENABLED
+      LIMIT 500
+    `;
+  }
+
   if (level === "search_terms") {
     return `
       SELECT
