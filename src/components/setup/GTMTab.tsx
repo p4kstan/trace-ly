@@ -78,8 +78,9 @@ data.gtmOnSuccess();`;
 </script>`;
 
   return (
-    <Tabs defaultValue="templates" className="w-full">
-      <TabsList className="grid w-full grid-cols-3 md:grid-cols-6">
+    <Tabs defaultValue="checkout" className="w-full">
+      <TabsList className="grid w-full grid-cols-3 md:grid-cols-7">
+        <TabsTrigger value="checkout"><ShoppingCart className="w-3.5 h-3.5 mr-1" /> Checkout</TabsTrigger>
         <TabsTrigger value="templates"><Sparkles className="w-3.5 h-3.5 mr-1" /> Templates</TabsTrigger>
         <TabsTrigger value="wizard"><Zap className="w-3.5 h-3.5 mr-1" /> Wizard</TabsTrigger>
         <TabsTrigger value="datalayer"><Layers className="w-3.5 h-3.5 mr-1" /> dataLayer</TabsTrigger>
@@ -87,6 +88,10 @@ data.gtmOnSuccess();`;
         <TabsTrigger value="server"><Server className="w-3.5 h-3.5 mr-1" /> sGTM</TabsTrigger>
         <TabsTrigger value="consent"><Shield className="w-3.5 h-3.5 mr-1" /> Consent</TabsTrigger>
       </TabsList>
+
+      <TabsContent value="checkout" className="mt-4">
+        <CheckoutSnippetsTab publicKey={publicKey} supabaseUrl={supabaseUrl} />
+      </TabsContent>
 
       <TabsContent value="templates" className="mt-4">
         <GTMTemplatesTab publicKey={publicKey} supabaseUrl={supabaseUrl} />
