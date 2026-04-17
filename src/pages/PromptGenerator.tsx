@@ -184,6 +184,18 @@ export default function PromptGenerator() {
             </div>
 
             <div>
+              <Label className="text-xs">Plataforma / Stack</Label>
+              <Select value={platform} onValueChange={(v) => setPlatform(v as Platform)}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PLATFORMS.map((p) => (
+                    <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
               <Label className="text-xs flex items-center gap-1">
                 <Bot className="w-3 h-3" /> IA do projeto-alvo
               </Label>
@@ -204,8 +216,8 @@ export default function PromptGenerator() {
           </div>
 
           {(platform === "unknown" || gateway === "unknown") && (
-            <Alert className="border-amber-500/30 bg-amber-500/5">
-              <HelpCircle className="w-4 h-4 text-amber-500" />
+            <Alert className="border-primary/30 bg-primary/5">
+              <HelpCircle className="w-4 h-4 text-primary" />
               <AlertDescription className="text-xs">
                 <strong>Modo detecção ativado.</strong> O prompt vai pedir para a IA-alvo inspecionar o projeto e descobrir sozinha {platform === "unknown" && "a stack"}{platform === "unknown" && gateway === "unknown" && " e "}{gateway === "unknown" && "o gateway"} antes de aplicar qualquer correção.
               </AlertDescription>
