@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, GitBranch, MonitorDot, ScrollText, Bug, Settings,
   Zap, Brain, CreditCard, HeartPulse, Key, LogOut, ShoppingCart, Webhook, Inbox, BookOpen, Cpu, Gauge,
-  Shield, TrendingUp, Lightbulb, Filter, Radio, Send, Code, FileText, HelpCircle, Layers, BarChart3,
+  Shield, TrendingUp, Lightbulb, Filter, Radio, Send, Code, FileText, HelpCircle, Layers, BarChart3, Wand2,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -34,6 +34,7 @@ const trackingHubItems = [
   { title: "Fontes de Tracking", url: "/tracking-sources", icon: Radio },
   { title: "Destinos", url: "/destinations", icon: Send },
   { title: "Instalação SDK", url: "/sdk-setup", icon: Code },
+  { title: "Gerador de Prompts", url: "/prompt-generator", icon: Wand2 },
   { title: "Logs de Integração", url: "/integration-logs", icon: FileText },
   
   { title: "Setup Facebook / Meta", url: "/setup-facebook", icon: Send },
