@@ -442,6 +442,31 @@
     return { name: ctName, data: data };
   }
 
+  // Throttle map: dedup_key -> last sent timestamp.
+  // Protects against recursive GTM Custom HTML loops where the same logical
+  // event ends up pushed to dataLayer multiple times in <500ms.
+  var THROTTLE_WINDOW_MS = 500;
+  var throttleMap = Object.create(null);
+
+  function shouldThrottle(eventName, payload) {
+    try {
+      var key = eventName + '::' + JSON.stringify(payload || {});
+      var now = Date.now();
+      var last = throttleMap[key] || 0;
+      if (now - last < THROTTLE_WINDOW_MS) {
+        log('⚠️ Throttled duplicate event: ' + eventName + ' (within ' + (now - last) + 'ms)');
+        return true;
+      }
+      throttleMap[key] = now;
+      // Garbage collect old entries (keep map small)
+      if (Math.random() < 0.05) {
+        var cutoff = now - 5000;
+        for (var k in throttleMap) if (throttleMap[k] < cutoff) delete throttleMap[k];
+      }
+      return false;
+    } catch (e) { return false; }
+  }
+
   function setupDataLayerBridge() {
     if (!config.dataLayerBridge) return;
     if (window.__capitrackDataLayerBridgeInstalled) {
@@ -477,6 +502,7 @@
       // Skip GTM internal events
       if (/^gtm\./.test(eventName) || /^gtag\./.test(eventName) || eventName === 'consent') return;
       var mapped = mapGa4ToCapitrack(eventName, item.ecommerce || item);
+      if (shouldThrottle(mapped.name, mapped.data)) return;
       enqueueEvent(buildEvent(mapped.name, mapped.data));
       log('DL bridge: ' + eventName + ' → ' + mapped.name);
     }

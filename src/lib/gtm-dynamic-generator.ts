@@ -101,13 +101,16 @@ function metaPixelTag(state: BuildState, opts: {
     `id: '{{${opts.pixelVar}}}'`,
     `event: '${opts.eventName}'`,
   ];
+  // NÃO injeta fbevents.js aqui — isso é responsabilidade exclusiva do
+  // tag "CT - 000 - 🔵 Meta Pixel - Bootstrap" (ONCE_PER_LOAD). Se chamarmos
+  // o loader em cada tag de evento, criamos cascata de <script> no DOM
+  // quando o cliente tem GTM com Custom HTML recursiva (loop infinito).
   const html = `<script>
-!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
-n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
-t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
-document,'script','https://connect.facebook.net/en_US/fbevents.js');
-fbq('init', '{{${opts.pixelVar}}}');
+(function(){
+  if (typeof window.fbq !== 'function') {
+    // Bootstrap não rodou ainda (race) — empilha no fbq.queue se existir.
+    window.fbq = window.fbq || function(){(window.fbq.queue=window.fbq.queue||[]).push(arguments);};
+  }
 fbq('track', '${opts.eventName}'${opts.withValue ? `, {
   value: {{CT - DLV - ecommerce.value}} || {{CT - DLV - value}} || 0,
   currency: {{CT - DLV - ecommerce.currency}} || 'BRL',
@@ -115,6 +118,7 @@ fbq('track', '${opts.eventName}'${opts.withValue ? `, {
   contents: (({{CT - DLV - ecommerce.items}}||[]).map(function(i){return {id: i.item_id, quantity: i.quantity, item_price: i.price}})),
   num_items: (({{CT - DLV - ecommerce.items}}||[]).length || 1)
 }` : ""});
+})();
 </script>`;
 
   state.tags.push({
