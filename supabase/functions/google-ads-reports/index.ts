@@ -127,7 +127,7 @@ function buildQuery(level: string, period: string, customFrom?: string, customTo
         campaign.id, campaign.name
       FROM campaign_criterion
       WHERE campaign_criterion.negative = TRUE
-        AND campaign_criterion.type = 'KEYWORD'
+        AND campaign_criterion.type = KEYWORD
         ${campaignId ? `AND campaign.id = ${campaignId}` : ""}
       LIMIT 500
     `;
@@ -145,8 +145,28 @@ function buildQuery(level: string, period: string, customFrom?: string, customTo
         campaign.id, campaign.name
       FROM ad_group_criterion
       WHERE ad_group_criterion.negative = TRUE
-        AND ad_group_criterion.type = 'KEYWORD'
+        AND ad_group_criterion.type = KEYWORD
         ${campaignId ? `AND campaign.id = ${campaignId}` : ""}
+      LIMIT 500
+    `;
+  }
+
+  if (level === "negative_keywords_shared") {
+    // Shared negative keyword lists attached to the campaign
+    return `
+      SELECT
+        shared_criterion.criterion_id,
+        shared_criterion.keyword.text,
+        shared_criterion.keyword.match_type,
+        shared_criterion.type,
+        shared_set.id,
+        shared_set.name,
+        shared_set.type,
+        shared_set.status
+      FROM shared_criterion
+      WHERE shared_criterion.type = KEYWORD
+        AND shared_set.type = NEGATIVE_KEYWORDS
+        AND shared_set.status = ENABLED
       LIMIT 500
     `;
   }
@@ -396,6 +416,18 @@ function mapRow(level: string, r: any) {
     };
   }
 
+  if (level === "negative_keywords_shared") {
+    const c = r.sharedCriterion ?? {};
+    const s = r.sharedSet ?? {};
+    return {
+      id: `${s.id ?? ""}-${c.criterionId ?? ""}`,
+      name: c.keyword?.text ?? "",
+      match_type: c.keyword?.matchType ?? null,
+      level: `Lista: ${s.name ?? "—"}`,
+      shared_set_name: s.name ?? "",
+    };
+  }
+
   if (level === "search_terms") {
     const sv = r.searchTermView ?? {};
     return {
@@ -606,9 +638,10 @@ Deno.serve(async (req) => {
     }
 
     const results = adsJson.results || [];
+    console.log(`[reports] level=${level} campaign=${campaign_id} raw_results=${results.length}`);
 
     // For aggregated levels, group by id; for time_series and change_history, keep all rows
-    const noAggregate = ["time_series", "change_history", "search_terms", "campaign_detail"];
+    const noAggregate = ["time_series", "change_history", "search_terms", "campaign_detail", "negative_keywords", "negative_keywords_ad_group", "negative_keywords_shared"];
 
     let rows: any[];
     if (noAggregate.includes(level)) {

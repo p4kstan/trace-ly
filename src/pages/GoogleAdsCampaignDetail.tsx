@@ -99,6 +99,7 @@ export default function GoogleAdsCampaignDetail() {
   const adGroups = useReport(workspace?.id, customerId, "ad_groups", period, campaignId, campaignId);
   const keywords = useReport(workspace?.id, customerId, "keywords", period, campaignId);
   const negKeywordsCamp = useReport(workspace?.id, customerId, "negative_keywords", period, campaignId);
+  const negKeywordsShared = useReport(workspace?.id, customerId, "negative_keywords_shared", period, campaignId);
   const negKeywordsAg = useReport(workspace?.id, customerId, "negative_keywords_ad_group", period, campaignId);
   const searchTerms = useReport(workspace?.id, customerId, "search_terms", period, campaignId);
   const ageData = useReport(workspace?.id, customerId, "age", period, campaignId);
@@ -332,6 +333,20 @@ export default function GoogleAdsCampaignDetail() {
                 rows={negKeywordsAg.data?.rows}
                 columns={["name", "match_type", "ad_group_name"]}
                 labels={{ name: "Palavra negativa", match_type: "Tipo", ad_group_name: "Grupo" }}
+              />
+            </CardContent>
+          </Card>
+          <Card className="glass-card">
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Listas de negativas compartilhadas</CardTitle>
+              <p className="text-[11px] text-muted-foreground mt-1">Negativas em listas reutilizáveis que podem estar aplicadas a esta campanha.</p>
+            </CardHeader>
+            <CardContent className="p-0">
+              <SimpleTable
+                loading={negKeywordsShared.isLoading}
+                rows={negKeywordsShared.data?.rows}
+                columns={["name", "match_type", "shared_set_name"]}
+                labels={{ name: "Palavra negativa", match_type: "Tipo", shared_set_name: "Lista" }}
               />
             </CardContent>
           </Card>
