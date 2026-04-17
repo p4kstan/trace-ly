@@ -200,14 +200,16 @@ export default function PromptGenerator() {
                 <Bot className="w-3 h-3" /> IA do projeto-alvo
               </Label>
               <Select value={targetAI} onValueChange={(v) => setTargetAI(v as TargetAI)}>
-                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
                 <SelectContent className="max-h-[300px]">
                   {TARGET_AIS.map((a) => (
-                    <SelectItem key={a.value} value={a.value}>
-                      <span className="flex flex-col">
-                        <span>{a.label}</span>
+                    <SelectItem key={a.value} value={a.value} className="py-2">
+                      <div className="flex flex-col">
+                        <span className="text-sm">{a.label}</span>
                         <span className="text-[10px] text-muted-foreground">{a.hint}</span>
-                      </span>
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
