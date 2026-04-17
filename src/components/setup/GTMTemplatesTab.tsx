@@ -7,9 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, Sparkles, Server, Globe, FileJson, RefreshCw, Save } from "lucide-react";
+import { Download, Sparkles, Server, Globe, FileJson, RefreshCw, Save, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { GTM_TEMPLATES, GtmTemplateId, downloadGtmTemplate } from "@/lib/gtm-templates";
+import { downloadDynamicGtmContainer } from "@/lib/gtm-dynamic-generator";
+import { BUSINESS_PROFILES, type BusinessType } from "@/lib/prompt-templates";
+
+type SelectionId = GtmTemplateId | `dynamic:${BusinessType}`;
 
 interface Props {
   publicKey: string;
@@ -18,7 +22,10 @@ interface Props {
 
 export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
   const { data: workspace } = useWorkspace();
-  const [templateId, setTemplateId] = useState<GtmTemplateId>("yampi");
+  const [templateId, setTemplateId] = useState<SelectionId>("yampi");
+
+  const isDynamic = templateId.startsWith("dynamic:");
+  const dynamicBusiness = isDynamic ? (templateId.split(":")[1] as BusinessType) : null;
 
   const [fbPixelId, setFbPixelId] = useState("");
   const [fbAccessToken, setFbAccessToken] = useState("");
