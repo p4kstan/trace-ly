@@ -382,7 +382,7 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
             )}
           </div>
 
-          {isDynamic && (
+          {isDynamicWeb && (
             <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
               <div className="text-xs font-semibold text-foreground flex items-center gap-1">
                 <Wand2 className="w-3.5 h-3.5 text-primary" />
