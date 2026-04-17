@@ -205,15 +205,15 @@ export default function PromptGenerator() {
                 </SelectTrigger>
                 <SelectContent className="max-h-[300px]">
                   {TARGET_AIS.map((a) => (
-                    <SelectItem key={a.value} value={a.value} className="py-2">
-                      <div className="flex flex-col">
-                        <span className="text-sm">{a.label}</span>
-                        <span className="text-[10px] text-muted-foreground">{a.hint}</span>
-                      </div>
+                    <SelectItem key={a.value} value={a.value}>
+                      {a.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                {TARGET_AIS.find((a) => a.value === targetAI)?.hint}
+              </p>
             </div>
           </div>
 
