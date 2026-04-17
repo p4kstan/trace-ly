@@ -250,8 +250,8 @@ dataLayer.push({
               Header obrigatório: <code className="bg-muted/50 px-1 rounded">X-Api-Key: {publicKey.substring(0, 16)}...</code>
             </p>
             <CodeBlock code={sgtmTagTemplate} />
-            <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-3 text-xs text-muted-foreground">
-              <strong className="text-amber-500">Vantagens do sGTM:</strong> Bypass de adblockers (~30% dos visitantes),
+            <div className="bg-accent/10 border border-accent/30 rounded-lg p-3 text-xs text-muted-foreground">
+              <strong className="text-accent-foreground">Vantagens do sGTM:</strong> Bypass de adblockers (~30% dos visitantes),
               first-party cookies, latência menor, dados mais limpos para o algoritmo do Google Ads.
             </div>
           </AccordionContent>
@@ -274,10 +274,10 @@ dataLayer.push({
       </Accordion>
 
       {/* Checklist final */}
-      <Card className="glass-card border-emerald-500/30">
+      <Card className="glass-card border-primary/30">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <CheckCircle className="w-4 h-4 text-emerald-500" /> Checklist de qualidade de dados
+            <CheckCircle className="w-4 h-4 text-primary" /> Checklist de qualidade de dados
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -293,7 +293,7 @@ dataLayer.push({
               "(Opcional) sGTM rodando para bypass de adblockers",
             ].map((item, i) => (
               <li key={i} className="flex items-start gap-2 text-muted-foreground">
-                <CheckCircle className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
+                <CheckCircle className="w-4 h-4 text-primary mt-0.5 shrink-0" />
                 <span>{item}</span>
               </li>
             ))}
