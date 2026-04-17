@@ -416,6 +416,18 @@ function mapRow(level: string, r: any) {
     };
   }
 
+  if (level === "negative_keywords_shared") {
+    const c = r.sharedCriterion ?? {};
+    const s = r.sharedSet ?? {};
+    return {
+      id: `${s.id ?? ""}-${c.criterionId ?? ""}`,
+      name: c.keyword?.text ?? "",
+      match_type: c.keyword?.matchType ?? null,
+      level: `Lista: ${s.name ?? "—"}`,
+      shared_set_name: s.name ?? "",
+    };
+  }
+
   if (level === "search_terms") {
     const sv = r.searchTermView ?? {};
     return {
