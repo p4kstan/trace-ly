@@ -115,15 +115,6 @@ export function MarketingDestinationsManager({ workspaceId }: Props) {
           <Badge variant="outline" className="text-[10px]">
             {totalActive} ativo{totalActive !== 1 ? "s" : ""}
           </Badge>
-          <SyncButton
-            workspaceId={workspaceId}
-            pixels={pixels}
-            destinations={destinations}
-            onSynced={() => {
-              qc.invalidateQueries({ queryKey: ["meta-pixels", workspaceId] });
-              qc.invalidateQueries({ queryKey: ["integration-destinations", workspaceId] });
-            }}
-          />
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="h-8">
@@ -132,6 +123,8 @@ export function MarketingDestinationsManager({ workspaceId }: Props) {
             </DialogTrigger>
             <AddDestinationDialog
               workspaceId={workspaceId}
+              pixels={pixels}
+              destinations={destinations}
               onSuccess={() => {
                 setOpen(false);
                 qc.invalidateQueries({ queryKey: ["meta-pixels", workspaceId] });
