@@ -7,11 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, Sparkles, Server, Globe, FileJson, RefreshCw, Save, Wand2 } from "lucide-react";
+import { Download, Sparkles, Server, Globe, FileJson, RefreshCw, Save, Wand2, Cookie, MessageCircle, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { GTM_TEMPLATES, GtmTemplateId, downloadGtmTemplate } from "@/lib/gtm-templates";
 import { downloadDynamicGtmContainer } from "@/lib/gtm-dynamic-generator";
 import { BUSINESS_PROFILES, type BusinessType } from "@/lib/prompt-templates";
+import { Switch } from "@/components/ui/switch";
 
 type SelectionId = GtmTemplateId | `dynamic:${BusinessType}`;
 
