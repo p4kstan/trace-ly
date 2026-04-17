@@ -145,7 +145,7 @@ function buildQuery(level: string, period: string, customFrom?: string, customTo
         campaign.id, campaign.name
       FROM ad_group_criterion
       WHERE ad_group_criterion.negative = TRUE
-        AND ad_group_criterion.type = 'KEYWORD'
+        AND ad_group_criterion.type = KEYWORD
         ${campaignId ? `AND campaign.id = ${campaignId}` : ""}
       LIMIT 500
     `;
