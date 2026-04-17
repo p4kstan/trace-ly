@@ -217,7 +217,7 @@ function googleAdsConversionTag(state: BuildState, opts: {
   });
 }
 
-function capitrackBridgeTag(state: BuildState, publicKey: string, endpoint: string) {
+function capitrackBridgeTagWithTrig(state: BuildState, publicKey: string, endpoint: string, triggerId: string) {
   const html = `<script>
 (function(){
   if (window.__capitrack_bridge) return;
@@ -256,7 +256,7 @@ function capitrackBridgeTag(state: BuildState, publicKey: string, endpoint: stri
       { type: "BOOLEAN", key: "supportDocumentWrite", value: "false" },
     ],
     fingerprint: fp(),
-    firingTriggerId: [INIT_TRIGGER_ID],
+    firingTriggerId: [triggerId],
     tagFiringOption: "ONCE_PER_LOAD",
     monitoringMetadata: { type: "MAP" },
     consentSettings: { consentStatus: "NOT_SET" },
