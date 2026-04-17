@@ -2,12 +2,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
-import { Zap, Globe, Smartphone, Layers, Server, Shield, Sparkles } from "lucide-react";
+import { Zap, Globe, Smartphone, Layers, Server, Shield, Sparkles, ShoppingCart } from "lucide-react";
 import { CodeBlock } from "./CodeBlock";
 import { GTMWizard } from "./GTMWizard";
 import { GTMMobileTab } from "./GTMMobileTab";
 import { DataLayerAdvancedTab } from "./DataLayerAdvancedTab";
 import { GTMTemplatesTab } from "./GTMTemplatesTab";
+import { CheckoutSnippetsTab } from "./CheckoutSnippetsTab";
 
 interface GTMTabProps {
   publicKey: string;
