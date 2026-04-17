@@ -66,20 +66,28 @@ async function validateDomain(req: Request, workspaceId: string): Promise<{ vali
 
   let domains = getCachedDomains(workspaceId);
   if (!domains) {
-    const { data } = await supabase
-      .from("allowed_domains")
-      .select("domain")
-      .eq("meta_pixel_id", workspaceId);
-    // Also check tracking_sources
-    const { data: sources } = await supabase
-      .from("tracking_sources")
-      .select("primary_domain")
-      .eq("workspace_id", workspaceId)
-      .eq("status", "active");
+    // Buscar domínios em paralelo: workspace_allowed_domains (principal) +
+    // tracking_sources.primary_domain + meta_pixels via allowed_domains (legado)
+    const [wadRes, srcRes, pixRes] = await Promise.all([
+      supabase.from("workspace_allowed_domains").select("domain").eq("workspace_id", workspaceId),
+      supabase.from("tracking_sources").select("primary_domain").eq("workspace_id", workspaceId).eq("status", "active"),
+      supabase.from("meta_pixels").select("id").eq("workspace_id", workspaceId),
+    ]);
+
+    const pixelIds = (pixRes.data || []).map((p: any) => p.id);
+    let legacyDomains: string[] = [];
+    if (pixelIds.length > 0) {
+      const { data: legacy } = await supabase
+        .from("allowed_domains")
+        .select("domain")
+        .in("meta_pixel_id", pixelIds);
+      legacyDomains = (legacy || []).map((d: any) => d.domain);
+    }
 
     domains = [
-      ...(data || []).map(d => d.domain),
-      ...(sources || []).map(s => s.primary_domain).filter(Boolean),
+      ...(wadRes.data || []).map((d: any) => d.domain),
+      ...(srcRes.data || []).map((s: any) => s.primary_domain).filter(Boolean),
+      ...legacyDomains,
     ];
     domainCache.set(workspaceId, { domains, ts: Date.now() });
   }
