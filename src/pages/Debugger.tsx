@@ -2,6 +2,7 @@ import { useState } from "react";
 import { CheckCircle, XCircle, Clock, ArrowRight, Inbox } from "lucide-react";
 import { useWorkspace, useEventDeliveries } from "@/hooks/use-tracking-data";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LoopDetectionPanel } from "@/components/debugger/LoopDetectionPanel";
 import type { Json } from "@/integrations/supabase/types";
 
 export default function Debugger() {
