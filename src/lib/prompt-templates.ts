@@ -16,18 +16,24 @@ export type BusinessType =
   | "agency";
 
 export type Gateway =
+  | "unknown"
   | "stripe" | "hotmart" | "kiwify" | "monetizze" | "eduzz" | "pagseguro"
   | "mercadopago" | "asaas" | "pagarme" | "yampi" | "appmax" | "quantumpay"
   | "shopify" | "woocommerce" | "custom" | "none";
 
 export type Platform =
+  | "unknown"
   | "react" | "next" | "vue" | "wordpress" | "shopify" | "webflow"
   | "html" | "custom";
+
+export type TargetAI =
+  | "lovable" | "cursor" | "claude" | "chatgpt" | "manus" | "bolt" | "v0" | "windsurf" | "other";
 
 export interface ProjectConfig {
   businessType: BusinessType;
   gateway: Gateway;
   platform: Platform;
+  targetAI: TargetAI;
   publicKey: string;
   workspaceId: string;
   endpoint: string;
