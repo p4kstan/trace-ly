@@ -266,8 +266,8 @@ export function DataLayerTemplatesTab() {
                   </div>
                 </div>
 
-                <Alert className="border-amber-500/30 bg-amber-500/5">
-                  <Info className="w-4 h-4 text-amber-500" />
+                <Alert className="border-warning/30 bg-warning/5">
+                  <Info className="w-4 h-4 text-warning" />
                   <AlertDescription className="text-xs">
                     <strong>Quando disparar:</strong> {t.whenToFire}
                   </AlertDescription>
