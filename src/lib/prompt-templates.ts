@@ -447,7 +447,9 @@ export function generateValidationPrompt(cfg: ProjectConfig): string {
     .map((e, i) => `${i + 1}. **${e.name}** (esperado em: ${e.when})\n   - [ ] Evento aparece em window.dataLayer\n   - [ ] Chega no CapiTrack (Event Logs)\n   - [ ] items[] populado quando aplicável`)
     .join("\n\n");
 
-  return `Roteiro de validação pós-implementação. Execute CADA passo e marque o checklist.
+  return `${aiPreamble(cfg.targetAI)}
+
+Roteiro de validação pós-implementação. Execute CADA passo e marque o checklist.
 
 ═══════════════════════════════════════════════
 ANTES DE COMEÇAR
