@@ -78,11 +78,11 @@ data.gtmOnSuccess();`;
 </script>`;
 
   return (
-    <Tabs defaultValue="checkout" className="w-full">
+    <Tabs defaultValue="wizard" className="w-full">
       <TabsList className="grid w-full grid-cols-3 md:grid-cols-7">
+        <TabsTrigger value="wizard"><Zap className="w-3.5 h-3.5 mr-1" /> Wizard</TabsTrigger>
         <TabsTrigger value="checkout"><ShoppingCart className="w-3.5 h-3.5 mr-1" /> Checkout</TabsTrigger>
         <TabsTrigger value="templates"><Sparkles className="w-3.5 h-3.5 mr-1" /> Templates</TabsTrigger>
-        <TabsTrigger value="wizard"><Zap className="w-3.5 h-3.5 mr-1" /> Wizard</TabsTrigger>
         <TabsTrigger value="datalayer"><Layers className="w-3.5 h-3.5 mr-1" /> dataLayer</TabsTrigger>
         <TabsTrigger value="mobile"><Smartphone className="w-3.5 h-3.5 mr-1" /> Mobile</TabsTrigger>
         <TabsTrigger value="server"><Server className="w-3.5 h-3.5 mr-1" /> sGTM</TabsTrigger>
