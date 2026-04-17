@@ -13,6 +13,8 @@ export function QuantumWebhookSecret() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [hasSecret, setHasSecret] = useState(false);
+  const [secretPreview, setSecretPreview] = useState("");
+  const [secretLength, setSecretLength] = useState(0);
   const [integrationId, setIntegrationId] = useState<string | null>(null);
   const [secret, setSecret] = useState("");
   const [show, setShow] = useState(false);
@@ -29,7 +31,10 @@ export function QuantumWebhookSecret() {
         .maybeSingle();
       if (data) {
         setIntegrationId(data.id);
-        setHasSecret(!!data.webhook_secret_encrypted);
+        const s = data.webhook_secret_encrypted || "";
+        setHasSecret(!!s);
+        setSecretLength(s.length);
+        setSecretPreview(s.length > 8 ? `${s.slice(0, 6)}…${s.slice(-4)}` : "");
       }
       setLoading(false);
     })();
@@ -94,6 +99,20 @@ export function QuantumWebhookSecret() {
           Sem ele, o CapiTrack rejeita os webhooks (proteção contra payloads falsos).
           O header validado é <code>Quantum-Pay-Signature: t=timestamp,v1=hmac_sha256</code>.
         </p>
+
+        {hasSecret && secretPreview && (
+          <div className="flex items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+              <div className="min-w-0">
+                <div className="text-xs font-medium text-foreground">Secret salvo no servidor</div>
+                <code className="text-[11px] font-mono text-muted-foreground truncate block">
+                  {secretPreview} <span className="opacity-60">({secretLength} caracteres)</span>
+                </code>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="flex gap-2">
           <div className="relative flex-1">
