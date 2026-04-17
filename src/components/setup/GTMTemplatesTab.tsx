@@ -392,6 +392,7 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
             </div>
           )}
 
+          <div className="rounded-lg bg-muted/30 border border-border/30 p-3 text-xs space-y-1 font-mono">
             <div>
               <span className="text-muted-foreground">Endpoint:</span> {endpoint}
             </div>
