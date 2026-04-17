@@ -147,8 +147,8 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
       fbPixelId: "0.01 Facebook Pixel",
       ga4MeasurementId: "0.02 GA4 ID",
       googleAdsId: "0.03 Google Ads ID",
-    },
-    domainPlaceholders: [],
+    } as Partial<{ fbPixelId: string; fbAccessToken: string; ga4MeasurementId: string; googleAdsId: string; transportUrl: string }>,
+    domainPlaceholders: [] as string[],
   };
   const meta = isDynamic ? dynamicMeta! : GTM_TEMPLATES[templateId as GtmTemplateId].meta;
 
