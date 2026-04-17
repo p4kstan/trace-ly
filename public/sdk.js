@@ -444,6 +444,11 @@
 
   function setupDataLayerBridge() {
     if (!config.dataLayerBridge) return;
+    if (window.__capitrackDataLayerBridgeInstalled) {
+      log('dataLayer bridge already active');
+      return;
+    }
+    window.__capitrackDataLayerBridgeInstalled = true;
     window.dataLayer = window.dataLayer || [];
     var seen = new WeakSet();
 
@@ -463,12 +468,14 @@
     }
 
     function handleDataLayerItem(item) {
-      if (!item || typeof item !== 'object' || seen.has(item)) return;
+      if (!item || typeof item !== 'object') return;
+      if (Array.isArray(item)) return;
+      if (seen.has(item)) return;
       seen.add(item);
-      var eventName = item.event || item[1]; // gtag uses arguments-array form
+      var eventName = item.event;
       if (!eventName || typeof eventName !== 'string') return;
       // Skip GTM internal events
-      if (/^gtm\./.test(eventName) || eventName === 'consent') return;
+      if (/^gtm\./.test(eventName) || /^gtag\./.test(eventName) || eventName === 'consent') return;
       var mapped = mapGa4ToCapitrack(eventName, item.ecommerce || item);
       enqueueEvent(buildEvent(mapped.name, mapped.data));
       log('DL bridge: ' + eventName + ' → ' + mapped.name);
@@ -495,6 +502,10 @@
         var apiKey = args[0];
         var options = args[1] || {};
         if (!apiKey) { console.error('[CapiTrack] API key required'); return; }
+        if (initialized) {
+          if (config.debug || options.debug) log('Init ignored: SDK already initialized');
+          return;
+        }
         config.apiKey = apiKey;
         config.endpoint = options.endpoint || (window.location.origin + '/functions/v1/track');
         config.debug = !!options.debug;

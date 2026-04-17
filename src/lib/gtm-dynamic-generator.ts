@@ -137,20 +137,11 @@ fbq('track', '${opts.eventName}'${opts.withValue ? `, {
 function ga4EventTag(state: BuildState, opts: {
   name: string; ga4Var: string; eventName: string; triggerId: string;
 }) {
-  // GA4 via gtag.js inline (HTML) — funciona sem depender do template nativo
-  // resolver corretamente o measurementIdOverride no import.
   const html = `<script>
 (function(){
   var id = '{{${opts.ga4Var}}}';
-  if (!window.gtag) {
-    var s=document.createElement('script');
-    s.async=true; s.src='https://www.googletagmanager.com/gtag/js?id='+id;
-    document.head.appendChild(s);
-    window.dataLayer=window.dataLayer||[];
-    window.gtag=function(){window.dataLayer.push(arguments);};
-    gtag('js', new Date());
-    gtag('config', id, {send_page_view:false});
-  }
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = window.gtag || function(){window.dataLayer.push(arguments);};
   gtag('event', '${opts.eventName}', {
     send_to: id,
     value: {{CT - DLV - ecommerce.value}} || {{CT - DLV - value}} || undefined,
@@ -179,21 +170,12 @@ function ga4EventTag(state: BuildState, opts: {
 function googleAdsConversionTag(state: BuildState, opts: {
   name: string; awVar: string; conversionLabel?: string; triggerId: string;
 }) {
-  // Google Ads conversion via gtag.js inline (HTML) — não depende de template "awct"
-  // que pode falhar no import se o tagId não bater com a galeria atual.
   const html = `<script>
 (function(){
   var awid = '{{${opts.awVar}}}';
   var label = ${JSON.stringify(opts.conversionLabel || "ABCDEFGHIJK")};
-  if (!window.gtag) {
-    var s=document.createElement('script');
-    s.async=true; s.src='https://www.googletagmanager.com/gtag/js?id='+awid;
-    document.head.appendChild(s);
-    window.dataLayer=window.dataLayer||[];
-    window.gtag=function(){window.dataLayer.push(arguments);};
-    gtag('js', new Date());
-    gtag('config', awid);
-  }
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = window.gtag || function(){window.dataLayer.push(arguments);};
   gtag('event', 'conversion', {
     send_to: awid + '/' + label,
     value: {{CT - DLV - ecommerce.value}} || 0,
@@ -213,6 +195,52 @@ function googleAdsConversionTag(state: BuildState, opts: {
     fingerprint: fp(),
     firingTriggerId: [opts.triggerId],
     tagFiringOption: "ONCE_PER_EVENT",
+    monitoringMetadata: { type: "MAP" },
+    consentSettings: { consentStatus: "NOT_SET" },
+  });
+}
+
+function googleTagBootstrapTag(state: BuildState, opts: {
+  ga4Var?: string | null;
+  awVar?: string | null;
+  triggerId: string;
+}) {
+  const hasGa4 = !!opts.ga4Var;
+  const hasAds = !!opts.awVar;
+  if (!hasGa4 && !hasAds) return;
+
+  const configCalls = [
+    hasGa4 ? `  gtag('config', '{{${opts.ga4Var}}}', { send_page_view: false });` : null,
+    hasAds ? `  gtag('config', '{{${opts.awVar}}}');` : null,
+  ].filter(Boolean).join("\n");
+
+  const primaryId = hasGa4 ? `{{${opts.ga4Var}}}` : `{{${opts.awVar}}}`;
+  const html = `<script>
+(function(){
+  if (window.__ct_google_tag_bootstrapped) return;
+  window.__ct_google_tag_bootstrapped = true;
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = window.gtag || function(){window.dataLayer.push(arguments);};
+  var s = document.createElement('script');
+  s.async = true;
+  s.src = 'https://www.googletagmanager.com/gtag/js?id=' + ${JSON.stringify(primaryId)};
+  document.head.appendChild(s);
+  gtag('js', new Date());
+${configCalls}
+})();
+</script>`;
+
+  state.tags.push({
+    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, tagId: nextId(),
+    name: `${PREFIX} 000 - 🟠 Google Tag - Bootstrap`,
+    type: "html",
+    parameter: [
+      { type: "TEMPLATE", key: "html", value: html },
+      { type: "BOOLEAN", key: "supportDocumentWrite", value: "false" },
+    ],
+    fingerprint: fp(),
+    firingTriggerId: [opts.triggerId],
+    tagFiringOption: "ONCE_PER_LOAD",
     monitoringMetadata: { type: "MAP" },
     consentSettings: { consentStatus: "NOT_SET" },
   });
@@ -488,6 +516,7 @@ export function buildDynamicGtmContainer(cfg: DynamicGtmConfig): string {
 
   // CapiTrack bridge — every dataLayer push goes to CapiTrack endpoint
   capitrackBridgeTagWithTrig(state, cfg.publicKey, cfg.capitrackEndpoint, initTrigId);
+  googleTagBootstrapTag(state, { ga4Var, awVar: adsVar, triggerId: initTrigId });
 
   // PII Cookies (Advanced Matching) — opcional
   if (cfg.enablePiiCookies) {
