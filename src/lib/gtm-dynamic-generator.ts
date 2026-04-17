@@ -322,23 +322,23 @@ function piiCookieTag(state: BuildState, opts: {
 }
 
 function addPiiCookieSystem(state: BuildState, domain: string) {
-  // jsm vars que leem inputs do checkout (text/email/tel)
-  jsmVar(state, "3.01 JS Primeiro Nome", `function(){
+  // jsm vars que leem inputs do checkout (text/email/tel) — retornam nome com prefixo [CT]
+  const vFirstName = jsmVar(state, "3.01 JS Primeiro Nome", `function(){
   var i = document.querySelector('input[name*="nome" i],input[name*="name" i]');
   if (i && i.value) return i.value.trim().toLowerCase().split(' ')[0];
   return 'T';
 }`);
-  jsmVar(state, "3.02 JS Sobrenome", `function(){
+  const vLastName = jsmVar(state, "3.02 JS Sobrenome", `function(){
   var i = document.querySelector('input[name*="nome" i],input[name*="name" i]');
   if (i && i.value) { var p = i.value.trim().toLowerCase().split(' '); return p.slice(1).join(' ') || 'T'; }
   return 'T';
 }`);
-  jsmVar(state, "3.03 JS E-mail", `function(){
+  const vEmail = jsmVar(state, "3.03 JS E-mail", `function(){
   var i = document.querySelector('input[type="email"],input[name*="email" i]');
   if (i && i.value) return i.value.trim().toLowerCase();
   return 'T';
 }`);
-  jsmVar(state, "3.04 JS Telefone", `function(){
+  const vPhone = jsmVar(state, "3.04 JS Telefone", `function(){
   var i = document.querySelector('input[type="tel"],input[name*="phone" i],input[name*="telefone" i],input[name*="celular" i]');
   if (i && i.value) return '55' + i.value.replace(/[^0-9]/g, '');
   return 'T';
@@ -361,11 +361,11 @@ function addPiiCookieSystem(state: BuildState, domain: string) {
     fingerprint: fp(),
   });
 
-  // tags
-  piiCookieTag(state, { name: "000 - 🍪 Cookie - first_name",  cookieName: "cookie_first_name", valueVar: "3.01 JS Primeiro Nome", domain, triggerId: trigId });
-  piiCookieTag(state, { name: "000 - 🍪 Cookie - last_name",   cookieName: "cookie_last_name",  valueVar: "3.02 JS Sobrenome",     domain, triggerId: trigId });
-  piiCookieTag(state, { name: "000 - 🍪 Cookie - email",       cookieName: "cookie_email",      valueVar: "3.03 JS E-mail",        domain, triggerId: trigId });
-  piiCookieTag(state, { name: "000 - 🍪 Cookie - telefone",    cookieName: "cookie_fone",       valueVar: "3.04 JS Telefone",      domain, triggerId: trigId });
+  // tags — usar nome COMPLETO da variável (com prefixo [CT])
+  piiCookieTag(state, { name: "000 - 🍪 Cookie - first_name",  cookieName: "cookie_first_name", valueVar: vFirstName, domain, triggerId: trigId });
+  piiCookieTag(state, { name: "000 - 🍪 Cookie - last_name",   cookieName: "cookie_last_name",  valueVar: vLastName,  domain, triggerId: trigId });
+  piiCookieTag(state, { name: "000 - 🍪 Cookie - email",       cookieName: "cookie_email",      valueVar: vEmail,     domain, triggerId: trigId });
+  piiCookieTag(state, { name: "000 - 🍪 Cookie - telefone",    cookieName: "cookie_fone",       valueVar: vPhone,     domain, triggerId: trigId });
 }
 
 // ===== WhatsApp click =====
