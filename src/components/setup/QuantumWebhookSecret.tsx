@@ -19,25 +19,33 @@ export function QuantumWebhookSecret() {
   const [secret, setSecret] = useState("");
   const [show, setShow] = useState(false);
 
+  const loadStatus = async (wsId: string) => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("gateway_integrations")
+      .select("id, webhook_secret_encrypted, status")
+      .eq("workspace_id", wsId)
+      .eq("provider", "quantumpay")
+      .maybeSingle();
+    console.log("[QuantumWebhookSecret] load", { wsId, data, error });
+    if (data) {
+      setIntegrationId(data.id);
+      const s = data.webhook_secret_encrypted || "";
+      setHasSecret(!!s);
+      setSecretLength(s.length);
+      setSecretPreview(s.length > 8 ? `${s.slice(0, 6)}…${s.slice(-4)}` : "");
+    } else {
+      setIntegrationId(null);
+      setHasSecret(false);
+      setSecretLength(0);
+      setSecretPreview("");
+    }
+    setLoading(false);
+  };
+
   useEffect(() => {
     if (!workspace?.id) return;
-    (async () => {
-      setLoading(true);
-      const { data } = await supabase
-        .from("gateway_integrations")
-        .select("id, webhook_secret_encrypted")
-        .eq("workspace_id", workspace.id)
-        .eq("provider", "quantumpay")
-        .maybeSingle();
-      if (data) {
-        setIntegrationId(data.id);
-        const s = data.webhook_secret_encrypted || "";
-        setHasSecret(!!s);
-        setSecretLength(s.length);
-        setSecretPreview(s.length > 8 ? `${s.slice(0, 6)}…${s.slice(-4)}` : "");
-      }
-      setLoading(false);
-    })();
+    loadStatus(workspace.id);
   }, [workspace?.id]);
 
   const save = async () => {
