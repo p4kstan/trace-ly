@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Copy, CheckCircle, Code, Terminal, Zap, Globe, Layers } from "lucide-react";
+import { Copy, CheckCircle, Code, Terminal, Zap, Globe, Layers, Database } from "lucide-react";
 import { GTMTab } from "@/components/setup/GTMTab";
+import { DataLayerTemplatesTab } from "@/components/setup/DataLayerTemplatesTab";
 
 function CodeBlock({ code, language = "html" }: { code: string; language?: string }) {
   const copyCode = () => {
@@ -235,6 +236,10 @@ const response = await fetch("${supabaseUrl}/functions/v1/track", {
             <Layers className="w-3.5 h-3.5 mr-1" />
             Google Tag Manager
           </TabsTrigger>
+          <TabsTrigger value="datalayer">
+            <Database className="w-3.5 h-3.5 mr-1" />
+            Data Layer
+          </TabsTrigger>
           <TabsTrigger value="events">Eventos</TabsTrigger>
           <TabsTrigger value="ecommerce">E-commerce</TabsTrigger>
           <TabsTrigger value="server">Server-Side</TabsTrigger>
@@ -265,6 +270,10 @@ const response = await fetch("${supabaseUrl}/functions/v1/track", {
 
         <TabsContent value="gtm" className="mt-4">
           <GTMTab publicKey={publicKey} supabaseUrl={supabaseUrl} sdkUrl={sdkUrl} />
+        </TabsContent>
+
+        <TabsContent value="datalayer" className="mt-4">
+          <DataLayerTemplatesTab />
         </TabsContent>
 
         <TabsContent value="events" className="mt-4">
