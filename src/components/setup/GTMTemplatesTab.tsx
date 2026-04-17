@@ -36,6 +36,10 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
   const [domain, setDomain] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Add-ons (apenas modo Dinâmico)
+  const [enablePiiCookies, setEnablePiiCookies] = useState(true);
+  const [enableWhatsAppClick, setEnableWhatsAppClick] = useState(false);
+  const [enableJsErrorTracking, setEnableJsErrorTracking] = useState(false);
 
   const saveDefaults = async () => {
     if (!workspace?.id) return;
