@@ -104,11 +104,11 @@ t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
 document,'script','https://connect.facebook.net/en_US/fbevents.js');
 fbq('init', '{{${opts.pixelVar}}}');
 fbq('track', '${opts.eventName}'${opts.withValue ? `, {
-  value: {{DLV - ecommerce.value}} || {{DLV - value}} || 0,
-  currency: {{DLV - ecommerce.currency}} || 'BRL',
-  content_ids: ((({{DLV - ecommerce.items}}||[]).map(function(i){return i.item_id})) || []),
-  contents: (({{DLV - ecommerce.items}}||[]).map(function(i){return {id: i.item_id, quantity: i.quantity, item_price: i.price}})),
-  num_items: (({{DLV - ecommerce.items}}||[]).length || 1)
+  value: {{[CT] DLV - ecommerce.value}} || {{[CT] DLV - value}} || 0,
+  currency: {{[CT] DLV - ecommerce.currency}} || 'BRL',
+  content_ids: ((({{[CT] DLV - ecommerce.items}}||[]).map(function(i){return i.item_id})) || []),
+  contents: (({{[CT] DLV - ecommerce.items}}||[]).map(function(i){return {id: i.item_id, quantity: i.quantity, item_price: i.price}})),
+  num_items: (({{[CT] DLV - ecommerce.items}}||[]).length || 1)
 }` : ""});
 </script>`;
 
@@ -163,9 +163,9 @@ function googleAdsConversionTag(state: BuildState, opts: {
     parameter: [
       { type: "TEMPLATE", key: "conversionId", value: `{{${opts.awVar}}}` },
       { type: "TEMPLATE", key: "conversionLabel", value: opts.conversionLabel || "ABCDEFGHIJK" },
-      { type: "TEMPLATE", key: "conversionValue", value: "{{DLV - ecommerce.value}}" },
-      { type: "TEMPLATE", key: "currencyCode", value: "{{DLV - ecommerce.currency}}" },
-      { type: "TEMPLATE", key: "orderId", value: "{{DLV - ecommerce.transaction_id}}" },
+      { type: "TEMPLATE", key: "conversionValue", value: "{{[CT] DLV - ecommerce.value}}" },
+      { type: "TEMPLATE", key: "currencyCode", value: "{{[CT] DLV - ecommerce.currency}}" },
+      { type: "TEMPLATE", key: "orderId", value: "{{[CT] DLV - ecommerce.transaction_id}}" },
       { type: "BOOLEAN", key: "enableConversionLinker", value: "true" },
     ],
     fingerprint: fp(),
