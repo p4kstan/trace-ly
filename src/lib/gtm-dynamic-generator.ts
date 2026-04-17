@@ -30,9 +30,14 @@ const CONTAINER_ID = "6000000";
 const INIT_TRIGGER_ID = "2147479553"; // Initialization - All Pages
 const ALL_PAGES_TRIGGER_ID = "2147479572"; // All Pages
 
+// Prefixo único — evita que o "Mesclar" do GTM exclua tags por conflito de
+// nome com containers pré-existentes (Hotmart/Yampi/etc).
+const PREFIX = "[CT]";
+
 let _idSeq = 100;
 const nextId = () => String(++_idSeq);
-const fp = () => String(Date.now());
+let _fpSeq = 0;
+const fp = () => String(Date.now() + (++_fpSeq));
 
 interface BuildState {
   tags: any[];
