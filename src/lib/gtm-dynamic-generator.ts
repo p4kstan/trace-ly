@@ -250,10 +250,12 @@ export function buildDynamicGtmContainer(cfg: DynamicGtmConfig): string {
   const profile = BUSINESS_PROFILES[cfg.businessType];
   const state: BuildState = { tags: [], triggers: [], variables: [] };
 
-  // Constant variables for IDs
-  const pixelVar = cfg.fbPixelId ? constVar(state, "0.01 Facebook Pixel", cfg.fbPixelId) : null;
-  const ga4Var = cfg.ga4MeasurementId ? constVar(state, "0.02 GA4 ID", cfg.ga4MeasurementId) : null;
-  const adsVar = cfg.googleAdsId ? constVar(state, "0.03 Google Ads ID", cfg.googleAdsId) : null;
+  // Constant variables for IDs — SEMPRE criadas (com placeholder se vazio).
+  // Assim o container sempre traz as tags Meta/GA4/Ads; o usuário só precisa
+  // editar a variável correspondente no GTM se não preencheu antes do download.
+  const pixelVar = constVar(state, "0.01 Facebook Pixel", cfg.fbPixelId || "SEU_PIXEL_ID_AQUI");
+  const ga4Var = constVar(state, "0.02 GA4 ID", cfg.ga4MeasurementId || "G-XXXXXXX");
+  const adsVar = constVar(state, "0.03 Google Ads ID", cfg.googleAdsId || "AW-XXXXXXXX");
 
   // DataLayer variables for ecommerce
   dlVar(state, "DLV - ecommerce", "ecommerce");
