@@ -74,14 +74,7 @@ export function QuantumWebhookSecret() {
     setHasSecret(true);
     setSecret("");
     toast.success("✅ Signing Secret salvo", { description: "Webhooks Quantum agora serão validados via HMAC-SHA256." });
-    // refresh id
-    const { data } = await supabase
-      .from("gateway_integrations")
-      .select("id")
-      .eq("workspace_id", workspace.id)
-      .eq("provider", "quantumpay")
-      .maybeSingle();
-    if (data) setIntegrationId(data.id);
+    await loadStatus(workspace.id);
   };
 
   return (
