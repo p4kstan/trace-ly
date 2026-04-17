@@ -47,6 +47,7 @@ const ConnectedAccounts = lazy(() => import("@/pages/ConnectedAccounts"));
 const GoogleAdsAccountDetail = lazy(() => import("@/pages/GoogleAdsAccountDetail"));
 const GoogleAdsCampaigns = lazy(() => import("@/pages/GoogleAdsCampaigns"));
 const GoogleAdsCampaignDetail = lazy(() => import("@/pages/GoogleAdsCampaignDetail"));
+const PromptGenerator = lazy(() => import("@/pages/PromptGenerator"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -81,6 +82,7 @@ function ProtectedRoutes() {
           <Route path="/tracking-sources" element={<TrackingSources />} />
           <Route path="/destinations" element={<Destinations />} />
           <Route path="/sdk-setup" element={<SDKSetup />} />
+          <Route path="/prompt-generator" element={<PromptGenerator />} />
           <Route path="/integration-logs" element={<IntegrationLogs />} />
           <Route path="/tracking-guide" element={<TrackingGuide />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
