@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, Sparkles, Server, Globe, FileJson, RefreshCw } from "lucide-react";
+import { Download, Sparkles, Server, Globe, FileJson, RefreshCw, Save } from "lucide-react";
 import { toast } from "sonner";
 import { GTM_TEMPLATES, GtmTemplateId, downloadGtmTemplate } from "@/lib/gtm-templates";
 
@@ -27,6 +27,54 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
   const [transportUrl, setTransportUrl] = useState("");
   const [domain, setDomain] = useState("");
   const [syncing, setSyncing] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const saveDefaults = async () => {
+    if (!workspace?.id) return;
+    setSaving(true);
+    try {
+      const { data: existing } = await supabase
+        .from("tracking_sources")
+        .select("id, settings_json")
+        .eq("workspace_id", workspace.id)
+        .limit(1)
+        .maybeSingle();
+
+      const newSettings = {
+        ...((existing?.settings_json as any) || {}),
+        ga4_measurement_id: ga4Id.trim() || undefined,
+        gtm_template_defaults: {
+          fb_pixel_id: fbPixelId.trim() || undefined,
+          fb_access_token: fbAccessToken.trim() || undefined,
+          ga4_measurement_id: ga4Id.trim() || undefined,
+          google_ads_id: adsId.trim() || undefined,
+          transport_url: transportUrl.trim() || undefined,
+          domain: domain.trim() || undefined,
+          template_id: templateId,
+          updated_at: new Date().toISOString(),
+        },
+      };
+
+      if (existing?.id) {
+        const updates: any = { settings_json: newSettings };
+        if (domain.trim()) updates.primary_domain = domain.trim();
+        await supabase.from("tracking_sources").update(updates).eq("id", existing.id);
+      } else {
+        await supabase.from("tracking_sources").insert({
+          workspace_id: workspace.id,
+          name: "Default",
+          type: "web",
+          primary_domain: domain.trim() || null,
+          settings_json: newSettings,
+        });
+      }
+      toast.success("Configurações salvas no workspace.");
+    } catch (e: any) {
+      toast.error("Erro ao salvar: " + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const sync = async (showToast = true) => {
     if (!workspace?.id) return;
@@ -57,6 +105,16 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
       const ga4 = src?.settings_json?.ga4_measurement_id || src?.settings_json?.ga4 || "";
       if (ga4) { setGa4Id((c) => c || ga4); filled.push("GA4"); }
       if (src?.primary_domain) { setDomain((c) => c || src.primary_domain); filled.push("Domínio"); }
+      // Saved template defaults override (user explicitly saved before)
+      const saved = src?.settings_json?.gtm_template_defaults;
+      if (saved) {
+        if (saved.fb_pixel_id) setFbPixelId((c) => c || saved.fb_pixel_id);
+        if (saved.fb_access_token) setFbAccessToken((c) => c || saved.fb_access_token);
+        if (saved.google_ads_id) setAdsId((c) => c || saved.google_ads_id);
+        if (saved.transport_url) setTransportUrl((c) => c || saved.transport_url);
+        if (saved.domain) setDomain((c) => c || saved.domain);
+        filled.push("Salvos");
+      }
       if (showToast) {
         if (filled.length) toast.success(`Sincronizado: ${filled.join(", ")}`);
         else toast.info("Nada para sincronizar. Cadastre Pixel/Ads/GA4 nas configurações.");
@@ -235,10 +293,16 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
             </div>
           </div>
 
-          <Button onClick={handleDownload} className="w-full" size="lg">
-            <Download className="w-4 h-4 mr-2" />
-            Baixar JSON ({meta.name})
-          </Button>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button onClick={saveDefaults} variant="outline" size="lg" disabled={saving}>
+              <Save className={`w-4 h-4 mr-2 ${saving ? "animate-pulse" : ""}`} />
+              {saving ? "Salvando..." : "Salvar configurações"}
+            </Button>
+            <Button onClick={handleDownload} size="lg">
+              <Download className="w-4 h-4 mr-2" />
+              Gerar e baixar JSON
+            </Button>
+          </div>
 
           <div className="rounded-lg bg-accent/10 border border-accent/30 p-3 text-xs text-muted-foreground space-y-1">
             <div className="flex items-center gap-1 font-medium text-foreground">
