@@ -136,6 +136,14 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
             <p className="text-xs text-muted-foreground">{meta.description}</p>
           </div>
 
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">Preencha manualmente ou sincronize do workspace.</p>
+            <Button variant="outline" size="sm" onClick={() => sync(true)} disabled={syncing}>
+              <RefreshCw className={`w-3.5 h-3.5 mr-1 ${syncing ? "animate-spin" : ""}`} />
+              Sincronizar
+            </Button>
+          </div>
+
           <div className="grid gap-3 md:grid-cols-2">
             {meta.variableMap.fbPixelId && (
               <div className="space-y-1">
