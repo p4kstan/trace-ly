@@ -2,12 +2,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
-import { Zap, Globe, Smartphone, Layers, Server, Shield, Sparkles } from "lucide-react";
+import { Zap, Globe, Smartphone, Layers, Server, Shield, Sparkles, ShoppingCart } from "lucide-react";
 import { CodeBlock } from "./CodeBlock";
 import { GTMWizard } from "./GTMWizard";
 import { GTMMobileTab } from "./GTMMobileTab";
 import { DataLayerAdvancedTab } from "./DataLayerAdvancedTab";
 import { GTMTemplatesTab } from "./GTMTemplatesTab";
+import { CheckoutSnippetsTab } from "./CheckoutSnippetsTab";
 
 interface GTMTabProps {
   publicKey: string;
@@ -77,8 +78,9 @@ data.gtmOnSuccess();`;
 </script>`;
 
   return (
-    <Tabs defaultValue="templates" className="w-full">
-      <TabsList className="grid w-full grid-cols-3 md:grid-cols-6">
+    <Tabs defaultValue="checkout" className="w-full">
+      <TabsList className="grid w-full grid-cols-3 md:grid-cols-7">
+        <TabsTrigger value="checkout"><ShoppingCart className="w-3.5 h-3.5 mr-1" /> Checkout</TabsTrigger>
         <TabsTrigger value="templates"><Sparkles className="w-3.5 h-3.5 mr-1" /> Templates</TabsTrigger>
         <TabsTrigger value="wizard"><Zap className="w-3.5 h-3.5 mr-1" /> Wizard</TabsTrigger>
         <TabsTrigger value="datalayer"><Layers className="w-3.5 h-3.5 mr-1" /> dataLayer</TabsTrigger>
@@ -86,6 +88,10 @@ data.gtmOnSuccess();`;
         <TabsTrigger value="server"><Server className="w-3.5 h-3.5 mr-1" /> sGTM</TabsTrigger>
         <TabsTrigger value="consent"><Shield className="w-3.5 h-3.5 mr-1" /> Consent</TabsTrigger>
       </TabsList>
+
+      <TabsContent value="checkout" className="mt-4">
+        <CheckoutSnippetsTab publicKey={publicKey} supabaseUrl={supabaseUrl} />
+      </TabsContent>
 
       <TabsContent value="templates" className="mt-4">
         <GTMTemplatesTab publicKey={publicKey} supabaseUrl={supabaseUrl} />
