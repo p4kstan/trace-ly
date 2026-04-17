@@ -94,9 +94,9 @@ export function generateGtmContainer(opts: GtmContainerOptions): string {
       builtInVariable: [
         { accountId, containerId, type: "PAGE_URL", name: "Page URL" },
         { accountId, containerId, type: "PAGE_PATH", name: "Page Path" },
+        { accountId, containerId, type: "PAGE_HOSTNAME", name: "Page Hostname" },
         { accountId, containerId, type: "REFERRER", name: "Referrer" },
         { accountId, containerId, type: "EVENT", name: "Event" },
-        { accountId, containerId, type: "CLIENT_NAME", name: "Client Name" },
       ],
       fingerprint: String(Date.now()),
       tagManagerUrl: `https://tagmanager.google.com/#/versions/accounts/${accountId}/containers/${containerId}/versions/0`,
