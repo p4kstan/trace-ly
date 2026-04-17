@@ -27,6 +27,54 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
   const [transportUrl, setTransportUrl] = useState("");
   const [domain, setDomain] = useState("");
   const [syncing, setSyncing] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const saveDefaults = async () => {
+    if (!workspace?.id) return;
+    setSaving(true);
+    try {
+      const { data: existing } = await supabase
+        .from("tracking_sources")
+        .select("id, settings_json")
+        .eq("workspace_id", workspace.id)
+        .limit(1)
+        .maybeSingle();
+
+      const newSettings = {
+        ...((existing?.settings_json as any) || {}),
+        ga4_measurement_id: ga4Id.trim() || undefined,
+        gtm_template_defaults: {
+          fb_pixel_id: fbPixelId.trim() || undefined,
+          fb_access_token: fbAccessToken.trim() || undefined,
+          ga4_measurement_id: ga4Id.trim() || undefined,
+          google_ads_id: adsId.trim() || undefined,
+          transport_url: transportUrl.trim() || undefined,
+          domain: domain.trim() || undefined,
+          template_id: templateId,
+          updated_at: new Date().toISOString(),
+        },
+      };
+
+      if (existing?.id) {
+        const updates: any = { settings_json: newSettings };
+        if (domain.trim()) updates.primary_domain = domain.trim();
+        await supabase.from("tracking_sources").update(updates).eq("id", existing.id);
+      } else {
+        await supabase.from("tracking_sources").insert({
+          workspace_id: workspace.id,
+          name: "Default",
+          source_type: "web",
+          primary_domain: domain.trim() || null,
+          settings_json: newSettings,
+        });
+      }
+      toast.success("Configurações salvas no workspace.");
+    } catch (e: any) {
+      toast.error("Erro ao salvar: " + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const sync = async (showToast = true) => {
     if (!workspace?.id) return;
