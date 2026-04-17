@@ -232,10 +232,41 @@ export function GTMWizard({ publicKey, supabaseUrl, sdkUrl }: Props) {
       {/* Endpoint manual (caso precise) */}
       <Card className="glass-card border-border/30">
         <CardHeader className="pb-2">
-          <CardTitle className="text-xs text-muted-foreground">Endpoint de validação (uso avançado)</CardTitle>
+          <CardTitle className="text-xs text-muted-foreground">
+            Endpoint de validação (uso avançado)
+          </CardTitle>
+          <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
+            Este endpoint é só para <b>diagnóstico</b> — ele <b>não vai no GTM nem no site</b>. Use para auditar via curl, Postman, n8n ou monitoramento externo.
+            ⚠️ Contém sua API key pública — não compartilhe.
+          </p>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-2">
           <CodeBlock code={validateUrl} />
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" asChild>
+              <a href={validateUrl} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="w-3.5 h-3.5 mr-1" /> Abrir no navegador
+              </a>
+            </Button>
+            <Button size="sm" variant="outline" onClick={runValidation} disabled={validating}>
+              {validating ? (
+                <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+              ) : (
+                <Zap className="w-3.5 h-3.5 mr-1" />
+              )}
+              Testar agora
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                navigator.clipboard.writeText(`curl "${validateUrl}"`);
+                toast.success("Comando curl copiado!");
+              }}
+            >
+              Copiar como curl
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
