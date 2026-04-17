@@ -109,11 +109,11 @@ t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
 document,'script','https://connect.facebook.net/en_US/fbevents.js');
 fbq('init', '{{${opts.pixelVar}}}');
 fbq('track', '${opts.eventName}'${opts.withValue ? `, {
-  value: {{[CT] DLV - ecommerce.value}} || {{[CT] DLV - value}} || 0,
-  currency: {{[CT] DLV - ecommerce.currency}} || 'BRL',
-  content_ids: ((({{[CT] DLV - ecommerce.items}}||[]).map(function(i){return i.item_id})) || []),
-  contents: (({{[CT] DLV - ecommerce.items}}||[]).map(function(i){return {id: i.item_id, quantity: i.quantity, item_price: i.price}})),
-  num_items: (({{[CT] DLV - ecommerce.items}}||[]).length || 1)
+  value: {{CT - DLV - ecommerce.value}} || {{CT - DLV - value}} || 0,
+  currency: {{CT - DLV - ecommerce.currency}} || 'BRL',
+  content_ids: ((({{CT - DLV - ecommerce.items}}||[]).map(function(i){return i.item_id})) || []),
+  contents: (({{CT - DLV - ecommerce.items}}||[]).map(function(i){return {id: i.item_id, quantity: i.quantity, item_price: i.price}})),
+  num_items: (({{CT - DLV - ecommerce.items}}||[]).length || 1)
 }` : ""});
 </script>`;
 
@@ -153,10 +153,10 @@ function ga4EventTag(state: BuildState, opts: {
   }
   gtag('event', '${opts.eventName}', {
     send_to: id,
-    value: {{[CT] DLV - ecommerce.value}} || {{[CT] DLV - value}} || undefined,
-    currency: {{[CT] DLV - ecommerce.currency}} || undefined,
-    transaction_id: {{[CT] DLV - ecommerce.transaction_id}} || undefined,
-    items: {{[CT] DLV - ecommerce.items}} || undefined
+    value: {{CT - DLV - ecommerce.value}} || {{CT - DLV - value}} || undefined,
+    currency: {{CT - DLV - ecommerce.currency}} || undefined,
+    transaction_id: {{CT - DLV - ecommerce.transaction_id}} || undefined,
+    items: {{CT - DLV - ecommerce.items}} || undefined
   });
 })();
 </script>`;
@@ -196,9 +196,9 @@ function googleAdsConversionTag(state: BuildState, opts: {
   }
   gtag('event', 'conversion', {
     send_to: awid + '/' + label,
-    value: {{[CT] DLV - ecommerce.value}} || 0,
-    currency: {{[CT] DLV - ecommerce.currency}} || 'BRL',
-    transaction_id: {{[CT] DLV - ecommerce.transaction_id}} || ''
+    value: {{CT - DLV - ecommerce.value}} || 0,
+    currency: {{CT - DLV - ecommerce.currency}} || 'BRL',
+    transaction_id: {{CT - DLV - ecommerce.transaction_id}} || ''
   });
 })();
 </script>`;
