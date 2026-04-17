@@ -2,6 +2,7 @@ import { useState } from "react";
 import { CheckCircle, XCircle, Clock, ArrowRight, Inbox } from "lucide-react";
 import { useWorkspace, useEventDeliveries } from "@/hooks/use-tracking-data";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LoopDetectionPanel } from "@/components/debugger/LoopDetectionPanel";
 import type { Json } from "@/integrations/supabase/types";
 
 export default function Debugger() {
@@ -35,6 +36,8 @@ export default function Debugger() {
         <h1 className="text-2xl font-bold text-foreground">Depurador de Eventos</h1>
         <p className="text-muted-foreground text-sm mt-1">Inspecione payloads de eventos e respostas da API</p>
       </div>
+
+      <LoopDetectionPanel />
 
       {!deliveries?.length ? (
         <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">

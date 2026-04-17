@@ -101,13 +101,16 @@ function metaPixelTag(state: BuildState, opts: {
     `id: '{{${opts.pixelVar}}}'`,
     `event: '${opts.eventName}'`,
   ];
+  // NÃO injeta fbevents.js aqui — isso é responsabilidade exclusiva do
+  // tag "CT - 000 - 🔵 Meta Pixel - Bootstrap" (ONCE_PER_LOAD). Se chamarmos
+  // o loader em cada tag de evento, criamos cascata de <script> no DOM
+  // quando o cliente tem GTM com Custom HTML recursiva (loop infinito).
   const html = `<script>
-!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
-n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
-t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
-document,'script','https://connect.facebook.net/en_US/fbevents.js');
-fbq('init', '{{${opts.pixelVar}}}');
+(function(){
+  if (typeof window.fbq !== 'function') {
+    // Bootstrap não rodou ainda (race) — empilha no fbq.queue se existir.
+    window.fbq = window.fbq || function(){(window.fbq.queue=window.fbq.queue||[]).push(arguments);};
+  }
 fbq('track', '${opts.eventName}'${opts.withValue ? `, {
   value: {{CT - DLV - ecommerce.value}} || {{CT - DLV - value}} || 0,
   currency: {{CT - DLV - ecommerce.currency}} || 'BRL',
@@ -115,6 +118,7 @@ fbq('track', '${opts.eventName}'${opts.withValue ? `, {
   contents: (({{CT - DLV - ecommerce.items}}||[]).map(function(i){return {id: i.item_id, quantity: i.quantity, item_price: i.price}})),
   num_items: (({{CT - DLV - ecommerce.items}}||[]).length || 1)
 }` : ""});
+})();
 </script>`;
 
   state.tags.push({
@@ -233,6 +237,37 @@ ${configCalls}
   state.tags.push({
     accountId: ACCOUNT_ID, containerId: CONTAINER_ID, tagId: nextId(),
     name: `${PREFIX} 000 - 🟠 Google Tag - Bootstrap`,
+    type: "html",
+    parameter: [
+      { type: "TEMPLATE", key: "html", value: html },
+      { type: "BOOLEAN", key: "supportDocumentWrite", value: "false" },
+    ],
+    fingerprint: fp(),
+    firingTriggerId: [opts.triggerId],
+    tagFiringOption: "ONCE_PER_LOAD",
+    monitoringMetadata: { type: "MAP" },
+    consentSettings: { consentStatus: "NOT_SET" },
+  });
+}
+
+function metaPixelBootstrapTag(state: BuildState, opts: {
+  pixelVar: string; triggerId: string;
+}) {
+  const html = `<script>
+(function(){
+  if (window.__ct_meta_pixel_bootstrapped) return;
+  window.__ct_meta_pixel_bootstrapped = true;
+  !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+  n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+  n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+  t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
+  document,'script','https://connect.facebook.net/en_US/fbevents.js');
+  fbq('init', '{{${opts.pixelVar}}}');
+})();
+</script>`;
+  state.tags.push({
+    accountId: ACCOUNT_ID, containerId: CONTAINER_ID, tagId: nextId(),
+    name: `${PREFIX} 000 - 🔵 Meta Pixel - Bootstrap`,
     type: "html",
     parameter: [
       { type: "TEMPLATE", key: "html", value: html },
@@ -516,7 +551,14 @@ export function buildDynamicGtmContainer(cfg: DynamicGtmConfig): string {
 
   // CapiTrack bridge — every dataLayer push goes to CapiTrack endpoint
   capitrackBridgeTagWithTrig(state, cfg.publicKey, cfg.capitrackEndpoint, initTrigId);
+  // Bootstraps de bibliotecas externas (gtag.js, fbevents.js) — ÚNICO LUGAR
+  // autorizado a injetar <script> de provedores. Tags de evento NÃO podem
+  // mais carregar libs (evita loop de injeção quando GTM tem Custom HTML
+  // recursiva no container do cliente).
   googleTagBootstrapTag(state, { ga4Var, awVar: adsVar, triggerId: initTrigId });
+  if (pixelVar) {
+    metaPixelBootstrapTag(state, { pixelVar, triggerId: initTrigId });
+  }
 
   // PII Cookies (Advanced Matching) — opcional
   if (cfg.enablePiiCookies) {
@@ -575,6 +617,23 @@ export function buildDynamicGtmContainer(cfg: DynamicGtmConfig): string {
   }
 
   const container = {
+    // ⚠️ CapiTrack Dynamic GTM Container ⚠️
+    // -----------------------------------------------------------------
+    // REGRAS CRÍTICAS deste container (não quebrar ao editar manualmente):
+    //
+    //   1. Bibliotecas externas (gtag.js, fbevents.js) são carregadas
+    //      EXCLUSIVAMENTE pelas tags "000 - Bootstrap" (ONCE_PER_LOAD,
+    //      com guard window.__ct_*_bootstrapped).
+    //   2. Tags de evento (Meta/GA4/Ads) JAMAIS devem chamar
+    //      document.createElement("script") apontando para
+    //      googletagmanager.com ou connect.facebook.net.
+    //   3. Tags de evento apenas chamam fbq('track', ...) ou
+    //      gtag('event', ...) assumindo que a lib já está carregada.
+    //
+    // Se essas regras forem violadas, GTM Custom HTML pode entrar em
+    // loop infinito (createElement → gtag → dataLayer.push → re-trigger
+    // → createElement) e travar a página do cliente.
+    // -----------------------------------------------------------------
     exportFormatVersion: 2,
     exportTime: new Date().toISOString(),
     containerVersion: {
