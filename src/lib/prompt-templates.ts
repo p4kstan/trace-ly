@@ -318,7 +318,10 @@ pushDataLayer("${e.ga4}", {
   items: [/* toGa4Item(produto, qtd) */],
 });`).join("\n\n");
 
-  return `Aplique as correções de tracking abaixo, NA ORDEM, sem quebrar o que já funciona. Estratégia: ADITIVA (nunca remover chamadas existentes).
+  return `${aiPreamble(cfg.targetAI)}
+
+Aplique as correções de tracking abaixo, NA ORDEM, sem quebrar o que já funciona. Estratégia: ADITIVA (nunca remover chamadas existentes).
+${detectionBlock(cfg)}
 
 ═══════════════════════════════════════════════
 CONTEXTO
