@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useWorkspace } from "@/hooks/use-tracking-data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, Sparkles, Server, Globe, FileJson } from "lucide-react";
+import { Download, Sparkles, Server, Globe, FileJson, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { GTM_TEMPLATES, GtmTemplateId, downloadGtmTemplate } from "@/lib/gtm-templates";
 
@@ -27,47 +26,50 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
   const [adsId, setAdsId] = useState("");
   const [transportUrl, setTransportUrl] = useState("");
   const [domain, setDomain] = useState("");
+  const [syncing, setSyncing] = useState(false);
 
-  // Pull defaults from workspace
-  const { data: pixels = [] } = useQuery({
-    queryKey: ["meta-pixels-tpl", workspace?.id],
-    enabled: !!workspace?.id,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("meta_pixels")
-        .select("pixel_id, access_token")
-        .eq("workspace_id", workspace!.id)
-        .limit(1);
-      return data || [];
-    },
-  });
-
-  const { data: adsAccounts = [] } = useQuery({
-    queryKey: ["ads-tpl", workspace?.id],
-    enabled: !!workspace?.id,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("google_ads_accounts" as any)
-        .select("customer_id")
-        .eq("workspace_id", workspace!.id)
-        .limit(1);
-      return (data as any[]) || [];
-    },
-  });
-
-  useEffect(() => {
-    if (pixels[0]) {
-      setFbPixelId((cur) => cur || (pixels[0] as any).pixel_id || "");
-      setFbAccessToken((cur) => cur || (pixels[0] as any).access_token || "");
+  const sync = async (showToast = true) => {
+    if (!workspace?.id) return;
+    setSyncing(true);
+    try {
+      const [pixelsRes, adsRes, srcRes] = await Promise.all([
+        supabase.from("meta_pixels")
+          .select("pixel_id, access_token_encrypted")
+          .eq("workspace_id", workspace.id).eq("is_active", true).limit(1),
+        supabase.from("google_ads_credentials")
+          .select("customer_id")
+          .eq("workspace_id", workspace.id)
+          .order("is_default", { ascending: false }).limit(1),
+        supabase.from("tracking_sources")
+          .select("primary_domain, settings_json")
+          .eq("workspace_id", workspace.id).limit(1),
+      ]);
+      const filled: string[] = [];
+      const px: any = pixelsRes.data?.[0];
+      if (px?.pixel_id) { setFbPixelId((c) => c || px.pixel_id); filled.push("Pixel"); }
+      if (px?.access_token_encrypted) { setFbAccessToken((c) => c || px.access_token_encrypted); filled.push("Token"); }
+      const ads: any = adsRes.data?.[0];
+      if (ads?.customer_id) {
+        const cid = String(ads.customer_id).replace(/[^0-9]/g, "");
+        setAdsId((c) => c || `AW-${cid}`); filled.push("Google Ads");
+      }
+      const src: any = srcRes.data?.[0];
+      const ga4 = src?.settings_json?.ga4_measurement_id || src?.settings_json?.ga4 || "";
+      if (ga4) { setGa4Id((c) => c || ga4); filled.push("GA4"); }
+      if (src?.primary_domain) { setDomain((c) => c || src.primary_domain); filled.push("Domínio"); }
+      if (showToast) {
+        if (filled.length) toast.success(`Sincronizado: ${filled.join(", ")}`);
+        else toast.info("Nada para sincronizar. Cadastre Pixel/Ads/GA4 nas configurações.");
+      }
+    } catch (e: any) {
+      toast.error("Erro ao sincronizar: " + e.message);
+    } finally {
+      setSyncing(false);
     }
-  }, [pixels]);
+  };
 
-  useEffect(() => {
-    if (adsAccounts[0]) {
-      const cid = (adsAccounts[0] as any).customer_id;
-      if (cid) setAdsId((cur) => cur || `AW-${String(cid).replace(/[^0-9]/g, "")}`);
-    }
-  }, [adsAccounts]);
+  // auto-sync once on workspace load
+  useEffect(() => { if (workspace?.id) sync(false); /* eslint-disable-next-line */ }, [workspace?.id]);
 
   const meta = GTM_TEMPLATES[templateId].meta;
 
@@ -132,6 +134,14 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">{meta.description}</p>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">Preencha manualmente ou sincronize do workspace.</p>
+            <Button variant="outline" size="sm" onClick={() => sync(true)} disabled={syncing}>
+              <RefreshCw className={`w-3.5 h-3.5 mr-1 ${syncing ? "animate-spin" : ""}`} />
+              Sincronizar
+            </Button>
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">
