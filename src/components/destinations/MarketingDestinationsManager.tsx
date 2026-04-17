@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Facebook, BarChart2, Trash2, Plus, CheckCircle2, AlertCircle, Target } from "lucide-react";
+import { Megaphone, BarChart2, Trash2, Plus, CheckCircle2, AlertCircle, Target } from "lucide-react";
 
 interface Props {
   workspaceId: string;
@@ -138,7 +138,7 @@ export function MarketingDestinationsManager({ workspaceId }: Props) {
         {pixels.map(p => (
           <DestinationRow
             key={p.id}
-            icon={<Facebook className="w-4 h-4 text-[#1877F2]" />}
+            icon={<Megaphone className="w-4 h-4 text-primary" />}
             label="Meta CAPI"
             id={p.pixel_id}
             name={p.name}
@@ -152,7 +152,7 @@ export function MarketingDestinationsManager({ workspaceId }: Props) {
         {ga4.map(d => (
           <DestinationRow
             key={d.id}
-            icon={<BarChart2 className="w-4 h-4 text-[#F9AB00]" />}
+            icon={<BarChart2 className="w-4 h-4 text-primary" />}
             label="GA4"
             id={d.destination_id}
             name={d.display_name}
@@ -166,7 +166,7 @@ export function MarketingDestinationsManager({ workspaceId }: Props) {
         {googleAds.map(d => (
           <DestinationRow
             key={d.id}
-            icon={<Target className="w-4 h-4 text-[#4285F4]" />}
+            icon={<Target className="w-4 h-4 text-primary" />}
             label="Google Ads"
             id={d.destination_id}
             name={d.display_name}
@@ -241,7 +241,7 @@ function AddDestinationDialog({
 
       <Tabs defaultValue="meta">
         <TabsList className="grid grid-cols-2 w-full">
-          <TabsTrigger value="meta"><Facebook className="w-3.5 h-3.5 mr-1.5" />Meta Pixel</TabsTrigger>
+          <TabsTrigger value="meta"><Megaphone className="w-3.5 h-3.5 mr-1.5" />Meta Pixel</TabsTrigger>
           <TabsTrigger value="ga4"><BarChart2 className="w-3.5 h-3.5 mr-1.5" />GA4</TabsTrigger>
         </TabsList>
 
