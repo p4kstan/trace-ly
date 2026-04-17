@@ -92,6 +92,15 @@ export function QuantumWebhookSecret() {
               <AlertCircle className="w-3 h-3 mr-1" /> Não configurado
             </Badge>
           ))}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto h-6 px-2 text-[10px]"
+            onClick={() => workspace?.id && loadStatus(workspace.id)}
+            disabled={loading}
+          >
+            {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Recarregar"}
+          </Button>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
