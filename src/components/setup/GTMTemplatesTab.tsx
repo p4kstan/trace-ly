@@ -257,6 +257,20 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
                   </SelectItem>
                 ))}
                 <div className="px-2 py-1 mt-2 text-[10px] uppercase text-muted-foreground font-semibold border-t border-border/30">
+                  🖥️ Dinâmico Server (sGTM — estilo Kiwify)
+                </div>
+                {Object.values(BUSINESS_PROFILES).map((p) => (
+                  <SelectItem key={`dynamic-server:${p.id}`} value={`dynamic-server:${p.id}`}>
+                    <div className="flex items-center gap-2">
+                      <Server className="w-3.5 h-3.5 text-accent" />
+                      Server — {p.label}
+                      <Badge variant="outline" className="text-[10px]">
+                        sGTM
+                      </Badge>
+                    </div>
+                  </SelectItem>
+                ))}
+                <div className="px-2 py-1 mt-2 text-[10px] uppercase text-muted-foreground font-semibold border-t border-border/30">
                   📦 Templates fixos (plataformas específicas)
                 </div>
                 {Object.values(GTM_TEMPLATES).map((t) => (
