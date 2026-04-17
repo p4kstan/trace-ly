@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Megaphone, BarChart2, Trash2, Plus, CheckCircle2, AlertCircle, Target } from "lucide-react";
+import { Megaphone, BarChart2, Trash2, Plus, CheckCircle2, AlertCircle, Target, RefreshCw } from "lucide-react";
 
 interface Props {
   workspaceId: string;
