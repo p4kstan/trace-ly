@@ -1,1 +1,7 @@
 project_id = "xpgsipmyrwyjerjvbhmb"
+
+[functions.gtm-server-events]
+verify_jwt = false
+
+[functions.tracking-validate]
+verify_jwt = false
