@@ -63,7 +63,7 @@ export function GTMTemplatesTab({ publicKey, supabaseUrl }: Props) {
         await supabase.from("tracking_sources").insert({
           workspace_id: workspace.id,
           name: "Default",
-          source_type: "web",
+          type: "web",
           primary_domain: domain.trim() || null,
           settings_json: newSettings,
         });
