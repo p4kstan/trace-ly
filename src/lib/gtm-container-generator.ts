@@ -10,8 +10,11 @@ export interface GtmContainerOptions {
 }
 
 export function generateGtmContainer(opts: GtmContainerOptions): string {
-  const containerId = opts.containerId || "GTM-XXXXXX";
-  const accountId = opts.accountId || "0000000";
+  // GTM importer requires numeric IDs internally — use neutral numerics
+  // The user's actual container/account is determined by the workspace they import INTO (Mesclar/Substituir)
+  const containerId = opts.containerId || "1";
+  const accountId = opts.accountId || "1";
+  const publicId = "GTM-CAPITRACK"; // display only
   const now = new Date().toISOString();
 
   const html = `<script>
