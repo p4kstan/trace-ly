@@ -25,10 +25,14 @@ export interface DynamicGtmConfig {
   enableJsErrorTracking?: boolean;
 }
 
-const ACCOUNT_ID = "6000000";
-const CONTAINER_ID = "6000000";
+// IDs reais de uma conta GTM válida (formato aceito pelo importador).
+// Quando o usuário faz "Importar → Mesclar", o GTM reescreve estes IDs
+// automaticamente para o container destino — só precisam ser numéricos válidos.
+const ACCOUNT_ID = "6004299956";
+const CONTAINER_ID = "176842810";
+// IDs built-in do GTM (mesmos em qualquer conta — são reservados pelo sistema).
 const INIT_TRIGGER_ID = "2147479553"; // Initialization - All Pages
-const ALL_PAGES_TRIGGER_ID = "2147479572"; // All Pages
+const ALL_PAGES_TRIGGER_ID = "2147479553"; // usaremos um trigger custom "All Pages" criado abaixo
 
 // Prefixo único — evita que o "Mesclar" do GTM exclua tags por conflito de
 // nome com containers pré-existentes (Hotmart/Yampi/etc).
