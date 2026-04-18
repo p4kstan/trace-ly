@@ -1,24 +1,26 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useWorkspace } from "@/hooks/use-tracking-data";
+import { useGoogleAdsReport, type GoogleAdsPeriod } from "@/hooks/api/use-google-ads-report";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ArrowLeft, Loader2, RefreshCw, Pause, Play, DollarSign, MousePointerClick, BarChart3, Target, TrendingUp, AlertCircle, Edit3, HelpCircle } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { ArrowLeft, Loader2, Pause, Play, DollarSign, MousePointerClick, BarChart3, Target, TrendingUp, AlertCircle, Edit3 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend,
 } from "recharts";
+import { CampaignStatusBadge as StatusBadge } from "@/components/dashboard/CampaignStatusBadge";
+import { CampaignMetricCard as MetricCard } from "@/components/dashboard/CampaignMetricCard";
+import { CampaignDataTable as SimpleTable } from "@/components/dashboard/CampaignDataTable";
 
-type Period = "7d" | "14d" | "30d" | "90d";
+type Period = GoogleAdsPeriod;
 
 const PERIOD_LABELS: Record<Period, string> = {
   "7d": "Últimos 7 dias", "14d": "Últimos 14 dias", "30d": "Últimos 30 dias", "90d": "Últimos 90 dias",
@@ -29,51 +31,14 @@ const fmtMoney = (n: number) => n.toLocaleString("pt-BR", { style: "currency", c
 const fmtPct = (n: number) => `${(n * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
 const fmtFloat = (n: number, d = 2) => n.toLocaleString("pt-BR", { maximumFractionDigits: d });
 
-function StatusBadge({ status }: { status?: string | null }) {
-  if (!status) return null;
-  const cls = status === "ENABLED"
-    ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/10"
-    : status === "PAUSED"
-    ? "border-amber-500/30 text-amber-400 bg-amber-500/10"
-    : "border-rose-500/30 text-rose-400 bg-rose-500/10";
-  const label = status === "ENABLED" ? "Ativada" : status === "PAUSED" ? "Pausada" : "Removida";
-  return <Badge variant="outline" className={cn("text-[10px]", cls)}>{label}</Badge>;
-}
-
-function MetricCard({ icon: Icon, label, value, hint }: { icon: any; label: string; value: string; hint?: string }) {
-  return (
-    <Card className="glass-card">
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold">{label}</p>
-          <Icon className="w-3.5 h-3.5 text-primary/70" />
-        </div>
-        <p className="text-xl font-bold tabular-nums text-foreground mt-2">{value}</p>
-        {hint && <p className="text-[10px] text-muted-foreground/60 mt-0.5">{hint}</p>}
-      </CardContent>
-    </Card>
-  );
-}
-
-function useReport(workspaceId: string | undefined, customerId: string, level: string, period: Period, campaignId?: string, parentId?: string) {
-  return useQuery({
-    queryKey: ["gads-detail", workspaceId, customerId, level, period, campaignId, parentId],
-    enabled: !!workspaceId && !!customerId && !!campaignId,
-    queryFn: async () => {
-      const body: any = { workspace_id: workspaceId, customer_id: customerId, level, period };
-      if (campaignId) body.campaign_id = campaignId;
-      if (parentId) body.parent_id = parentId;
-      const { data, error } = await supabase.functions.invoke("google-ads-reports", { body });
-      if (error) {
-        let info: any = null;
-        try { info = await (error as any)?.context?.json?.(); } catch { /* ignore */ }
-        throw new Error(info?.error || error.message);
-      }
-      return data as { ok: true; rows: any[]; totals: any; count: number };
-    },
-    staleTime: 60_000,
-  });
-}
+const useReport = (
+  workspaceId: string | undefined,
+  customerId: string,
+  level: string,
+  period: Period,
+  campaignId?: string,
+  parentId?: string
+) => useGoogleAdsReport({ workspaceId, customerId, level, period, campaignId, parentId });
 
 export default function GoogleAdsCampaignDetail() {
   const { customerId = "", campaignId = "" } = useParams();
