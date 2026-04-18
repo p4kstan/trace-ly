@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Copy, CheckCircle, Code, Terminal, Zap, Globe, Layers, Database, BarChart3 } from "lucide-react";
 import { GTMTab } from "@/components/setup/GTMTab";
 import { DataLayerTemplatesTab } from "@/components/setup/DataLayerTemplatesTab";
+import { GA4ClientSnippets } from "@/components/setup/GA4ClientSnippets";
 
 const GA4_PURCHASE_DATALAYER = `<!-- GA4 Purchase via dataLayer (GTM) -->
 <script>
@@ -355,25 +356,10 @@ const response = await fetch("${supabaseUrl}/functions/v1/track", {
 
           <Card className="glass-card">
             <CardHeader>
-              <CardTitle className="text-base">Snippet client-side — DataLayer (GTM)</CardTitle>
+              <CardTitle className="text-base">Snippets client-side (backup / redundância)</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Cole na página de confirmação do pedido. Funciona com qualquer container GTM que tenha tag GA4 Purchase configurada.
-              </p>
-              <CodeBlock code={GA4_PURCHASE_DATALAYER} />
-            </CardContent>
-          </Card>
-
-          <Card className="glass-card">
-            <CardHeader>
-              <CardTitle className="text-base">Snippet client-side — gtag.js direto</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Use se o seu site não tem GTM. Inclui o gtag.js do GA4 e dispara o evento purchase.
-              </p>
-              <CodeBlock code={GA4_PURCHASE_GTAG} />
+            <CardContent>
+              <GA4ClientSnippets measurementId="G-GV6CZC4FZW" />
             </CardContent>
           </Card>
         </TabsContent>

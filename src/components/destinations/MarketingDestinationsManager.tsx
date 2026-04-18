@@ -10,7 +10,8 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Megaphone, BarChart2, Trash2, Plus, CheckCircle2, AlertCircle, Target, RefreshCw, Pencil, Eye, EyeOff } from "lucide-react";
+import { Megaphone, BarChart2, Trash2, Plus, CheckCircle2, AlertCircle, Target, RefreshCw, Pencil, Eye, EyeOff, Code2 } from "lucide-react";
+import { GA4ClientSnippets } from "@/components/setup/GA4ClientSnippets";
 
 interface Props {
   workspaceId: string;
@@ -163,7 +164,12 @@ export function MarketingDestinationsManager({ workspaceId }: Props) {
             extra={d.events_sent_count > 0 ? `${d.events_sent_count} eventos` : undefined}
             onToggle={v => toggleDest.mutate({ id: d.id, is_active: v })}
             onRemove={() => removeDest.mutate(d.id)}
-            editor={<EditGA4Dialog dest={d} onSaved={() => qc.invalidateQueries({ queryKey: ["integration-destinations", workspaceId] })} />}
+            editor={
+              <div className="flex items-center gap-1">
+                <GA4SnippetsDialog measurementId={d.destination_id} />
+                <EditGA4Dialog dest={d} onSaved={() => qc.invalidateQueries({ queryKey: ["integration-destinations", workspaceId] })} />
+              </div>
+            }
           />
         ))}
 
