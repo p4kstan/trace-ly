@@ -171,7 +171,11 @@ export function AppSidebar() {
         <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
         <SidebarNavGroup items={campaignsItems} label="Campanhas" collapsed={collapsed} />
         <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
-        <SidebarNavGroup items={setupItems} label="Setup & Instalação" collapsed={collapsed} />
+        <SidebarNavGroup items={connectionsItems} label="Conexões" collapsed={collapsed} />
+        <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
+        <SidebarNavGroup items={installationItems} label="Instalação" collapsed={collapsed} />
+        <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
+        <SidebarNavGroup items={helpItems} label="Ajuda & Guias" collapsed={collapsed} />
         <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
         <SidebarNavGroup items={operationItems} label="Operação" collapsed={collapsed} />
         <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
