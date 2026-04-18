@@ -36,6 +36,7 @@ const campaignsItems = [
   { title: "Google Ads", url: "/google-ads-campaigns", icon: BarChart3 },
   { title: "Facebook Ads", url: "/facebook-ads-campaigns", icon: Megaphone },
   { title: "TikTok Ads", url: "/tiktok-ads-campaigns", icon: Music2 },
+  { title: "GA4 Analytics", url: "/ga4-analytics", icon: BarChart3 },
 ];
 
 // 4. SETUP & INSTALAÇÃO — tudo que é configuração inicial
