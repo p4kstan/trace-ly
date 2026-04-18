@@ -156,7 +156,7 @@ export default function Credentials() {
           <TabsTrigger value="all">Todas</TabsTrigger>
           <TabsTrigger value="capitrack"><KeyRound className="w-3.5 h-3.5 mr-1" />CapiTrack</TabsTrigger>
           <TabsTrigger value="google"><Search className="w-3.5 h-3.5 mr-1" />Google</TabsTrigger>
-          <TabsTrigger value="meta"><Facebook className="w-3.5 h-3.5 mr-1" />Meta</TabsTrigger>
+          <TabsTrigger value="meta"><Share2 className="w-3.5 h-3.5 mr-1" />Meta</TabsTrigger>
           <TabsTrigger value="tiktok"><Music2 className="w-3.5 h-3.5 mr-1" />TikTok</TabsTrigger>
           <TabsTrigger value="gateways"><ServerCog className="w-3.5 h-3.5 mr-1" />Gateways</TabsTrigger>
         </TabsList>
@@ -287,7 +287,7 @@ function MetaSection({ metaPixels, metaAccounts }: { metaPixels: any[]; metaAcco
 
       {metaPixels.length === 0 && metaAccounts.length === 0 && (
         <PlatformCard
-          icon={Facebook} title="Meta CAPI" color="hsl(214 89% 52%)" status="off"
+          icon={Share2} title="Meta CAPI" color="hsl(214 89% 52%)" status="off"
           manageHref="/setup-facebook" manageLabel="Conectar"
         >
           <p className="text-sm text-muted-foreground">Nenhum pixel ou conta de anúncios configurada.</p>
@@ -297,7 +297,7 @@ function MetaSection({ metaPixels, metaAccounts }: { metaPixels: any[]; metaAcco
       {metaPixels.map(p => (
         <PlatformCard
           key={p.id}
-          icon={Facebook}
+          icon={Share2}
           title={`Pixel — ${p.name}`}
           color="hsl(214 89% 52%)"
           status={p.is_active ? "ok" : "off"}
@@ -313,7 +313,7 @@ function MetaSection({ metaPixels, metaAccounts }: { metaPixels: any[]; metaAcco
       {metaAccounts.map(a => (
         <PlatformCard
           key={a.id}
-          icon={Facebook}
+          icon={Share2}
           title={`Ad Account ${a.account_label ? `— ${a.account_label}` : ""}`}
           color="hsl(214 89% 52%)"
           status={a.status === "connected" ? "ok" : "off"}
