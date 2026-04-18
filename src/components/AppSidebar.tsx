@@ -82,6 +82,7 @@ const logsItems = [
 
 // 7. CONTA — tudo que é "minha conta"
 const accountItems = [
+  { title: "Credenciais & APIs", url: "/credentials", icon: Shield },
   { title: "Chaves API", url: "/api-keys", icon: Key },
   { title: "Uso", url: "/usage", icon: Gauge },
   { title: "Planos", url: "/plans", icon: CreditCard },
