@@ -652,10 +652,19 @@ function SimpleTable({ loading, rows, columns, labels }: { loading: boolean; row
   const formatCell = (col: string, val: any) => {
     if (val == null || val === "") return "—";
     if (col === "ctr" || col === "conv_rate") return fmtPct(Number(val));
-    if (col === "cost" || col === "cpc" || col === "cpa") return fmtMoney(Number(val));
+    if (col === "cost" || col === "cpc" || col === "cpa" || col === "default_value") return fmtMoney(Number(val));
     if (col === "conversions" || col === "roas") return fmtFloat(Number(val));
     if (col === "impressions" || col === "clicks") return fmtNumber(Number(val));
     if (col === "status") return <StatusBadge status={String(val)} />;
+    if (col === "bid_modifier") {
+      const v = Number(val);
+      const pct = (v - 1) * 100;
+      const cls = pct > 0 ? "text-emerald-400" : pct < 0 ? "text-rose-400" : "text-muted-foreground";
+      return <span className={cn("font-bold tabular-nums", cls)}>{pct > 0 ? "+" : ""}{pct.toFixed(0)}%</span>;
+    }
+    if (col === "negative" || col === "primary") {
+      return val ? <Badge variant="outline" className="text-[10px]">Sim</Badge> : <span className="text-muted-foreground">Não</span>;
+    }
     if (col === "quality_score" && val) {
       const v = Number(val);
       const cls = v >= 7 ? "text-emerald-400" : v >= 4 ? "text-amber-400" : "text-rose-400";
