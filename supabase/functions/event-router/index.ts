@@ -199,6 +199,8 @@ Deno.serve(async (req) => {
       getRoutingRules(workspace_id, event.event_name),
     ]);
 
+    console.log(`[event-router] event=${event.event_name} dests=${destinations.length} providers=${destinations.map((d:any)=>d.provider).join(",")}`);
+
     if (destinations.length === 0) {
       // Update event status
       await supabase.from("events").update({ processing_status: "no_destinations" }).eq("id", event_id);
