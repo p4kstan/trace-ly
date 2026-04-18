@@ -46,12 +46,10 @@ const trackingHubItems = [
   { title: "Checkout Próprio (PIX)", url: "/native-checkout-guide", icon: BookOpen },
 ];
 
-const setupFacebookItems = [
+const setupsItems = [
   { title: "Setup Facebook / Meta", url: "/setup-facebook", icon: Megaphone },
-];
-
-const setupGoogleItems = [
   { title: "Setup Google (GA4+Ads)", url: "/setup-google", icon: BarChart3 },
+  { title: "Setup TikTok", url: "/setup-tiktok", icon: Music2 },
 ];
 
 const settingsItems = [
@@ -151,9 +149,7 @@ export function AppSidebar() {
         <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
         <SidebarNavGroup items={trackingHubItems} label="Hub de Tracking" collapsed={collapsed} />
         <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
-        <SidebarNavGroup items={setupFacebookItems} label="Setup Facebook" collapsed={collapsed} />
-        <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
-        <SidebarNavGroup items={setupGoogleItems} label="Setup Google" collapsed={collapsed} />
+        <SidebarNavGroup items={setupsItems} label="Setups" collapsed={collapsed} />
         <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
         <SidebarNavGroup items={settingsItems} label="Configurações" collapsed={collapsed} />
       </SidebarContent>
