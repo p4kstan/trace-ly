@@ -47,6 +47,8 @@ const ConnectedAccounts = lazy(() => import("@/pages/ConnectedAccounts"));
 const GoogleAdsAccountDetail = lazy(() => import("@/pages/GoogleAdsAccountDetail"));
 const GoogleAdsCampaigns = lazy(() => import("@/pages/GoogleAdsCampaigns"));
 const GoogleAdsCampaignDetail = lazy(() => import("@/pages/GoogleAdsCampaignDetail"));
+const FacebookAdsCampaigns = lazy(() => import("@/pages/FacebookAdsCampaigns"));
+const TikTokAdsCampaigns = lazy(() => import("@/pages/TikTokAdsCampaigns"));
 const PromptGenerator = lazy(() => import("@/pages/PromptGenerator"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
@@ -92,6 +94,8 @@ function ProtectedRoutes() {
           <Route path="/contas-conectadas/google/:customerId" element={<GoogleAdsAccountDetail />} />
           <Route path="/google-ads-campaigns" element={<GoogleAdsCampaigns />} />
           <Route path="/google-ads-campaigns/:customerId/:campaignId" element={<GoogleAdsCampaignDetail />} />
+          <Route path="/facebook-ads-campaigns" element={<FacebookAdsCampaigns />} />
+          <Route path="/tiktok-ads-campaigns" element={<TikTokAdsCampaigns />} />
           <Route path="/plans" element={<Plans />} />
           <Route path="/usage" element={<Usage />} />
           <Route path="/settings" element={<SettingsPage />} />

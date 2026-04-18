@@ -2,6 +2,7 @@ import {
   LayoutDashboard, GitBranch, MonitorDot, ScrollText, Bug, Settings,
   Zap, Brain, CreditCard, HeartPulse, Key, LogOut, ShoppingCart, Webhook, Inbox, BookOpen, Cpu, Gauge,
   Shield, TrendingUp, Lightbulb, Filter, Radio, Send, Code, FileText, HelpCircle, Layers, BarChart3, Wand2,
+  Megaphone, Music2,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -28,9 +29,14 @@ const mainItems = [
   { title: "Depurador", url: "/debugger", icon: Bug },
 ];
 
+const platformsItems = [
+  { title: "Google Ads", url: "/google-ads-campaigns", icon: BarChart3 },
+  { title: "Facebook Ads", url: "/facebook-ads-campaigns", icon: Megaphone },
+  { title: "TikTok Ads", url: "/tiktok-ads-campaigns", icon: Music2 },
+];
+
 const trackingHubItems = [
   { title: "Contas Conectadas", url: "/contas-conectadas", icon: Layers },
-  { title: "Campanhas Google Ads", url: "/google-ads-campaigns", icon: BarChart3 },
   { title: "Fontes de Tracking", url: "/tracking-sources", icon: Radio },
   { title: "Destinos", url: "/destinations", icon: Send },
   { title: "Instalação SDK", url: "/sdk-setup", icon: Code },
@@ -134,6 +140,8 @@ export function AppSidebar() {
 
       <SidebarContent className="px-2 py-3">
         <SidebarNavGroup items={mainItems} label="Análises" collapsed={collapsed} />
+        <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
+        <SidebarNavGroup items={platformsItems} label="Visualização Plataformas" collapsed={collapsed} />
         <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
         <SidebarNavGroup items={trackingHubItems} label="Hub de Tracking" collapsed={collapsed} />
         <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
