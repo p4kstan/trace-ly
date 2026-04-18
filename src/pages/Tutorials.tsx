@@ -87,6 +87,69 @@ function buildGuides(apiKey: string): Guide[] {
       ],
     },
     {
+      id: "ga4-client",
+      title: "GA4 Client-side (backup)",
+      icon: "📈",
+      category: "pixel",
+      sections: [
+        {
+          title: "Quando usar",
+          note: "Use estes snippets como BACKUP/REDUNDÂNCIA do envio server-side via webhook. Mantenha o mesmo transaction_id em ambos para o GA4 deduplicar automaticamente. Garante que a venda seja contabilizada mesmo se um dos lados falhar.",
+        },
+        {
+          title: "Snippet via DataLayer (GTM)",
+          note: "Cole na página de confirmação do pedido. Funciona com qualquer container GTM que tenha tag GA4 Purchase configurada. Substitua os placeholders {{ORDER_ID}}, {{ORDER_VALUE}}, {{PRODUCT_ID}} e {{PRODUCT_NAME}} pelos valores reais.",
+          snippet: `<!-- GA4 Purchase via dataLayer (GTM) -->
+<script>
+  window.dataLayer = window.dataLayer || [];
+  window.dataLayer.push({ ecommerce: null });
+  window.dataLayer.push({
+    event: "purchase",
+    ecommerce: {
+      transaction_id: "{{ORDER_ID}}",
+      value: {{ORDER_VALUE}},
+      currency: "BRL",
+      tax: 0,
+      shipping: 0,
+      coupon: "",
+      items: [{
+        item_id: "{{PRODUCT_ID}}",
+        item_name: "{{PRODUCT_NAME}}",
+        price: {{ORDER_VALUE}},
+        quantity: 1
+      }]
+    }
+  });
+</script>`,
+        },
+        {
+          title: "Snippet via gtag.js direto",
+          note: "Use se o seu site não tem GTM. Inclui o gtag.js do GA4 e dispara o evento purchase. Substitua G-XXXXXXXXXX pelo seu Measurement ID real.",
+          snippet: `<!-- GA4 Purchase via gtag.js direto -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-XXXXXXXXXX');
+
+  // Dispare ao confirmar o pedido
+  gtag('event', 'purchase', {
+    transaction_id: "{{ORDER_ID}}",
+    value: {{ORDER_VALUE}},
+    currency: "BRL",
+    items: [{
+      item_id: "{{PRODUCT_ID}}",
+      item_name: "{{PRODUCT_NAME}}",
+      price: {{ORDER_VALUE}},
+      quantity: 1
+    }]
+  });
+</script>`,
+        },
+      ],
+    },
+    {
       id: "meta-pixel",
       title: "Meta Pixel",
       icon: "📊",

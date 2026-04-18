@@ -10,7 +10,8 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Megaphone, BarChart2, Trash2, Plus, CheckCircle2, AlertCircle, Target, RefreshCw, Pencil, Eye, EyeOff } from "lucide-react";
+import { Megaphone, BarChart2, Trash2, Plus, CheckCircle2, AlertCircle, Target, RefreshCw, Pencil, Eye, EyeOff, Code2 } from "lucide-react";
+import { GA4ClientSnippets } from "@/components/setup/GA4ClientSnippets";
 
 interface Props {
   workspaceId: string;
@@ -163,7 +164,12 @@ export function MarketingDestinationsManager({ workspaceId }: Props) {
             extra={d.events_sent_count > 0 ? `${d.events_sent_count} eventos` : undefined}
             onToggle={v => toggleDest.mutate({ id: d.id, is_active: v })}
             onRemove={() => removeDest.mutate(d.id)}
-            editor={<EditGA4Dialog dest={d} onSaved={() => qc.invalidateQueries({ queryKey: ["integration-destinations", workspaceId] })} />}
+            editor={
+              <div className="flex items-center gap-1">
+                <GA4SnippetsDialog measurementId={d.destination_id} />
+                <EditGA4Dialog dest={d} onSaved={() => qc.invalidateQueries({ queryKey: ["integration-destinations", workspaceId] })} />
+              </div>
+            }
           />
         ))}
 
@@ -720,5 +726,26 @@ function SyncButton({
       <RefreshCw className={`w-3.5 h-3.5 mr-1 ${loading ? "animate-spin" : ""}`} />
       {loading ? "Sincronizando..." : "Sincronizar"}
     </Button>
+  );
+}
+function GA4SnippetsDialog({ measurementId }: { measurementId?: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary" title="Snippets client-side">
+          <Code2 className="w-3.5 h-3.5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Snippets client-side — GA4</DialogTitle>
+          <DialogDescription>
+            Backup/redundância para o envio server-side. Cole na página de confirmação do pedido.
+          </DialogDescription>
+        </DialogHeader>
+        <GA4ClientSnippets measurementId={measurementId} />
+      </DialogContent>
+    </Dialog>
   );
 }
