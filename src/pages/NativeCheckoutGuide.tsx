@@ -324,7 +324,32 @@ const META_EXAMPLE = `{
   }
 }`;
 
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useWorkspace } from "@/hooks/use-tracking-data";
+
 export default function NativeCheckoutGuide() {
+  const { data: workspace } = useWorkspace();
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://xpgsipmyrwyjerjvbhmb.supabase.co";
+  const { data: keys = [] } = useQuery({
+    queryKey: ["nc-keys", workspace?.id],
+    enabled: !!workspace?.id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("api_keys")
+        .select("public_key")
+        .eq("workspace_id", workspace!.id)
+        .eq("status", "active")
+        .limit(1);
+      return data || [];
+    },
+  });
+  const publicKey = keys[0]?.public_key || "SUA_PUBLIC_KEY";
+  const endpoint = `${supabaseUrl}/functions/v1/track`;
+  const lovablePrompt = LOVABLE_PROMPT
+    .replace("__CAPITRACK_ENDPOINT__", endpoint)
+    .replace("__CAPITRACK_PUBLIC_KEY__", publicKey);
+
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       <div>
@@ -353,13 +378,35 @@ export default function NativeCheckoutGuide() {
         </AlertDescription>
       </Alert>
 
-      <Tabs defaultValue="step1">
-        <TabsList className="grid grid-cols-4">
+      <Tabs defaultValue="prompt">
+        <TabsList className="grid grid-cols-5">
+          <TabsTrigger value="prompt">
+            <Wand2 className="w-3.5 h-3.5 mr-1" /> Prompt Lovable
+          </TabsTrigger>
           <TabsTrigger value="step1">1. Capturar</TabsTrigger>
           <TabsTrigger value="step2">2. Ler</TabsTrigger>
-          <TabsTrigger value="step3">3. Enviar p/ QuantumPay</TabsTrigger>
-          <TabsTrigger value="step4">4. Disparar Purchase</TabsTrigger>
+          <TabsTrigger value="step3">3. QuantumPay</TabsTrigger>
+          <TabsTrigger value="step4">4. Purchase</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="prompt" className="mt-4">
+          <Card className="glass-card border-primary/30">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Wand2 className="w-4 h-4 text-primary" />
+                Prompt pronto pra colar no Lovable do seu checkout
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Já vem com sua <strong>public key</strong> e <strong>endpoint</strong> preenchidos.
+                Cole inteiro no chat do projeto Lovable do checkout — ele implementa as 4 camadas
+                (captura, helper, metadata QuantumPay e disparo Purchase + dataLayer GA4).
+              </p>
+              <CodeBlock code={lovablePrompt} language="markdown" />
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="step1" className="mt-4">
           <Card className="glass-card">
