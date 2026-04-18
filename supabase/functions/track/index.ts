@@ -153,6 +153,22 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ── Burst rate limit (in-memory, per isolate) ──
+    const rl = checkRateLimit(workspaceId);
+    if (!rl.allowed) {
+      return new Response(
+        JSON.stringify({ error: "Rate limit exceeded", retry_after: rl.retryAfter }),
+        {
+          status: 429,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+            "Retry-After": String(rl.retryAfter),
+          },
+        }
+      );
+    }
+
     // Fire-and-forget: update last_used_at
     supabase.from("api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", keyId).then(() => {});
 
