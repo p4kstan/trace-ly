@@ -225,13 +225,18 @@ export default function GoogleAdsCampaignDetail() {
 
       {/* Tabs */}
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="grid grid-cols-3 md:grid-cols-7 lg:w-fit">
+        <TabsList className="flex flex-wrap h-auto justify-start">
           <TabsTrigger value="overview">Visão geral</TabsTrigger>
+          <TabsTrigger value="ads">Anúncios</TabsTrigger>
           <TabsTrigger value="keywords">Palavras-chave</TabsTrigger>
           <TabsTrigger value="negatives">Negativas</TabsTrigger>
           <TabsTrigger value="audiences">Públicos</TabsTrigger>
           <TabsTrigger value="extensions">Extensões</TabsTrigger>
           <TabsTrigger value="search_terms">Termos</TabsTrigger>
+          <TabsTrigger value="landing">Landing Pages</TabsTrigger>
+          <TabsTrigger value="targeting">Segmentação</TabsTrigger>
+          <TabsTrigger value="conversions">Conversões</TabsTrigger>
+          <TabsTrigger value="impression_share">Imp. Share</TabsTrigger>
           <TabsTrigger value="history">Histórico</TabsTrigger>
         </TabsList>
 
