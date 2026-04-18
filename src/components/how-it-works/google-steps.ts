@@ -30,6 +30,27 @@ export const GOOGLE_STEPS: WizardStep[] = [
     ],
   },
   {
+    title: "Ativar APIs no Google Cloud (obrigatório)",
+    subtitle: "Sem isso, o CapiTrack não consegue ler dados nem listar propriedades do GA4",
+    explanation: [
+      "Para o CapiTrack ler relatórios e configurações do GA4, você precisa **ativar 2 APIs gratuitas** no projeto Google Cloud que está vinculado à sua conta Google.",
+      "Se você pular este passo, vai aparecer o erro: *\"Google Analytics Data API has not been used in project XXX before or it is disabled\"* (HTTP 403).",
+      "**Como ativar (1 minuto):**",
+      "- Acesse https://console.cloud.google.com/ e faça login com a **mesma conta Google** que usa no GA4",
+      "- No topo, selecione (ou crie) um **projeto** — ex: 'CapiTrack'",
+      "- Abra este link e clique em **ENABLE / ATIVAR**: https://console.developers.google.com/apis/api/analyticsdata.googleapis.com",
+      "- Abra também e clique em **ENABLE / ATIVAR**: https://console.developers.google.com/apis/api/analyticsadmin.googleapis.com",
+      "- Aguarde **1 a 2 minutos** para o Google propagar a ativação",
+      "- Volte no CapiTrack em **GA4 Analytics** e clique no botão de refresh 🔄",
+    ],
+    tip: "Use o mesmo projeto Google Cloud que você já usa para Google Ads — uma única ativação serve para todas as integrações.",
+    referenceLinks: [
+      { label: "Ativar Data API", url: "https://console.developers.google.com/apis/api/analyticsdata.googleapis.com" },
+      { label: "Ativar Admin API", url: "https://console.developers.google.com/apis/api/analyticsadmin.googleapis.com" },
+      { label: "Google Cloud Console", url: "https://console.cloud.google.com/" },
+    ],
+  },
+  {
     title: "Gerar API Secret (Measurement Protocol)",
     subtitle: "Chave para enviar eventos server-side para o GA4",
     explanation: [
