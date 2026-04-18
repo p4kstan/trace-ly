@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Megaphone, BarChart2, Trash2, Plus, CheckCircle2, AlertCircle, Target, RefreshCw } from "lucide-react";
+import { Megaphone, BarChart2, Trash2, Plus, CheckCircle2, AlertCircle, Target, RefreshCw, Pencil, Eye, EyeOff } from "lucide-react";
 
 interface Props {
   workspaceId: string;
@@ -39,7 +39,7 @@ export function MarketingDestinationsManager({ workspaceId }: Props) {
     queryFn: async () => {
       const { data } = await supabase
         .from("integration_destinations")
-        .select("id, provider, destination_id, display_name, is_active, events_sent_count, last_event_at, created_at")
+        .select("id, provider, destination_id, display_name, is_active, events_sent_count, last_event_at, created_at, config_json, access_token_encrypted")
         .eq("workspace_id", workspaceId)
         .order("created_at", { ascending: false });
       return data || [];
@@ -148,6 +148,7 @@ export function MarketingDestinationsManager({ workspaceId }: Props) {
             extra={p.test_event_code ? `test: ${p.test_event_code}` : undefined}
             onToggle={v => togglePixel.mutate({ id: p.id, is_active: v })}
             onRemove={() => removePixel.mutate(p.id)}
+            editor={<EditMetaPixelDialog pixel={p} workspaceId={workspaceId} onSaved={() => qc.invalidateQueries({ queryKey: ["meta-pixels", workspaceId] })} />}
           />
         ))}
 
@@ -162,6 +163,7 @@ export function MarketingDestinationsManager({ workspaceId }: Props) {
             extra={d.events_sent_count > 0 ? `${d.events_sent_count} eventos` : undefined}
             onToggle={v => toggleDest.mutate({ id: d.id, is_active: v })}
             onRemove={() => removeDest.mutate(d.id)}
+            editor={<EditGA4Dialog dest={d} onSaved={() => qc.invalidateQueries({ queryKey: ["integration-destinations", workspaceId] })} />}
           />
         ))}
 
@@ -176,6 +178,7 @@ export function MarketingDestinationsManager({ workspaceId }: Props) {
             extra={d.events_sent_count > 0 ? `${d.events_sent_count} eventos` : "OAuth conectado"}
             onToggle={v => toggleDest.mutate({ id: d.id, is_active: v })}
             onRemove={() => removeDest.mutate(d.id)}
+            editor={<EditGoogleAdsDialog dest={d} onSaved={() => qc.invalidateQueries({ queryKey: ["integration-destinations", workspaceId] })} />}
           />
         ))}
 
@@ -192,7 +195,7 @@ export function MarketingDestinationsManager({ workspaceId }: Props) {
 }
 
 function DestinationRow({
-  icon, label, id, name, active, extra, onToggle, onRemove,
+  icon, label, id, name, active, extra, onToggle, onRemove, editor,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -202,6 +205,7 @@ function DestinationRow({
   extra?: string;
   onToggle: (v: boolean) => void;
   onRemove: () => void;
+  editor?: React.ReactNode;
 }) {
   return (
     <div className="flex items-center gap-3 p-2.5 rounded-lg border border-border/30 bg-muted/10 hover:bg-muted/20 transition-colors">
@@ -222,10 +226,238 @@ function DestinationRow({
         </div>
       </div>
       <Switch checked={active} onCheckedChange={onToggle} />
+      {editor}
       <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={onRemove}>
         <Trash2 className="w-3.5 h-3.5" />
       </Button>
     </div>
+  );
+}
+
+// ─── Edit Dialogs ───────────────────────────────────────────────────────────
+
+function EditMetaPixelDialog({ pixel, workspaceId, onSaved }: { pixel: any; workspaceId: string; onSaved: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(pixel.name || "");
+  const [pixelId, setPixelId] = useState(pixel.pixel_id || "");
+  const [testCode, setTestCode] = useState(pixel.test_event_code || "");
+  const [accessToken, setAccessToken] = useState("");
+  const [showToken, setShowToken] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    const update: any = {
+      name: name.trim() || "Meta Pixel",
+      pixel_id: pixelId.trim(),
+      test_event_code: testCode.trim() || null,
+    };
+    if (accessToken.trim()) update.access_token_encrypted = accessToken.trim();
+    const { error } = await supabase.from("meta_pixels").update(update).eq("id", pixel.id);
+    setSaving(false);
+    if (error) { toast.error("Erro: " + error.message); return; }
+    toast.success("Meta Pixel atualizado");
+    setOpen(false);
+    onSaved();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary">
+          <Pencil className="w-3.5 h-3.5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Editar Meta Pixel</DialogTitle>
+          <DialogDescription>Altere os dados do pixel. Deixe o token vazio para manter o atual.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label className="text-xs">Nome</Label>
+            <Input value={name} onChange={e => setName(e.target.value)} />
+          </div>
+          <div>
+            <Label className="text-xs">Pixel ID</Label>
+            <Input value={pixelId} onChange={e => setPixelId(e.target.value)} className="font-mono" />
+          </div>
+          <div>
+            <Label className="text-xs">Test Event Code (opcional)</Label>
+            <Input value={testCode} onChange={e => setTestCode(e.target.value)} className="font-mono" placeholder="TEST12345" />
+          </div>
+          <div>
+            <Label className="text-xs">Novo Access Token (deixe vazio para manter)</Label>
+            <div className="relative">
+              <Input
+                type={showToken ? "text" : "password"}
+                value={accessToken}
+                onChange={e => setAccessToken(e.target.value)}
+                placeholder="EAAxxx..."
+                className="font-mono text-xs pr-9"
+              />
+              <button type="button" onClick={() => setShowToken(s => !s)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                {showToken ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
+          <Button onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditGA4Dialog({ dest, onSaved }: { dest: any; onSaved: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(dest.display_name || "");
+  const [measurementId, setMeasurementId] = useState(dest.destination_id || "");
+  const [apiSecret, setApiSecret] = useState("");
+  const [showSecret, setShowSecret] = useState(false);
+  const [debugMode, setDebugMode] = useState(!!dest.config_json?.debug_mode);
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    const update: any = {
+      display_name: name.trim() || "GA4",
+      destination_id: measurementId.trim().toUpperCase(),
+      config_json: { ...(dest.config_json || {}), debug_mode: debugMode },
+    };
+    if (apiSecret.trim()) update.access_token_encrypted = apiSecret.trim();
+    const { error } = await supabase.from("integration_destinations").update(update).eq("id", dest.id);
+    setSaving(false);
+    if (error) { toast.error("Erro: " + error.message); return; }
+    toast.success("GA4 atualizado");
+    setOpen(false);
+    onSaved();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary">
+          <Pencil className="w-3.5 h-3.5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Editar GA4</DialogTitle>
+          <DialogDescription>Altere os dados do destino. Deixe o API Secret vazio para manter o atual.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label className="text-xs">Nome</Label>
+            <Input value={name} onChange={e => setName(e.target.value)} />
+          </div>
+          <div>
+            <Label className="text-xs">Measurement ID</Label>
+            <Input value={measurementId} onChange={e => setMeasurementId(e.target.value)} className="font-mono" placeholder="G-XXXXXXXXXX" />
+          </div>
+          <div>
+            <Label className="text-xs">Novo API Secret (deixe vazio para manter)</Label>
+            <div className="relative">
+              <Input
+                type={showSecret ? "text" : "password"}
+                value={apiSecret}
+                onChange={e => setApiSecret(e.target.value)}
+                placeholder="abcdef..."
+                className="font-mono text-xs pr-9"
+              />
+              <button type="button" onClick={() => setShowSecret(s => !s)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                {showSecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch checked={debugMode} onCheckedChange={setDebugMode} id="ga4-debug-edit" />
+            <Label htmlFor="ga4-debug-edit" className="text-xs cursor-pointer">Modo debug</Label>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
+          <Button onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditGoogleAdsDialog({ dest, onSaved }: { dest: any; onSaved: () => void }) {
+  const [open, setOpen] = useState(false);
+  const cfg = dest.config_json || {};
+  const [name, setName] = useState(dest.display_name || "");
+  const [conversionId, setConversionId] = useState(dest.destination_id || "");
+  const [conversionLabel, setConversionLabel] = useState(cfg.conversion_label || "");
+  const [customerId, setCustomerId] = useState(cfg.customer_id || "");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    const update: any = {
+      display_name: name.trim() || "Google Ads",
+      destination_id: conversionId.trim(),
+      config_json: {
+        ...cfg,
+        conversion_label: conversionLabel.trim() || null,
+        customer_id: customerId.trim() || null,
+      },
+    };
+    const { error } = await supabase.from("integration_destinations").update(update).eq("id", dest.id);
+    setSaving(false);
+    if (error) { toast.error("Erro: " + error.message); return; }
+    toast.success("Google Ads atualizado");
+    setOpen(false);
+    onSaved();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary">
+          <Pencil className="w-3.5 h-3.5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Editar Google Ads</DialogTitle>
+          <DialogDescription>Configure a Conversion Action que vai receber as compras.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label className="text-xs">Nome</Label>
+            <Input value={name} onChange={e => setName(e.target.value)} placeholder="Marmitex" />
+          </div>
+          <div>
+            <Label className="text-xs">Customer ID (sem hífens)</Label>
+            <Input value={customerId} onChange={e => setCustomerId(e.target.value.replace(/-/g, ""))} placeholder="1234567890" className="font-mono" />
+            <p className="text-[10px] text-muted-foreground mt-1">Conta Google Ads (10 dígitos, sem hífens)</p>
+          </div>
+          <div>
+            <Label className="text-xs">Conversion ID *</Label>
+            <Input value={conversionId} onChange={e => setConversionId(e.target.value)} placeholder="17862172125" className="font-mono" />
+            <p className="text-[10px] text-muted-foreground mt-1">Em Google Ads → Goals → Summary → sua conversão "Compra"</p>
+          </div>
+          <div>
+            <Label className="text-xs">Conversion Label *</Label>
+            <Input value={conversionLabel} onChange={e => setConversionLabel(e.target.value)} placeholder="UITqCOjA95wcEN27rMVC" className="font-mono" />
+            <p className="text-[10px] text-muted-foreground mt-1">Necessário para o match correto da conversão offline</p>
+          </div>
+          {cfg.conversion_label && (
+            <div className="text-[10px] text-success bg-success/10 border border-success/30 rounded p-2 font-mono">
+              Atual: customers/{customerId || "..."}/conversionActions/{conversionId}~{conversionLabel}
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
+          <Button onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
