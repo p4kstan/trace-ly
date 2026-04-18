@@ -29,12 +29,49 @@ interface RouteResult {
 }
 
 async function getActiveDestinations(workspaceId: string) {
-  const { data } = await supabase
-    .from("gateway_integrations")
-    .select("id, provider, name, status, credentials_encrypted, public_config_json, settings_json")
-    .eq("workspace_id", workspaceId)
-    .eq("status", "active");
-  return data || [];
+  // Lê de DUAS tabelas: gateway_integrations (legado) + integration_destinations (novo)
+  // e normaliza num formato único pro dispatcher
+  const [gwRes, idRes] = await Promise.all([
+    supabase
+      .from("gateway_integrations")
+      .select("id, provider, name, status, credentials_encrypted, public_config_json, settings_json")
+      .eq("workspace_id", workspaceId)
+      .eq("status", "active"),
+    supabase
+      .from("integration_destinations")
+      .select("id, provider, display_name, destination_id, access_token_encrypted, config_json, is_active")
+      .eq("workspace_id", workspaceId)
+      .eq("is_active", true),
+  ]);
+
+  const fromGateway = (gwRes.data || []).map((d: any) => ({
+    id: d.id,
+    provider: d.provider,
+    name: d.name,
+    // gateway_integrations legacy fields kept for downstream compat
+    credentials_encrypted: d.credentials_encrypted,
+    public_config_json: d.public_config_json,
+    settings_json: d.settings_json,
+    config_json: d.public_config_json || {},
+    _source: "gateway_integrations",
+  }));
+
+  const fromDestinations = (idRes.data || []).map((d: any) => ({
+    id: d.id,
+    provider: d.provider,
+    name: d.display_name,
+    destination_id: d.destination_id,
+    access_token_encrypted: d.access_token_encrypted,
+    config_json: d.config_json || {},
+    _source: "integration_destinations",
+  }));
+
+  // Dedupe por provider — prioriza integration_destinations (mais novo) sobre gateway_integrations
+  const byProvider = new Map<string, any>();
+  for (const d of fromGateway) byProvider.set(d.provider, d);
+  for (const d of fromDestinations) byProvider.set(d.provider, d); // overwrite
+
+  return Array.from(byProvider.values());
 }
 
 async function getRoutingRules(workspaceId: string, eventName: string) {
