@@ -46,12 +46,10 @@ const trackingHubItems = [
   { title: "Checkout Próprio (PIX)", url: "/native-checkout-guide", icon: BookOpen },
 ];
 
-const setupFacebookItems = [
+const setupsItems = [
   { title: "Setup Facebook / Meta", url: "/setup-facebook", icon: Megaphone },
-];
-
-const setupGoogleItems = [
   { title: "Setup Google (GA4+Ads)", url: "/setup-google", icon: BarChart3 },
+  { title: "Setup TikTok", url: "/setup-tiktok", icon: Music2 },
 ];
 
 const settingsItems = [
