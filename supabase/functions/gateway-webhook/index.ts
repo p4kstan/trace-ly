@@ -601,21 +601,47 @@ const quantumpayHandler: GatewayHandler = {
     const t = p.transaction || p.transfer || {};
     const payer = dig(t, "pix", "payerInfo") || {};
     const isTransfer = !!p.transfer;
+    // QuantumPay encaminha `metadata` (objeto livre) e `externalReference` (string).
+    // Recomendamos enviar tracking + dados do cliente no metadata pelo seu checkout.
+    const meta = (t.metadata && typeof t.metadata === "object") ? t.metadata : {};
+    const customerMeta = (meta.customer && typeof meta.customer === "object") ? meta.customer : meta;
+    const tracking = extractTrackingFromMetadata(meta);
     return {
       gateway: "quantumpay",
       external_order_id: str(t.id || p.id),
       external_payment_id: str(t.id || p.id),
+      external_checkout_id: str(t.externalReference || meta.externalReference || meta.orderCode),
       customer: {
-        name: str(payer.name),
-        document: str(payer.document),
+        name: str(customerMeta.name || payer.name),
+        email: str(customerMeta.email),
+        phone: str(customerMeta.phone || customerMeta.whatsapp),
+        document: str(customerMeta.document || payer.document),
       },
       status: str(t.status),
       total_value: num(t.amount) / 100, // centavos → reais
       currency: "BRL",
       payment_method: isTransfer ? "pix_out" : "pix",
+      tracking,
       raw_payload: p,
     };
   },
+};
+
+// ── Gumroad ──
+const gumroadHandler: GatewayHandler = {
+  extractEventType: (p) => str(p.resource_name || "sale"),
+  resolveInternalEvent: (e) => ({
+    "sale": "order_paid", "refund": "order_refunded",
+    "cancellation": "subscription_canceled", "subscription_updated": "subscription_renewed",
+    "subscription_ended": "subscription_canceled", "subscription_restarted": "subscription_started",
+  } as Record<string, InternalEvent>)[e] || "order_created",
+  normalize: (p) => ({
+    gateway: "gumroad", external_order_id: str(p.sale_id || p.subscription_id || p.id),
+    external_payment_id: str(p.sale_id || p.id),
+    customer: { email: str(p.email || p.purchaser_id), name: str(p.full_name) },
+    status: str(p.resource_name || "paid"), total_value: num(String(p.price || 0).replace(/[^0-9.]/g, "")),
+    currency: str(p.currency || "usd").toUpperCase(), raw_payload: p,
+  }),
 };
 
 // ── Gumroad ──
