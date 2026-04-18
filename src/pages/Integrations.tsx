@@ -205,7 +205,7 @@ function DestinationDialog({ open, onOpenChange, workspaceId }: { open: boolean;
 
         <DialogFooter className="shrink-0 border-t border-border bg-background px-4 py-4 sm:px-6">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending} className="gap-2">
+          <Button onClick={handleSubmit} disabled={mutation.isPending} className="gap-2">
             <Plus className="w-4 h-4" />
             {mutation.isPending ? "Salvando..." : "Adicionar"}
           </Button>
@@ -216,79 +216,13 @@ function DestinationDialog({ open, onOpenChange, workspaceId }: { open: boolean;
 }
 
 function DestinationsSection({ workspaceId }: { workspaceId: string }) {
-  const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const { data: destinations, isLoading } = useQuery({
-    queryKey: ["integration_destinations", workspaceId],
-    queryFn: async () => {
-      const { data } = await supabase.from("integration_destinations")
-        .select("*")
-        .eq("workspace_id", workspaceId)
-        .order("created_at", { ascending: false });
-      return data || [];
-    },
-    enabled: !!workspaceId,
-  });
-
-  const toggleMutation = useMutation({
-    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-      const { error } = await supabase.from("integration_destinations")
-        .update({ is_active: !isActive })
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["integration_destinations"] });
-      toast.success("Status atualizado");
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("integration_destinations").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["integration_destinations"] });
-      toast.success("Destino removido");
-    },
-  });
-
-  // Delivery stats per destination
-  const { data: deliveryStats } = useQuery({
-    queryKey: ["destination_delivery_stats", workspaceId],
-    queryFn: async () => {
-      const { data } = await supabase.from("event_deliveries")
-        .select("provider, destination, status")
-        .eq("workspace_id", workspaceId)
-        .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-
-      const stats = new Map<string, { delivered: number; failed: number }>();
-      for (const d of data || []) {
-        const key = `${d.provider}::${d.destination}`;
-        const s = stats.get(key) || { delivered: 0, failed: 0 };
-        if (d.status === "delivered") s.delivered++;
-        else s.failed++;
-        stats.set(key, s);
-      }
-      return stats;
-    },
-    enabled: !!workspaceId,
-    refetchInterval: 60000,
-  });
-
-  // Meta pixels count
-  const { data: metaPixels } = useQuery({
-    queryKey: ["meta_pixels_count", workspaceId],
-    queryFn: async () => {
-      const { data } = await supabase.from("meta_pixels")
-        .select("id, pixel_id, is_active")
-        .eq("workspace_id", workspaceId);
-      return data || [];
-    },
-    enabled: !!workspaceId,
-  });
+  const { data: destinations, isLoading } = useDestinations(workspaceId);
+  const toggleMutation = useToggleDestination();
+  const deleteMutation = useDeleteDestination();
+  const { data: deliveryStats } = useDeliveryStats(workspaceId);
+  const { data: metaPixels } = useMetaPixels(workspaceId);
 
   const activeMetaPixels = metaPixels?.filter(p => p.is_active) || [];
 
