@@ -805,7 +805,7 @@ Deno.serve(async (req) => {
     console.log(`[reports] level=${level} campaign=${campaign_id} raw_results=${results.length}`);
 
     // For aggregated levels, group by id; for time_series and change_history, keep all rows
-    const noAggregate = ["time_series", "change_history", "search_terms", "campaign_detail", "negative_keywords", "negative_keywords_ad_group", "negative_keywords_shared"];
+    const noAggregate = ["time_series", "change_history", "search_terms", "campaign_detail", "negative_keywords", "negative_keywords_ad_group", "negative_keywords_shared", "bid_modifiers", "ad_schedule", "locations_targeted", "conversion_actions", "campaign_quality", "ads"];
 
     let rows: any[];
     if (noAggregate.includes(level)) {
