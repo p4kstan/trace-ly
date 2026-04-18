@@ -1,24 +1,27 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useWorkspace } from "@/hooks/use-tracking-data";
+import { useGoogleAdsReport, type GoogleAdsPeriod } from "@/hooks/api/use-google-ads-report";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ArrowLeft, Loader2, RefreshCw, Pause, Play, DollarSign, MousePointerClick, BarChart3, Target, TrendingUp, AlertCircle, Edit3, HelpCircle } from "lucide-react";
+import { ArrowLeft, Loader2, Pause, Play, DollarSign, MousePointerClick, BarChart3, Target, TrendingUp, AlertCircle, Edit3 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend,
 } from "recharts";
+import { CampaignStatusBadge as StatusBadge } from "@/components/dashboard/CampaignStatusBadge";
+import { CampaignMetricCard as MetricCard } from "@/components/dashboard/CampaignMetricCard";
+import { CampaignDataTable as SimpleTable } from "@/components/dashboard/CampaignDataTable";
 
-type Period = "7d" | "14d" | "30d" | "90d";
+type Period = GoogleAdsPeriod;
 
 const PERIOD_LABELS: Record<Period, string> = {
   "7d": "Últimos 7 dias", "14d": "Últimos 14 dias", "30d": "Últimos 30 dias", "90d": "Últimos 90 dias",
@@ -29,51 +32,14 @@ const fmtMoney = (n: number) => n.toLocaleString("pt-BR", { style: "currency", c
 const fmtPct = (n: number) => `${(n * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
 const fmtFloat = (n: number, d = 2) => n.toLocaleString("pt-BR", { maximumFractionDigits: d });
 
-function StatusBadge({ status }: { status?: string | null }) {
-  if (!status) return null;
-  const cls = status === "ENABLED"
-    ? "border-emerald-500/30 text-emerald-400 bg-emerald-500/10"
-    : status === "PAUSED"
-    ? "border-amber-500/30 text-amber-400 bg-amber-500/10"
-    : "border-rose-500/30 text-rose-400 bg-rose-500/10";
-  const label = status === "ENABLED" ? "Ativada" : status === "PAUSED" ? "Pausada" : "Removida";
-  return <Badge variant="outline" className={cn("text-[10px]", cls)}>{label}</Badge>;
-}
-
-function MetricCard({ icon: Icon, label, value, hint }: { icon: any; label: string; value: string; hint?: string }) {
-  return (
-    <Card className="glass-card">
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold">{label}</p>
-          <Icon className="w-3.5 h-3.5 text-primary/70" />
-        </div>
-        <p className="text-xl font-bold tabular-nums text-foreground mt-2">{value}</p>
-        {hint && <p className="text-[10px] text-muted-foreground/60 mt-0.5">{hint}</p>}
-      </CardContent>
-    </Card>
-  );
-}
-
-function useReport(workspaceId: string | undefined, customerId: string, level: string, period: Period, campaignId?: string, parentId?: string) {
-  return useQuery({
-    queryKey: ["gads-detail", workspaceId, customerId, level, period, campaignId, parentId],
-    enabled: !!workspaceId && !!customerId && !!campaignId,
-    queryFn: async () => {
-      const body: any = { workspace_id: workspaceId, customer_id: customerId, level, period };
-      if (campaignId) body.campaign_id = campaignId;
-      if (parentId) body.parent_id = parentId;
-      const { data, error } = await supabase.functions.invoke("google-ads-reports", { body });
-      if (error) {
-        let info: any = null;
-        try { info = await (error as any)?.context?.json?.(); } catch { /* ignore */ }
-        throw new Error(info?.error || error.message);
-      }
-      return data as { ok: true; rows: any[]; totals: any; count: number };
-    },
-    staleTime: 60_000,
-  });
-}
+const useReport = (
+  workspaceId: string | undefined,
+  customerId: string,
+  level: string,
+  period: Period,
+  campaignId?: string,
+  parentId?: string
+) => useGoogleAdsReport({ workspaceId, customerId, level, period, campaignId, parentId });
 
 export default function GoogleAdsCampaignDetail() {
   const { customerId = "", campaignId = "" } = useParams();
@@ -646,109 +612,3 @@ export default function GoogleAdsCampaignDetail() {
   );
 }
 
-function SimpleTable({ loading, rows, columns, labels }: { loading: boolean; rows?: any[]; columns: string[]; labels?: Record<string, string> }) {
-  if (loading) return <div className="p-8 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>;
-  if (!rows?.length) return <div className="p-8 text-center text-sm text-muted-foreground">Sem dados</div>;
-
-  const formatCell = (col: string, val: any) => {
-    if (val == null || val === "") return "—";
-    if (col === "ctr" || col === "conv_rate") return fmtPct(Number(val));
-    if (col === "cost" || col === "cpc" || col === "cpa" || col === "default_value") return fmtMoney(Number(val));
-    if (col === "conversions" || col === "roas") return fmtFloat(Number(val));
-    if (col === "impressions" || col === "clicks") return fmtNumber(Number(val));
-    if (col === "status") return <StatusBadge status={String(val)} />;
-    if (col === "bid_modifier") {
-      const v = Number(val);
-      const pct = (v - 1) * 100;
-      const cls = pct > 0 ? "text-emerald-400" : pct < 0 ? "text-rose-400" : "text-muted-foreground";
-      return <span className={cn("font-bold tabular-nums", cls)}>{pct > 0 ? "+" : ""}{pct.toFixed(0)}%</span>;
-    }
-    if (col === "negative" || col === "primary") {
-      return val ? <Badge variant="outline" className="text-[10px]">Sim</Badge> : <span className="text-muted-foreground">Não</span>;
-    }
-    if (col === "quality_score" && val) {
-      const v = Number(val);
-      const cls = v >= 7 ? "text-emerald-400" : v >= 4 ? "text-amber-400" : "text-rose-400";
-      return <span className={cn("font-bold", cls)}>{v}/10</span>;
-    }
-    if (typeof val === "string" && val.length > 60) return val.slice(0, 60) + "…";
-    return String(val);
-  };
-
-  const colLabel = (c: string) => labels?.[c] || ({
-    name: "Nome", impressions: "Impressões", clicks: "Cliques", ctr: "CTR", cpc: "CPC", cost: "Custo",
-    conversions: "Conv.", cpa: "CPA", roas: "ROAS", status: "Status", type: "Tipo", quality_score: "QS",
-  } as Record<string, string>)[c] || c;
-
-  const colHelp: Record<string, string> = {
-    name: "Identificador do item (palavra-chave, anúncio, grupo, etc.).",
-    status: "Estado atual no Google Ads: Ativada, Pausada ou Removida.",
-    quality_score: "Quality Score (1-10): nota do Google avaliando relevância do anúncio, experiência da landing page e CTR esperado. ≥7 é bom, 4-6 médio, <4 ruim.",
-    impressions: "Quantas vezes seu anúncio foi exibido na tela do usuário.",
-    clicks: "Número de cliques recebidos no anúncio.",
-    ctr: "Click-Through Rate = Cliques ÷ Impressões. Mede o quanto o anúncio atrai cliques.",
-    cpc: "Custo por Clique médio = Custo ÷ Cliques.",
-    cost: "Quanto foi gasto no período (em R$).",
-    conversions: "Número de conversões (compras, leads, etc.) atribuídas ao anúncio.",
-    conv_rate: "Taxa de Conversão = Conversões ÷ Cliques.",
-    cpa: "Custo por Aquisição = Custo ÷ Conversões. Quanto custou cada conversão.",
-    roas: "Return on Ad Spend = Receita ÷ Custo. Quantos R$ você ganha por cada R$ investido.",
-    type: "Tipo do item (ex: público, conversão, dispositivo).",
-    match_type: "Tipo de correspondência: EXACT (exata), PHRASE (frase) ou BROAD (ampla).",
-    matched_keyword: "Palavra-chave que disparou o anúncio para esse termo de busca.",
-    bid_modifier: "Ajuste percentual sobre o lance padrão (+ aumenta, − reduz).",
-    negative: "Indica se o segmento está excluído da campanha.",
-    primary: "Conversão principal — usada pelo Google para otimizar lances automáticos.",
-    default_value: "Valor padrão atribuído à conversão quando não vem dinâmico do site.",
-    currency: "Moeda usada nos valores reportados.",
-    category: "Categoria da ação de conversão (Compra, Lead, Cadastro, etc.).",
-    level: "Escopo da palavra negativa (Campanha ou Grupo de anúncios).",
-    ad_group_name: "Nome do grupo de anúncios ao qual o item pertence.",
-    shared_set_name: "Nome da lista compartilhada de palavras negativas.",
-  };
-
-  return (
-    <TooltipProvider delayDuration={200}>
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead className="text-muted-foreground border-b border-border/50 bg-muted/20">
-            <tr>
-              {columns.map((c) => {
-                const help = colHelp[c];
-                const isLeft = c === "name" || c === "matched_keyword";
-                return (
-                  <th key={c} className={cn("py-2.5 px-2 font-semibold", isLeft ? "text-left" : "text-right")}>
-                    {help ? (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="inline-flex items-center gap-1 cursor-help border-b border-dotted border-muted-foreground/40">
-                            {colLabel(c)}
-                            <HelpCircle className="w-3 h-3 opacity-60" />
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-[280px] text-xs leading-relaxed">
-                          {help}
-                        </TooltipContent>
-                      </Tooltip>
-                    ) : colLabel(c)}
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => (
-              <tr key={r.id || i} className="border-b border-border/30 hover:bg-muted/20">
-                {columns.map((c) => (
-                  <td key={c} className={cn("py-2 px-2 tabular-nums", c === "name" || c === "matched_keyword" ? "text-left" : "text-right")}>
-                    {formatCell(c, r[c])}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </TooltipProvider>
-  );
-}

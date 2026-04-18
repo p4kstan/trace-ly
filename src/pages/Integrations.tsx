@@ -1,7 +1,22 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useWorkspace } from "@/hooks/use-tracking-data";
+import {
+  useGatewayIntegrations,
+  useCreateGatewayIntegration,
+  useToggleGatewayIntegration,
+  useDeleteGatewayIntegration,
+  useDestinations,
+  useToggleDestination,
+  useDeleteDestination,
+  useCreateDestination,
+  useDeliveryStats,
+  useMetaPixels,
+} from "@/hooks/api/use-integrations";
+import { IntegrationStatusBadge as StatusBadge } from "@/components/dashboard/IntegrationStatusBadge";
+import { IntegrationHealthIndicator as HealthIndicator } from "@/components/dashboard/IntegrationHealthIndicator";
+import { WebhookLogsList as WebhookLogs } from "@/components/dashboard/WebhookLogsList";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,15 +28,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { toast } from "sonner";
 import {
   Plus, Copy, Trash2, Webhook, Play, ChevronDown, ChevronUp,
-  CheckCircle2, XCircle, Clock, AlertTriangle, Activity,
-  Send, Zap, BarChart3, TrendingUp,
+  XCircle, Send, Zap, BarChart3, TrendingUp,
 } from "lucide-react";
 import { IntegrationDialog } from "@/components/integrations/IntegrationDialog";
 import { PROVIDER_CONFIGS } from "@/lib/integration-help-config";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatDistanceToNow } from "date-fns";
-import { ptBR } from "date-fns/locale";
 
 // ── Provider display config ──
 const AD_PROVIDERS: Record<string, { label: string; emoji: string; desc: string; fields: { key: string; label: string; placeholder: string; secret?: boolean; help?: string; helpLink?: { url: string; label: string } }[] }> = {
@@ -95,158 +107,41 @@ const AD_PROVIDERS: Record<string, { label: string; emoji: string; desc: string;
   },
 };
 
-// ── Shared Components ──
-
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; class: string; icon: typeof CheckCircle2 }> = {
-    active: { label: "Ativo", class: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30", icon: CheckCircle2 },
-    inactive: { label: "Inativo", class: "bg-muted text-muted-foreground border-border", icon: Clock },
-    error: { label: "Erro", class: "bg-destructive/15 text-destructive border-destructive/30", icon: XCircle },
-    pending: { label: "Pendente", class: "bg-amber-500/15 text-amber-400 border-amber-500/30", icon: AlertTriangle },
-  };
-  const s = map[status] || map.pending;
-  const Icon = s.icon;
-  return (
-    <Badge variant="outline" className={`${s.class} gap-1`}>
-      <Icon className="w-3 h-3" />
-      {s.label}
-    </Badge>
-  );
-}
-
-function HealthIndicator({ integrationId }: { integrationId: string }) {
-  const { data } = useQuery({
-    queryKey: ["integration_health", integrationId],
-    queryFn: async () => {
-      const [recentRes, errorRes] = await Promise.all([
-        supabase.from("gateway_webhook_logs")
-          .select("received_at, processing_status")
-          .eq("gateway_integration_id", integrationId)
-          .order("received_at", { ascending: false })
-          .limit(1)
-          .single(),
-        supabase.from("gateway_webhook_logs")
-          .select("id", { count: "exact", head: true })
-          .eq("gateway_integration_id", integrationId)
-          .in("processing_status", ["failed", "rejected"])
-          .gte("received_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()),
-      ]);
-      return {
-        lastEvent: recentRes.data?.received_at || null,
-        errorsLast24h: errorRes.count || 0,
-      };
-    },
-    enabled: !!integrationId,
-    refetchInterval: 60000,
-  });
-
-  if (!data) return null;
-  return (
-    <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-      {data.lastEvent ? (
-        <span className="flex items-center gap-1">
-          <Activity className="w-3 h-3" />
-          Último: {formatDistanceToNow(new Date(data.lastEvent), { addSuffix: true, locale: ptBR })}
-        </span>
-      ) : (
-        <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Sem eventos</span>
-      )}
-      {data.errorsLast24h > 0 && (
-        <span className="flex items-center gap-1 text-destructive">
-          <XCircle className="w-3 h-3" /> {data.errorsLast24h} erro(s) 24h
-        </span>
-      )}
-    </div>
-  );
-}
-
-function WebhookLogs({ integrationId }: { integrationId: string }) {
-  const { data: logs, isLoading } = useQuery({
-    queryKey: ["webhook_logs", integrationId],
-    queryFn: async () => {
-      const { data } = await supabase.from("gateway_webhook_logs")
-        .select("id, received_at, event_type, processing_status, error_message")
-        .eq("gateway_integration_id", integrationId)
-        .order("received_at", { ascending: false })
-        .limit(10);
-      return data || [];
-    },
-    enabled: !!integrationId,
-  });
-
-  const statusIcon = (s: string) => {
-    if (s === "processed") return <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />;
-    if (s === "failed" || s === "rejected") return <XCircle className="w-3.5 h-3.5 text-destructive" />;
-    return <Clock className="w-3.5 h-3.5 text-muted-foreground" />;
-  };
-
-  if (isLoading) return <p className="text-xs text-muted-foreground py-2">Carregando logs...</p>;
-  if (!logs?.length) return <p className="text-xs text-muted-foreground py-2">Nenhum log encontrado</p>;
-
-  return (
-    <div className="space-y-1.5 mt-2">
-      {logs.map(log => (
-        <div key={log.id} className="flex items-center gap-2 bg-muted/20 rounded px-2.5 py-1.5 text-xs">
-          {statusIcon(log.processing_status)}
-          <span className="font-mono text-muted-foreground">{log.event_type || "—"}</span>
-          <Badge variant="outline" className="text-[10px] px-1.5 py-0">{log.processing_status}</Badge>
-          {log.error_message && (
-            <span className="text-destructive truncate max-w-[200px]" title={log.error_message}>
-              {log.error_message.slice(0, 50)}
-            </span>
-          )}
-          <span className="ml-auto text-muted-foreground/60 whitespace-nowrap">
-            {formatDistanceToNow(new Date(log.received_at), { addSuffix: true, locale: ptBR })}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
+// Shared dashboard primitives (StatusBadge, HealthIndicator, WebhookLogs) are imported from @/components/dashboard/* — extracted in Phase 2.
 
 // ══════════════════════════════════════════════════════
 // Ad Destinations Section (Google Ads, TikTok, GA4)
 // ══════════════════════════════════════════════════════
 
 function DestinationDialog({ open, onOpenChange, workspaceId }: { open: boolean; onOpenChange: (o: boolean) => void; workspaceId: string }) {
-  const queryClient = useQueryClient();
   const [provider, setProvider] = useState("google_ads");
   const [displayName, setDisplayName] = useState("");
   const [fields, setFields] = useState<Record<string, string>>({});
 
   const config = AD_PROVIDERS[provider];
 
-  const mutation = useMutation({
-    mutationFn: async () => {
-      const destinationId = fields.destination_id;
-      if (!destinationId) throw new Error("ID do destino é obrigatório");
-
-      const configJson: Record<string, string> = {};
-      if (fields.customer_id) configJson.customer_id = fields.customer_id.replace(/-/g, "");
-      if (fields.developer_token) configJson.developer_token = fields.developer_token;
-      if (fields.debug_mode) configJson.debug_mode = fields.debug_mode;
-
-      const { error } = await supabase.from("integration_destinations").insert({
-        workspace_id: workspaceId,
-        provider,
-        destination_id: destinationId,
-        display_name: displayName || `${config.label} - ${destinationId}`,
-        access_token_encrypted: fields.access_token || null,
-        config_json: configJson,
-        test_event_code: fields.test_event_code || null,
-        is_active: true,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["integration_destinations"] });
-      onOpenChange(false);
-      setFields({});
-      setDisplayName("");
-      toast.success(`${config.label} adicionado com sucesso!`);
-    },
-    onError: (e) => toast.error(String(e)),
+  const mutation = useCreateDestination(workspaceId, () => {
+    onOpenChange(false);
+    setFields({});
+    setDisplayName("");
+    toast.success(`${config.label} adicionado com sucesso!`);
   });
+
+  const handleSubmit = () => {
+    const configJson: Record<string, string> = {};
+    if (fields.customer_id) configJson.customer_id = fields.customer_id.replace(/-/g, "");
+    if (fields.developer_token) configJson.developer_token = fields.developer_token;
+    if (fields.debug_mode) configJson.debug_mode = fields.debug_mode;
+
+    mutation.mutate({
+      provider,
+      destinationId: fields.destination_id,
+      displayName: displayName || `${config.label} - ${fields.destination_id}`,
+      accessToken: fields.access_token,
+      testEventCode: fields.test_event_code,
+      configJson,
+    });
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -310,7 +205,7 @@ function DestinationDialog({ open, onOpenChange, workspaceId }: { open: boolean;
 
         <DialogFooter className="shrink-0 border-t border-border bg-background px-4 py-4 sm:px-6">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending} className="gap-2">
+          <Button onClick={handleSubmit} disabled={mutation.isPending} className="gap-2">
             <Plus className="w-4 h-4" />
             {mutation.isPending ? "Salvando..." : "Adicionar"}
           </Button>
@@ -321,79 +216,13 @@ function DestinationDialog({ open, onOpenChange, workspaceId }: { open: boolean;
 }
 
 function DestinationsSection({ workspaceId }: { workspaceId: string }) {
-  const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const { data: destinations, isLoading } = useQuery({
-    queryKey: ["integration_destinations", workspaceId],
-    queryFn: async () => {
-      const { data } = await supabase.from("integration_destinations")
-        .select("*")
-        .eq("workspace_id", workspaceId)
-        .order("created_at", { ascending: false });
-      return data || [];
-    },
-    enabled: !!workspaceId,
-  });
-
-  const toggleMutation = useMutation({
-    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-      const { error } = await supabase.from("integration_destinations")
-        .update({ is_active: !isActive })
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["integration_destinations"] });
-      toast.success("Status atualizado");
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("integration_destinations").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["integration_destinations"] });
-      toast.success("Destino removido");
-    },
-  });
-
-  // Delivery stats per destination
-  const { data: deliveryStats } = useQuery({
-    queryKey: ["destination_delivery_stats", workspaceId],
-    queryFn: async () => {
-      const { data } = await supabase.from("event_deliveries")
-        .select("provider, destination, status")
-        .eq("workspace_id", workspaceId)
-        .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-
-      const stats = new Map<string, { delivered: number; failed: number }>();
-      for (const d of data || []) {
-        const key = `${d.provider}::${d.destination}`;
-        const s = stats.get(key) || { delivered: 0, failed: 0 };
-        if (d.status === "delivered") s.delivered++;
-        else s.failed++;
-        stats.set(key, s);
-      }
-      return stats;
-    },
-    enabled: !!workspaceId,
-    refetchInterval: 60000,
-  });
-
-  // Meta pixels count
-  const { data: metaPixels } = useQuery({
-    queryKey: ["meta_pixels_count", workspaceId],
-    queryFn: async () => {
-      const { data } = await supabase.from("meta_pixels")
-        .select("id, pixel_id, is_active")
-        .eq("workspace_id", workspaceId);
-      return data || [];
-    },
-    enabled: !!workspaceId,
-  });
+  const { data: destinations, isLoading } = useDestinations(workspaceId);
+  const toggleMutation = useToggleDestination();
+  const deleteMutation = useDeleteDestination();
+  const { data: deliveryStats } = useDeliveryStats(workspaceId);
+  const { data: metaPixels } = useMetaPixels(workspaceId);
 
   const activeMetaPixels = metaPixels?.filter(p => p.is_active) || [];
 
@@ -526,67 +355,15 @@ export default function Integrations() {
   const [expandedLogs, setExpandedLogs] = useState<string | null>(null);
   const [testingId, setTestingId] = useState<string | null>(null);
 
-  const { data: integrations, isLoading } = useQuery({
-    queryKey: ["gateway_integrations", workspace?.id],
-    queryFn: async () => {
-      if (!workspace?.id) return [];
-      const { data } = await supabase.from("gateway_integrations").select("*").eq("workspace_id", workspace.id).order("created_at", { ascending: false });
-      return data || [];
-    },
-    enabled: !!workspace?.id,
-  });
+  const { data: integrations, isLoading } = useGatewayIntegrations(workspace?.id);
+  const createMutation = useCreateGatewayIntegration(workspace?.id);
+  const toggleMutation = useToggleGatewayIntegration();
+  const deleteMutation = useDeleteGatewayIntegration();
 
-  const createMutation = useMutation({
-    mutationFn: async (form: { provider: string; name: string; environment: string; fieldValues: Record<string, string> }) => {
-      if (!workspace?.id) throw new Error("No workspace");
-
-      const credentials = form.fieldValues.credentials || form.fieldValues.apiSecret || null;
-      const webhookSecret = form.fieldValues.webhookSecret || null;
-      const extraSettings = Object.fromEntries(
-        Object.entries(form.fieldValues).filter(([key, value]) => !["credentials", "webhookSecret", "apiSecret"].includes(key) && value)
-      );
-
-      const { error } = await supabase.from("gateway_integrations").insert({
-        workspace_id: workspace.id,
-        provider: form.provider,
-        name: form.name,
-        credentials_encrypted: credentials,
-        webhook_secret_encrypted: webhookSecret,
-        settings_json: Object.keys(extraSettings).length > 0 ? extraSettings : null,
-        environment: form.environment,
-        status: "active",
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["gateway_integrations"] });
-      setDialogOpen(false);
-      toast.success("Integração criada com sucesso!");
-    },
-    onError: (e) => toast.error(String(e)),
-  });
-
-  const toggleMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase.from("gateway_integrations").update({ status: status === "active" ? "inactive" : "active" }).eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["gateway_integrations"] });
-      toast.success("Status atualizado");
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("gateway_integrations").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["gateway_integrations"] });
-      toast.success("Integração removida");
-    },
-  });
+  // Close dialog on successful creation (separate from hook's onSuccess to keep it reusable)
+  const handleCreate = (form: { provider: string; name: string; environment: string; fieldValues: Record<string, string> }) => {
+    createMutation.mutate(form, { onSuccess: () => setDialogOpen(false) });
+  };
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 
@@ -720,7 +497,7 @@ export default function Integrations() {
 
       <IntegrationDialog
         open={dialogOpen} onOpenChange={setDialogOpen}
-        onSubmit={(data) => createMutation.mutate(data)}
+        onSubmit={handleCreate}
         isPending={createMutation.isPending}
         supabaseUrl={supabaseUrl} workspaceId={workspace?.id || ""}
       />
