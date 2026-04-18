@@ -151,6 +151,10 @@ export function AppSidebar() {
         <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
         <SidebarNavGroup items={trackingHubItems} label="Hub de Tracking" collapsed={collapsed} />
         <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
+        <SidebarNavGroup items={setupFacebookItems} label="Setup Facebook" collapsed={collapsed} />
+        <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
+        <SidebarNavGroup items={setupGoogleItems} label="Setup Google" collapsed={collapsed} />
+        <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
         <SidebarNavGroup items={settingsItems} label="Configurações" collapsed={collapsed} />
       </SidebarContent>
 
