@@ -21,6 +21,7 @@ const Usage = lazy(() => import("@/pages/Usage"));
 const SettingsPage = lazy(() => import("@/pages/SettingsPage"));
 const SystemDiagnostic = lazy(() => import("@/pages/SystemDiagnostic"));
 const ApiKeys = lazy(() => import("@/pages/ApiKeys"));
+const Credentials = lazy(() => import("@/pages/Credentials"));
 const Auth = lazy(() => import("@/pages/Auth"));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 const Setup = lazy(() => import("@/pages/Setup"));
@@ -103,6 +104,7 @@ function ProtectedRoutes() {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/system-diagnostic" element={<SystemDiagnostic />} />
           <Route path="/api-keys" element={<ApiKeys />} />
+          <Route path="/credentials" element={<Credentials />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
