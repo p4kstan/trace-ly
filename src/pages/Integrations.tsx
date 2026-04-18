@@ -114,44 +114,34 @@ const AD_PROVIDERS: Record<string, { label: string; emoji: string; desc: string;
 // ══════════════════════════════════════════════════════
 
 function DestinationDialog({ open, onOpenChange, workspaceId }: { open: boolean; onOpenChange: (o: boolean) => void; workspaceId: string }) {
-  const queryClient = useQueryClient();
   const [provider, setProvider] = useState("google_ads");
   const [displayName, setDisplayName] = useState("");
   const [fields, setFields] = useState<Record<string, string>>({});
 
   const config = AD_PROVIDERS[provider];
 
-  const mutation = useMutation({
-    mutationFn: async () => {
-      const destinationId = fields.destination_id;
-      if (!destinationId) throw new Error("ID do destino é obrigatório");
-
-      const configJson: Record<string, string> = {};
-      if (fields.customer_id) configJson.customer_id = fields.customer_id.replace(/-/g, "");
-      if (fields.developer_token) configJson.developer_token = fields.developer_token;
-      if (fields.debug_mode) configJson.debug_mode = fields.debug_mode;
-
-      const { error } = await supabase.from("integration_destinations").insert({
-        workspace_id: workspaceId,
-        provider,
-        destination_id: destinationId,
-        display_name: displayName || `${config.label} - ${destinationId}`,
-        access_token_encrypted: fields.access_token || null,
-        config_json: configJson,
-        test_event_code: fields.test_event_code || null,
-        is_active: true,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["integration_destinations"] });
-      onOpenChange(false);
-      setFields({});
-      setDisplayName("");
-      toast.success(`${config.label} adicionado com sucesso!`);
-    },
-    onError: (e) => toast.error(String(e)),
+  const mutation = useCreateDestination(workspaceId, () => {
+    onOpenChange(false);
+    setFields({});
+    setDisplayName("");
+    toast.success(`${config.label} adicionado com sucesso!`);
   });
+
+  const handleSubmit = () => {
+    const configJson: Record<string, string> = {};
+    if (fields.customer_id) configJson.customer_id = fields.customer_id.replace(/-/g, "");
+    if (fields.developer_token) configJson.developer_token = fields.developer_token;
+    if (fields.debug_mode) configJson.debug_mode = fields.debug_mode;
+
+    mutation.mutate({
+      provider,
+      destinationId: fields.destination_id,
+      displayName: displayName || `${config.label} - ${fields.destination_id}`,
+      accessToken: fields.access_token,
+      testEventCode: fields.test_event_code,
+      configJson,
+    });
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
