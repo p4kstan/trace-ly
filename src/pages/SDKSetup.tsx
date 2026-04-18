@@ -325,6 +325,59 @@ const response = await fetch("${supabaseUrl}/functions/v1/track", {
           <DataLayerTemplatesTab />
         </TabsContent>
 
+        <TabsContent value="ga4" className="mt-4 space-y-4">
+          <Card className="glass-card">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-primary" /> Google Analytics 4 — Configurado ✓
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="bg-muted/30 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Measurement ID</p>
+                  <code className="text-sm font-mono text-primary">G-GV6CZC4FZW</code>
+                </div>
+                <div className="bg-muted/30 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Stream</p>
+                  <code className="text-sm font-mono">marmitex</code>
+                </div>
+              </div>
+              <div className="flex items-start gap-2 bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-3">
+                <CheckCircle className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p><strong className="text-foreground">Server-side ativo:</strong> Purchases vindos de webhooks de gateway (Hotmart, Yampi, Kiwify…) são enviados automaticamente ao GA4 via Measurement Protocol.</p>
+                  <p><strong className="text-foreground">Client-side (opcional):</strong> use os snippets abaixo no checkout para deduplicação e dados extras.</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="glass-card">
+            <CardHeader>
+              <CardTitle className="text-base">Snippet client-side — DataLayer (GTM)</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Cole na página de confirmação do pedido. Funciona com qualquer container GTM que tenha tag GA4 Purchase configurada.
+              </p>
+              <CodeBlock code={GA4_PURCHASE_DATALAYER} />
+            </CardContent>
+          </Card>
+
+          <Card className="glass-card">
+            <CardHeader>
+              <CardTitle className="text-base">Snippet client-side — gtag.js direto</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Use se o seu site não tem GTM. Inclui o gtag.js do GA4 e dispara o evento purchase.
+              </p>
+              <CodeBlock code={GA4_PURCHASE_GTAG} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="events" className="mt-4">
           <Card className="glass-card">
             <CardHeader>
