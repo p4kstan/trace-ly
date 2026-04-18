@@ -108,6 +108,13 @@ export default function GoogleAdsCampaignDetail() {
   const geoData = useReport(workspace?.id, customerId, "geo", period, campaignId);
   const audienceData = useReport(workspace?.id, customerId, "audience", period, campaignId);
   const extensions = useReport(workspace?.id, customerId, "extensions", period, campaignId);
+  const ads = useReport(workspace?.id, customerId, "ads", period, campaignId);
+  const bidModifiers = useReport(workspace?.id, customerId, "bid_modifiers", period, campaignId);
+  const adSchedule = useReport(workspace?.id, customerId, "ad_schedule", period, campaignId);
+  const locationsTargeted = useReport(workspace?.id, customerId, "locations_targeted", period, campaignId);
+  const landingPages = useReport(workspace?.id, customerId, "landing_pages", period, campaignId);
+  const conversionActions = useReport(workspace?.id, customerId, "conversion_actions", period, campaignId);
+  const qualityShare = useReport(workspace?.id, customerId, "campaign_quality", period, campaignId);
   const history = useReport(workspace?.id, customerId, "change_history", period, campaignId);
 
   // Mutations
