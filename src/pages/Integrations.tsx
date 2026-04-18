@@ -355,67 +355,15 @@ export default function Integrations() {
   const [expandedLogs, setExpandedLogs] = useState<string | null>(null);
   const [testingId, setTestingId] = useState<string | null>(null);
 
-  const { data: integrations, isLoading } = useQuery({
-    queryKey: ["gateway_integrations", workspace?.id],
-    queryFn: async () => {
-      if (!workspace?.id) return [];
-      const { data } = await supabase.from("gateway_integrations").select("*").eq("workspace_id", workspace.id).order("created_at", { ascending: false });
-      return data || [];
-    },
-    enabled: !!workspace?.id,
-  });
+  const { data: integrations, isLoading } = useGatewayIntegrations(workspace?.id);
+  const createMutation = useCreateGatewayIntegration(workspace?.id);
+  const toggleMutation = useToggleGatewayIntegration();
+  const deleteMutation = useDeleteGatewayIntegration();
 
-  const createMutation = useMutation({
-    mutationFn: async (form: { provider: string; name: string; environment: string; fieldValues: Record<string, string> }) => {
-      if (!workspace?.id) throw new Error("No workspace");
-
-      const credentials = form.fieldValues.credentials || form.fieldValues.apiSecret || null;
-      const webhookSecret = form.fieldValues.webhookSecret || null;
-      const extraSettings = Object.fromEntries(
-        Object.entries(form.fieldValues).filter(([key, value]) => !["credentials", "webhookSecret", "apiSecret"].includes(key) && value)
-      );
-
-      const { error } = await supabase.from("gateway_integrations").insert({
-        workspace_id: workspace.id,
-        provider: form.provider,
-        name: form.name,
-        credentials_encrypted: credentials,
-        webhook_secret_encrypted: webhookSecret,
-        settings_json: Object.keys(extraSettings).length > 0 ? extraSettings : null,
-        environment: form.environment,
-        status: "active",
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["gateway_integrations"] });
-      setDialogOpen(false);
-      toast.success("Integração criada com sucesso!");
-    },
-    onError: (e) => toast.error(String(e)),
-  });
-
-  const toggleMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase.from("gateway_integrations").update({ status: status === "active" ? "inactive" : "active" }).eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["gateway_integrations"] });
-      toast.success("Status atualizado");
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("gateway_integrations").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["gateway_integrations"] });
-      toast.success("Integração removida");
-    },
-  });
+  // Close dialog on successful creation (separate from hook's onSuccess to keep it reusable)
+  const handleCreate = (form: { provider: string; name: string; environment: string; fieldValues: Record<string, string> }) => {
+    createMutation.mutate(form, { onSuccess: () => setDialogOpen(false) });
+  };
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 
