@@ -115,6 +115,9 @@ async function sendToGoogleAds(
   };
   if (loginCustomerId) headers["login-customer-id"] = loginCustomerId;
 
+  console.log(`[google-ads-capi] POST ${url} | login-customer-id=${loginCustomerId || "none"} | dev-token-len=${developerToken.length} | token-prefix=${accessToken.slice(0,10)}...`);
+  console.log(`[google-ads-capi] body=${JSON.stringify({ conversions, partial_failure: true }).slice(0,500)}`);
+
   const res = await fetch(url, {
     method: "POST",
     headers,
