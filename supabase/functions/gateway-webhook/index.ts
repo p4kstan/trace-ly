@@ -30,6 +30,16 @@ interface NormalizedCustomer {
   name?: string; email?: string; phone?: string; document?: string;
 }
 
+interface NormalizedTracking {
+  gclid?: string; gbraid?: string; wbraid?: string;
+  fbclid?: string; fbp?: string; fbc?: string; ttclid?: string;
+  utm_source?: string; utm_medium?: string; utm_campaign?: string;
+  utm_content?: string; utm_term?: string;
+  landing_page?: string; referrer?: string;
+  user_agent?: string; ip?: string;
+  ga_client_id?: string;
+}
+
 interface NormalizedOrder {
   gateway: string;
   external_order_id: string;
@@ -43,7 +53,40 @@ interface NormalizedOrder {
   payment_method?: string;
   installments?: number;
   items?: Array<{ product_id?: string; product_name?: string; category?: string; quantity: number; unit_price?: number; total_price?: number }>;
+  tracking?: NormalizedTracking;
   raw_payload: unknown;
+}
+
+// Extracts tracking attributes from a `metadata` (or similar) bag passed by the merchant's checkout.
+// Accepts snake_case, camelCase and common aliases.
+function extractTrackingFromMetadata(meta: any): NormalizedTracking {
+  if (!meta || typeof meta !== "object") return {};
+  const get = (...keys: string[]) => {
+    for (const k of keys) {
+      const v = meta[k];
+      if (v != null && String(v).trim() !== "") return String(v);
+    }
+    return undefined;
+  };
+  return {
+    gclid: get("gclid", "GCLID"),
+    gbraid: get("gbraid"),
+    wbraid: get("wbraid"),
+    fbclid: get("fbclid"),
+    fbp: get("fbp", "_fbp"),
+    fbc: get("fbc", "_fbc"),
+    ttclid: get("ttclid"),
+    utm_source: get("utm_source", "utmSource"),
+    utm_medium: get("utm_medium", "utmMedium"),
+    utm_campaign: get("utm_campaign", "utmCampaign"),
+    utm_content: get("utm_content", "utmContent"),
+    utm_term: get("utm_term", "utmTerm"),
+    landing_page: get("landing_page", "landingPage", "first_page"),
+    referrer: get("referrer"),
+    user_agent: get("user_agent", "userAgent", "ua"),
+    ip: get("ip", "client_ip", "clientIp"),
+    ga_client_id: get("ga_client_id", "client_id", "gaClientId"),
+  };
 }
 
 const INTERNAL_TO_META: Record<string, string> = {
