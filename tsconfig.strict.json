@@ -1,0 +1,25 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": [
+    "src/hooks/api/**/*.ts",
+    "src/hooks/api/**/*.tsx",
+    "src/components/dashboard/**/*.ts",
+    "src/components/dashboard/**/*.tsx",
+    "src/lib/ga4-cache.ts"
+  ],
+  "exclude": ["node_modules", "dist", "build"]
+}

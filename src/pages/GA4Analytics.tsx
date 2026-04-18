@@ -15,6 +15,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
+import { getGa4Cache, setGa4Cache } from "@/lib/ga4-cache";
 import {
   AlertTriangle, BarChart3, Plug, RefreshCw, ShieldCheck, ExternalLink, Plus, Trash2,
   Users, Activity, DollarSign, MousePointerClick, Target,
@@ -115,10 +116,14 @@ export default function GA4Analytics() {
     enabled: !!ws && isConnected,
     retry: false,
     queryFn: async () => {
+      const cacheParts = [ws, cred?.property_id, activeTab, dateRange];
+      const cached = getGa4Cache<unknown>(cacheParts);
+      if (cached) return cached;
       const { data, error } = await supabase.functions.invoke("ga4-data-reports", {
         body: { workspace_id: ws, report_type: activeTab, date_range: dateRange },
       });
       if (error) throw error;
+      setGa4Cache(cacheParts, data);
       return data;
     },
   });
