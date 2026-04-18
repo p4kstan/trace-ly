@@ -148,6 +148,7 @@ export function MarketingDestinationsManager({ workspaceId }: Props) {
             extra={p.test_event_code ? `test: ${p.test_event_code}` : undefined}
             onToggle={v => togglePixel.mutate({ id: p.id, is_active: v })}
             onRemove={() => removePixel.mutate(p.id)}
+            editor={<EditMetaPixelDialog pixel={p} workspaceId={workspaceId} onSaved={() => qc.invalidateQueries({ queryKey: ["meta-pixels", workspaceId] })} />}
           />
         ))}
 
@@ -162,6 +163,7 @@ export function MarketingDestinationsManager({ workspaceId }: Props) {
             extra={d.events_sent_count > 0 ? `${d.events_sent_count} eventos` : undefined}
             onToggle={v => toggleDest.mutate({ id: d.id, is_active: v })}
             onRemove={() => removeDest.mutate(d.id)}
+            editor={<EditGA4Dialog dest={d} onSaved={() => qc.invalidateQueries({ queryKey: ["integration-destinations", workspaceId] })} />}
           />
         ))}
 
@@ -176,6 +178,7 @@ export function MarketingDestinationsManager({ workspaceId }: Props) {
             extra={d.events_sent_count > 0 ? `${d.events_sent_count} eventos` : "OAuth conectado"}
             onToggle={v => toggleDest.mutate({ id: d.id, is_active: v })}
             onRemove={() => removeDest.mutate(d.id)}
+            editor={<EditGoogleAdsDialog dest={d} onSaved={() => qc.invalidateQueries({ queryKey: ["integration-destinations", workspaceId] })} />}
           />
         ))}
 
