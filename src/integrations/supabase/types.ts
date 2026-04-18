@@ -2746,6 +2746,56 @@ export type Database = {
         }
         Relationships: []
       }
+      google_ads_conversion_actions: {
+        Row: {
+          conversion_id: string
+          conversion_label: string
+          created_at: string
+          event_name: string | null
+          google_ads_credential_id: string | null
+          id: string
+          is_active: boolean
+          is_default: boolean
+          name: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          conversion_id: string
+          conversion_label: string
+          created_at?: string
+          event_name?: string | null
+          google_ads_credential_id?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          conversion_id?: string
+          conversion_label?: string
+          created_at?: string
+          event_name?: string | null
+          google_ads_credential_id?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_ads_conversion_actions_google_ads_credential_id_fkey"
+            columns: ["google_ads_credential_id"]
+            isOneToOne: false
+            referencedRelation: "google_ads_credentials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_ads_credentials: {
         Row: {
           access_token: string | null
