@@ -156,15 +156,19 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="px-2 py-3">
-        <SidebarNavGroup items={mainItems} label="Análises" collapsed={collapsed} />
+        <SidebarNavGroup items={overviewItems} label="Visão Geral" collapsed={collapsed} />
         <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
-        <SidebarNavGroup items={platformsItems} label="Visualização Plataformas" collapsed={collapsed} />
+        <SidebarNavGroup items={intelligenceItems} label="Inteligência" collapsed={collapsed} />
         <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
-        <SidebarNavGroup items={trackingHubItems} label="Hub de Tracking" collapsed={collapsed} />
+        <SidebarNavGroup items={campaignsItems} label="Campanhas" collapsed={collapsed} />
         <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
-        <SidebarNavGroup items={setupsItems} label="Setups" collapsed={collapsed} />
+        <SidebarNavGroup items={setupItems} label="Setup & Instalação" collapsed={collapsed} />
         <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
-        <SidebarNavGroup items={settingsItems} label="Configurações" collapsed={collapsed} />
+        <SidebarNavGroup items={operationItems} label="Operação" collapsed={collapsed} />
+        <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
+        <SidebarNavGroup items={logsItems} label="Logs & Diagnóstico" collapsed={collapsed} />
+        <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
+        <SidebarNavGroup items={accountItems} label="Conta" collapsed={collapsed} />
       </SidebarContent>
 
       <SidebarFooter className="p-3 border-t border-sidebar-border/40 space-y-2.5">
