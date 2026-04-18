@@ -2,7 +2,7 @@ import {
   LayoutDashboard, GitBranch, MonitorDot, ScrollText, Bug, Settings,
   Zap, Brain, CreditCard, HeartPulse, Key, LogOut, ShoppingCart, Webhook, Inbox, BookOpen, Cpu, Gauge,
   Shield, TrendingUp, Lightbulb, Filter, Radio, Send, Code, FileText, HelpCircle, Layers, BarChart3, Wand2,
-  Facebook, Music2,
+  Facebook2 as Facebook, Music2,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
