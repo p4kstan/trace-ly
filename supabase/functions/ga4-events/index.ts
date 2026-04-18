@@ -266,7 +266,7 @@ Deno.serve(async (req) => {
     // Group events by client_id
     const eventsByClient = new Map<string, { ga4Events: GA4Event[]; queueItems: any[]; userId?: string }>();
 
-    for (const item of items) {
+    for (const item of filteredItems) {
       const evt = buildGA4Event(item);
       if (!evt) { totalSkipped++; continue; }
 
