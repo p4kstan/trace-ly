@@ -622,6 +622,76 @@ function mapRow(level: string, r: any) {
     };
   }
 
+  if (level === "bid_modifiers") {
+    const c = r.campaignBidModifier ?? {};
+    return {
+      id: String(c.criterionId ?? ""),
+      name: c.interactionType?.type ?? "—",
+      bid_modifier: c.bidModifier != null ? Number(c.bidModifier) : null,
+      campaign_name: r.campaign?.name ?? "",
+    };
+  }
+
+  if (level === "ad_schedule") {
+    const s = r.campaignCriterion?.adSchedule ?? {};
+    const c = r.campaignCriterion ?? {};
+    return {
+      id: String(c.criterionId ?? ""),
+      name: `${s.dayOfWeek ?? "—"} ${String(s.startHour ?? "").padStart(2,"0")}:${String(s.startMinute ?? "ZERO").replace("ZERO","00")} → ${String(s.endHour ?? "").padStart(2,"0")}:${String(s.endMinute ?? "ZERO").replace("ZERO","00")}`,
+      day: s.dayOfWeek ?? "—",
+      bid_modifier: c.bidModifier != null ? Number(c.bidModifier) : null,
+    };
+  }
+
+  if (level === "locations_targeted") {
+    const c = r.campaignCriterion ?? {};
+    const geoConst = c.location?.geoTargetConstant ?? "";
+    return {
+      id: String(c.criterionId ?? ""),
+      name: geoConst.replace("geoTargetConstants/", "ID ") || "—",
+      negative: c.negative ?? false,
+      bid_modifier: c.bidModifier != null ? Number(c.bidModifier) : null,
+    };
+  }
+
+  if (level === "landing_pages") {
+    return {
+      id: r.landingPageView?.unexpandedFinalUrl ?? "",
+      name: r.landingPageView?.unexpandedFinalUrl ?? "—",
+      ...base,
+    };
+  }
+
+  if (level === "conversion_actions") {
+    const a = r.conversionAction ?? {};
+    return {
+      id: String(a.id ?? ""),
+      name: a.name ?? "",
+      category: a.category ?? null,
+      status: a.status ?? null,
+      type: a.type ?? null,
+      primary: a.primaryForGoal ?? false,
+      counting_type: a.countingType ?? null,
+      default_value: a.valueSettings?.defaultValue != null ? Number(a.valueSettings.defaultValue) : null,
+      currency: a.valueSettings?.defaultCurrencyCode ?? null,
+    };
+  }
+
+  if (level === "campaign_quality") {
+    const m = r.metrics ?? {};
+    return {
+      id: String(r.campaign?.id ?? ""),
+      name: r.campaign?.name ?? "",
+      search_impression_share: m.searchImpressionShare != null ? Number(m.searchImpressionShare) : null,
+      search_top_impression_share: m.searchTopImpressionShare != null ? Number(m.searchTopImpressionShare) : null,
+      search_absolute_top_impression_share: m.searchAbsoluteTopImpressionShare != null ? Number(m.searchAbsoluteTopImpressionShare) : null,
+      search_budget_lost_impression_share: m.searchBudgetLostImpressionShare != null ? Number(m.searchBudgetLostImpressionShare) : null,
+      search_rank_lost_impression_share: m.searchRankLostImpressionShare != null ? Number(m.searchRankLostImpressionShare) : null,
+      search_budget_lost_top_impression_share: m.searchBudgetLostTopImpressionShare != null ? Number(m.searchBudgetLostTopImpressionShare) : null,
+      search_rank_lost_top_impression_share: m.searchRankLostTopImpressionShare != null ? Number(m.searchRankLostTopImpressionShare) : null,
+    };
+  }
+
   if (level === "change_history") {
     const ce = r.changeEvent ?? {};
     return {
