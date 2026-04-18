@@ -15,6 +15,26 @@ const apiKeyCache = new Map<string, { workspaceId: string; keyId: string; ts: nu
 const domainCache = new Map<string, { domains: string[]; ts: number }>();
 const API_KEY_TTL = 5 * 60 * 1000;
 
+// ── Ad-hoc in-memory rate limiter (per workspace, sliding window) ──
+// NOTE: per-isolate only — not a global guarantee. Provides burst protection
+// in front of the durable monthly quota in workspace_usage.
+const RATE_WINDOW_MS = 1000;
+const RATE_MAX_PER_WINDOW = 50;
+const rateBuckets = new Map<string, number[]>();
+
+function checkRateLimit(workspaceId: string): { allowed: boolean; retryAfter: number } {
+  const now = Date.now();
+  const cutoff = now - RATE_WINDOW_MS;
+  const bucket = (rateBuckets.get(workspaceId) || []).filter((t) => t > cutoff);
+  if (bucket.length >= RATE_MAX_PER_WINDOW) {
+    rateBuckets.set(workspaceId, bucket);
+    return { allowed: false, retryAfter: Math.ceil((bucket[0] + RATE_WINDOW_MS - now) / 1000) || 1 };
+  }
+  bucket.push(now);
+  rateBuckets.set(workspaceId, bucket);
+  return { allowed: true, retryAfter: 0 };
+}
+
 function getCachedApiKey(key: string) {
   const entry = apiKeyCache.get(key);
   if (entry && Date.now() - entry.ts < API_KEY_TTL) return entry;
