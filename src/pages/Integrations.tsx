@@ -497,7 +497,7 @@ export default function Integrations() {
 
       <IntegrationDialog
         open={dialogOpen} onOpenChange={setDialogOpen}
-        onSubmit={(data) => createMutation.mutate(data)}
+        onSubmit={handleCreate}
         isPending={createMutation.isPending}
         supabaseUrl={supabaseUrl} workspaceId={workspace?.id || ""}
       />
