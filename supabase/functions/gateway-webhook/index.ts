@@ -1022,6 +1022,7 @@ Deno.serve(async (req) => {
     const isChargeback = internalEvent.includes("chargeback");
     const isCanceled = internalEvent.includes("cancel");
 
+    const tk = order.tracking || {};
     const orderData: any = {
       workspace_id: workspaceId, gateway: order.gateway, gateway_order_id: order.external_order_id,
       gateway_integration_id: integrationId, customer_email: order.customer.email || null,
@@ -1031,6 +1032,12 @@ Deno.serve(async (req) => {
       financial_status: internalEvent, total_value: order.total_value, currency: order.currency,
       payment_method: order.payment_method, installments: order.installments,
       external_checkout_id: order.external_checkout_id, external_subscription_id: order.external_subscription_id,
+      // ── Tracking carried by checkout via metadata ──
+      gclid: tk.gclid || null, fbclid: tk.fbclid || null, ttclid: tk.ttclid || null,
+      fbp: tk.fbp || null, fbc: tk.fbc || null,
+      utm_source: tk.utm_source || null, utm_medium: tk.utm_medium || null,
+      utm_campaign: tk.utm_campaign || null, utm_content: tk.utm_content || null, utm_term: tk.utm_term || null,
+      landing_page: tk.landing_page || null, referrer: tk.referrer || null,
     };
     if (isPaid) orderData.paid_at = new Date().toISOString();
     if (isRefund) orderData.refunded_at = new Date().toISOString();
@@ -1056,18 +1063,26 @@ Deno.serve(async (req) => {
       await supabase.from("order_items").insert(order.items.map(i => ({ order_id: savedOrder.id, workspace_id: workspaceId, ...i })));
     }
 
-    // ── Reconciliation ──
+    // ── Reconciliation (FALLBACK: fills tracking only if checkout did not send it) ──
     const { identityId, sessionId, sessionData, matchField } = await reconcile(workspaceId, order.customer);
 
-    if (sessionData && savedOrder?.id) {
-      await supabase.from("orders").update({
-        session_id: sessionId, identity_id: identityId,
-        utm_source: sessionData.utm_source, utm_medium: sessionData.utm_medium,
-        utm_campaign: sessionData.utm_campaign, utm_content: sessionData.utm_content,
-        utm_term: sessionData.utm_term, fbp: sessionData.fbp, fbc: sessionData.fbc,
-        fbclid: sessionData.fbclid, gclid: sessionData.gclid, ttclid: sessionData.ttclid,
-        landing_page: sessionData.landing_page, referrer: sessionData.referrer,
-      }).eq("id", savedOrder.id);
+    if (savedOrder?.id && (sessionId || identityId || sessionData)) {
+      const fallback: any = { session_id: sessionId, identity_id: identityId };
+      if (sessionData) {
+        if (!tk.utm_source) fallback.utm_source = sessionData.utm_source;
+        if (!tk.utm_medium) fallback.utm_medium = sessionData.utm_medium;
+        if (!tk.utm_campaign) fallback.utm_campaign = sessionData.utm_campaign;
+        if (!tk.utm_content) fallback.utm_content = sessionData.utm_content;
+        if (!tk.utm_term) fallback.utm_term = sessionData.utm_term;
+        if (!tk.fbp) fallback.fbp = sessionData.fbp;
+        if (!tk.fbc) fallback.fbc = sessionData.fbc;
+        if (!tk.fbclid) fallback.fbclid = sessionData.fbclid;
+        if (!tk.gclid) fallback.gclid = sessionData.gclid;
+        if (!tk.ttclid) fallback.ttclid = sessionData.ttclid;
+        if (!tk.landing_page) fallback.landing_page = sessionData.landing_page;
+        if (!tk.referrer) fallback.referrer = sessionData.referrer;
+      }
+      await supabase.from("orders").update(fallback).eq("id", savedOrder.id);
     }
 
     // Upsert gateway_customer
