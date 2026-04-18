@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.103.0";
+import { getRegisteredHandler, HANDLERS as REGISTERED_HANDLERS } from "./handlers/_registry.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -223,29 +224,9 @@ const asaasHandler: GatewayHandler = {
   },
 };
 
-// ── Hotmart ──
-const hotmartHandler: GatewayHandler = {
-  extractEventType: (p) => str(p.event || (p.hottok && "PURCHASE")),
-  resolveInternalEvent: (e) => ({
-    "PURCHASE_COMPLETE": "order_paid", "PURCHASE_APPROVED": "order_paid",
-    "PURCHASE_PROTEST": "order_chargeback", "PURCHASE_REFUNDED": "order_refunded",
-    "PURCHASE_CHARGEBACK": "order_chargeback", "PURCHASE_CANCELED": "order_canceled",
-    "PURCHASE_BILLET_PRINTED": "boleto_generated", "PURCHASE_DELAYED": "payment_pending",
-    "SUBSCRIPTION_CANCELLATION": "subscription_canceled", "SWITCH_PLAN": "subscription_renewed",
-  } as Record<string, InternalEvent>)[e] || "order_created",
-  normalize: (p) => {
-    const d = p.data || p; const buyer = d.buyer || {}; const purchase = d.purchase || {}; const product = d.product || {};
-    return {
-      gateway: "hotmart", external_order_id: str(purchase.transaction || purchase.order_bump?.id),
-      external_payment_id: str(purchase.transaction),
-      customer: { email: str(buyer.email), name: str(buyer.name), phone: str(buyer.phone || buyer.cellphone), document: str(buyer.document) },
-      status: str(purchase.status), total_value: num(purchase.price?.value || purchase.original_offer_price?.value),
-      currency: str(purchase.price?.currency_value || "BRL"), payment_method: str(purchase.payment?.type),
-      items: [{ product_name: str(product.name), product_id: str(product.id), quantity: 1, unit_price: num(purchase.price?.value) }],
-      raw_payload: p,
-    };
-  },
-};
+// ── Hotmart, Kiwify, Yampi, Eduzz ──
+// Extracted to ./handlers/ — see _registry.ts
+
 
 // ── Monetizze ──
 const monetizzeHandler: GatewayHandler = {
@@ -277,28 +258,8 @@ const monetizzeHandler: GatewayHandler = {
 };
 
 // ── Eduzz ──
-const eduzzHandler: GatewayHandler = {
-  extractEventType: (p) => str(p.event_type || p.trans_status),
-  resolveInternalEvent: (e) => ({
-    "invoice_created": "order_created", "invoice_approved": "order_paid", "invoice_paid": "order_paid",
-    "invoice_pending": "payment_pending", "invoice_canceled": "order_canceled", "invoice_refunded": "order_refunded",
-    "contract_created": "subscription_started", "contract_renewed": "subscription_renewed",
-    "contract_canceled": "subscription_canceled",
-    "1": "payment_pending", "3": "order_paid", "4": "order_canceled", "6": "payment_pending", "7": "order_refunded",
-  } as Record<string, InternalEvent>)[e] || "order_created",
-  normalize: (p) => {
-    const s = p.sale || p; const cl = p.client || s.client || {}; const co = p.content || s.content || {};
-    return {
-      gateway: "eduzz", external_order_id: str(s.sale_id || s.invoice_code || p.trans_cod),
-      external_payment_id: str(s.sale_id || p.trans_cod),
-      customer: { email: str(cl.email || p.cus_email), name: str(cl.name || p.cus_name), phone: str(cl.phone || p.cus_cel), document: str(cl.document || p.cus_taxnumber) },
-      status: str(s.sale_status || p.trans_status), total_value: num(s.sale_amount_win || s.sale_net || p.trans_value),
-      currency: "BRL", payment_method: str(s.sale_payment_method || p.trans_paymentmethod),
-      items: co.title ? [{ product_name: str(co.title), product_id: str(co.id), quantity: 1 }] : undefined,
-      raw_payload: p,
-    };
-  },
-};
+// Extracted to ./handlers/eduzz.ts
+
 
 // ── Appmax ──
 const appmaxHandler: GatewayHandler = {
@@ -398,27 +359,8 @@ const pagseguroHandler: GatewayHandler = {
 };
 
 // ── Kiwify ──
-const kiwifyHandler: GatewayHandler = {
-  extractEventType: (p) => str(p.webhook_event_type || p.order_status || p.event),
-  resolveInternalEvent: (e) => ({
-    "order_approved": "order_paid", "order_completed": "order_paid",
-    "order_refunded": "order_refunded", "order_chargedback": "order_chargeback",
-    "subscription_created": "subscription_started", "subscription_renewed": "subscription_renewed",
-    "subscription_canceled": "subscription_canceled", "waiting_payment": "payment_pending",
-    "pix_created": "pix_generated", "billet_created": "boleto_generated",
-  } as Record<string, InternalEvent>)[e] || "order_created",
-  normalize: (p) => {
-    const c = p.Customer || p.customer || {};
-    return {
-      gateway: "kiwify", external_order_id: str(p.order_id || p.subscription_id),
-      external_payment_id: str(p.order_id),
-      customer: { email: str(c.email), name: str(c.full_name || c.name), phone: str(c.mobile), document: str(c.CPF || c.cpf) },
-      status: str(p.order_status || p.webhook_event_type),
-      total_value: num(p.Commissions?.charge_amount || p.product_price || p.approved_value),
-      currency: "BRL", payment_method: str(p.payment_method), raw_payload: p,
-    };
-  },
-};
+// Extracted to ./handlers/kiwify.ts
+
 
 // ── Ticto ──
 const tictoHandler: GatewayHandler = {
@@ -644,22 +586,7 @@ const gumroadHandler: GatewayHandler = {
   }),
 };
 
-// ── Gumroad ──
-const gumroadHandler: GatewayHandler = {
-  extractEventType: (p) => str(p.resource_name || "sale"),
-  resolveInternalEvent: (e) => ({
-    "sale": "order_paid", "refund": "order_refunded",
-    "cancellation": "subscription_canceled", "subscription_updated": "subscription_renewed",
-    "subscription_ended": "subscription_canceled", "subscription_restarted": "subscription_started",
-  } as Record<string, InternalEvent>)[e] || "order_created",
-  normalize: (p) => ({
-    gateway: "gumroad", external_order_id: str(p.sale_id || p.subscription_id || p.id),
-    external_payment_id: str(p.sale_id || p.id),
-    customer: { email: str(p.email || p.purchaser_id), name: str(p.full_name) },
-    status: str(p.resource_name || "paid"), total_value: num(String(p.price || 0).replace(/[^0-9.]/g, "")),
-    currency: str(p.currency || "usd").toUpperCase(), raw_payload: p,
-  }),
-};
+
 
 // ── Generic fallback ──
 const genericHandler: GatewayHandler = {
@@ -689,12 +616,17 @@ const genericHandler: GatewayHandler = {
 };
 
 // ── Handler Registry ──
+// Handlers extracted to ./handlers/ take precedence (see _registry.ts).
+// Legacy in-file handlers below cover gateways not yet migrated.
 const HANDLERS: Record<string, GatewayHandler> = {
+  // Extracted (authoritative source: ./handlers/)
+  ...REGISTERED_HANDLERS,
+  // Legacy in-file
   stripe: stripeHandler, mercadopago: mercadopagoHandler, pagarme: pagarmeHandler,
-  asaas: asaasHandler, hotmart: hotmartHandler, monetizze: monetizzeHandler,
-  eduzz: eduzzHandler, appmax: appmaxHandler, cakto: caktoHandler,
+  asaas: asaasHandler, monetizze: monetizzeHandler,
+  appmax: appmaxHandler, cakto: caktoHandler,
   kirvano: kirvanoHandler, pagseguro: pagseguroHandler,
-  kiwify: kiwifyHandler, ticto: tictoHandler, greenn: greennHandler,
+  ticto: tictoHandler, greenn: greennHandler,
   shopify: shopifyHandler, paypal: paypalHandler, paddle: paddleHandler,
   fortpay: fortpayHandler, cloudfy: cloudfyHandler, gumroad: gumroadHandler,
   quantumpay: quantumpayHandler,
@@ -705,6 +637,7 @@ function detectProvider(req: Request, payload: any): string {
   // Header-based detection
   if (req.headers.get("stripe-signature")) return "stripe";
   if (req.headers.get("x-hotmart-hottok")) return "hotmart";
+  if (req.headers.get("x-yampi-hmac-sha256")) return "yampi";
   if (req.headers.get("x-shopify-hmac-sha256") || req.headers.get("x-shopify-topic")) return "shopify";
   if (req.headers.get("paypal-transmission-id")) return "paypal";
   if (req.headers.get("paddle-signature")) return "paddle";
@@ -736,6 +669,12 @@ function getHandler(provider: string): GatewayHandler {
 // ════════════════════════════════════════════════════════════
 
 async function verifySignature(provider: string, rawBody: string, req: Request, webhookSecret: string | null): Promise<{ valid: boolean; reason: string }> {
+  // Delegate to the registered handler when it implements its own validateHMAC.
+  // This keeps gateway-specific signature logic colocated with the handler.
+  const registered = getRegisteredHandler(provider);
+  if (registered?.validateHMAC) {
+    return await registered.validateHMAC(rawBody, req.headers, webhookSecret);
+  }
   if (!webhookSecret) return { valid: true, reason: "no_secret_configured" };
   try {
     const enc = new TextEncoder();
