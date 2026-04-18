@@ -51,6 +51,7 @@ const GoogleAdsCampaignDetail = lazy(() => import("@/pages/GoogleAdsCampaignDeta
 const FacebookAdsCampaigns = lazy(() => import("@/pages/FacebookAdsCampaigns"));
 const TikTokAdsCampaigns = lazy(() => import("@/pages/TikTokAdsCampaigns"));
 const PromptGenerator = lazy(() => import("@/pages/PromptGenerator"));
+const GA4Analytics = lazy(() => import("@/pages/GA4Analytics"));
 const NativeCheckoutGuide = lazy(() => import("@/pages/NativeCheckoutGuide"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
@@ -105,6 +106,7 @@ function ProtectedRoutes() {
           <Route path="/system-diagnostic" element={<SystemDiagnostic />} />
           <Route path="/api-keys" element={<ApiKeys />} />
           <Route path="/credentials" element={<Credentials />} />
+          <Route path="/ga4-analytics" element={<GA4Analytics />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>

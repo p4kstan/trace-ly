@@ -2443,6 +2443,90 @@ export type Database = {
         }
         Relationships: []
       }
+      ga4_credentials: {
+        Row: {
+          access_token: string | null
+          account_id: string | null
+          account_name: string | null
+          created_at: string
+          id: string
+          last_sync_at: string | null
+          measurement_id: string | null
+          property_id: string
+          property_name: string | null
+          refresh_token: string | null
+          scopes: string[] | null
+          status: string
+          token_expires_at: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          access_token?: string | null
+          account_id?: string | null
+          account_name?: string | null
+          created_at?: string
+          id?: string
+          last_sync_at?: string | null
+          measurement_id?: string | null
+          property_id: string
+          property_name?: string | null
+          refresh_token?: string | null
+          scopes?: string[] | null
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          access_token?: string | null
+          account_id?: string | null
+          account_name?: string | null
+          created_at?: string
+          id?: string
+          last_sync_at?: string | null
+          measurement_id?: string | null
+          property_id?: string
+          property_name?: string | null
+          refresh_token?: string | null
+          scopes?: string[] | null
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      ga4_reports_cache: {
+        Row: {
+          cache_key: string
+          created_at: string
+          expires_at: string
+          id: string
+          property_id: string
+          report_json: Json
+          workspace_id: string
+        }
+        Insert: {
+          cache_key: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          property_id: string
+          report_json: Json
+          workspace_id: string
+        }
+        Update: {
+          cache_key?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          property_id?: string
+          report_json?: Json
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       gateway_api_sync_logs: {
         Row: {
           created_at: string
