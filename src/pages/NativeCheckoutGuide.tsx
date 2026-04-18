@@ -3,7 +3,164 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CodeBlock } from "@/components/setup/CodeBlock";
-import { CheckCircle2, Info, ShieldCheck, Zap } from "lucide-react";
+import { CheckCircle2, Info, ShieldCheck, Zap, Wand2 } from "lucide-react";
+
+const LOVABLE_PROMPT = `# Tarefa: Implementar tracking completo de Purchase no checkout PIX (QuantumPay) + CapiTrack
+
+## Contexto
+Meu site é um checkout próprio (nativo) que cria cobranças PIX via QuantumPay.
+As vendas estão sendo criadas mas NÃO chegam como conversão no Google Ads / Meta CAPI
+porque não estou enviando gclid, UTMs, _fbp, _fbc, email e telefone para o gateway.
+
+Preciso que você implemente as 4 camadas abaixo. Faça TODAS, não pule nenhuma.
+
+## 1. Capturar tracking na entrada do site
+Crie/edite o arquivo \`index.html\` (ou layout principal) e adicione ANTES do </head>:
+
+\`\`\`html
+<script>
+(function () {
+  var p = new URLSearchParams(location.search);
+  var keys = ["gclid","gbraid","wbraid","fbclid","ttclid",
+              "utm_source","utm_medium","utm_campaign","utm_content","utm_term"];
+  keys.forEach(function (k) {
+    var v = p.get(k);
+    if (v) document.cookie = "ct_" + k + "=" + encodeURIComponent(v) +
+      "; path=/; max-age=" + (60*60*24*90) + "; SameSite=Lax";
+  });
+  if (!sessionStorage.getItem("ct_landing")) {
+    sessionStorage.setItem("ct_landing", location.href);
+  }
+})();
+</script>
+\`\`\`
+
+## 2. Helper para ler tracking
+Crie \`src/lib/tracking.ts\`:
+
+\`\`\`ts
+export function readTracking() {
+  const c: Record<string, string> = Object.fromEntries(
+    document.cookie.split("; ").map((x) => {
+      const i = x.indexOf("=");
+      return [x.slice(0, i), decodeURIComponent(x.slice(i + 1))];
+    }).filter(([k]) => k)
+  );
+  const url = new URLSearchParams(location.search);
+  const get = (k: string) => c["ct_" + k] || url.get(k) || null;
+
+  return {
+    gclid: get("gclid"),
+    gbraid: get("gbraid"),
+    wbraid: get("wbraid"),
+    fbclid: get("fbclid"),
+    ttclid: get("ttclid"),
+    fbp: c._fbp || null,
+    fbc: c._fbc || null,
+    utm_source: get("utm_source"),
+    utm_medium: get("utm_medium"),
+    utm_campaign: get("utm_campaign"),
+    utm_content: get("utm_content"),
+    utm_term: get("utm_term"),
+    landing_page: sessionStorage.getItem("ct_landing") || location.href,
+    referrer: document.referrer || null,
+    user_agent: navigator.userAgent,
+  };
+}
+\`\`\`
+
+## 3. Enviar tracking no metadata da QuantumPay
+Encontre onde meu código cria a cobrança PIX (procure por "quantumpay", "charges", "pix" ou "amount").
+Modifique pra incluir o bloco \`metadata\` no body, com tracking + customer:
+
+\`\`\`ts
+import { readTracking } from "@/lib/tracking";
+
+const tracking = readTracking();
+const body = {
+  amount: Math.round(total * 100),
+  externalReference: orderCode,
+  metadata: {
+    customer: {
+      name: customer.name,
+      email: customer.email,
+      phone: customer.phone,
+      document: customer.document,
+    },
+    ...tracking,
+    orderCode,
+  },
+};
+\`\`\`
+
+## 4. Disparar Purchase no CapiTrack quando o PIX for confirmado
+Quando o status do pedido virar "paid" (callback OU polling no checkout),
+dispare o Purchase. Faça as DUAS opções (redundância):
+
+\`\`\`ts
+// A) Via SDK no browser
+window.capitrack && window.capitrack("track", "Purchase", {
+  event_id: order.id,
+  value: order.total,
+  currency: "BRL",
+  order_id: order.id,
+  email: order.customer.email,
+  phone: order.customer.phone,
+  ...readTracking(),
+});
+
+// B) Via fetch (server-side ou frontend)
+await fetch("__CAPITRACK_ENDPOINT__", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "x-api-key": "__CAPITRACK_PUBLIC_KEY__",
+  },
+  body: JSON.stringify({
+    event_name: "Purchase",
+    event_id: order.id,
+    value: order.total,
+    currency: "BRL",
+    order_id: order.id,
+    email: order.customer.email,
+    phone: order.customer.phone,
+    external_id: order.customer.document,
+    ...readTracking(),
+    action_source: "website",
+    url: location.href,
+  }),
+});
+
+// C) Também empurra pro dataLayer (GTM/GA4 vão capturar automaticamente)
+window.dataLayer = window.dataLayer || [];
+window.dataLayer.push({
+  event: "purchase",
+  ecommerce: {
+    transaction_id: order.id,
+    value: order.total,
+    currency: "BRL",
+    items: order.items.map(i => ({
+      item_id: i.id,
+      item_name: i.name,
+      price: i.price,
+      quantity: i.quantity,
+    })),
+  },
+});
+\`\`\`
+
+## Validação
+1. Abra o site com \`?gclid=TESTE123&utm_source=google\` na URL.
+2. Faça uma compra PIX de teste com email/telefone reais.
+3. Cheque que o cookie \`ct_gclid\` existe (DevTools → Application → Cookies).
+4. Quando criar a cobrança, abra a Network tab e confirme que o body pra QuantumPay tem o bloco \`metadata\` com gclid + customer preenchidos.
+5. Quando o pagamento for confirmado, a request POST pra \`/track\` deve aparecer com status 200.
+
+## Não faça
+- Não remova nenhuma chamada ao QuantumPay existente.
+- Não troque o gateway.
+- Não altere o fluxo visual do checkout.
+- Apenas adicione as 4 camadas acima.`;
 
 const FRONT_CAPTURE = `<!-- 1. Coloque ANTES do </head> em TODAS as páginas (home + checkout) -->
 <script>
