@@ -115,6 +115,8 @@ async function dispatchToProvider(
       }],
     };
 
+    console.log(`[dispatch] provider=${provider} fn=${fnName} dest_id=${destination.id} dest_provider=${destination.provider}`);
+
     const res = await fetch(url, {
       method: "POST",
       headers: {
@@ -124,8 +126,10 @@ async function dispatchToProvider(
       body: JSON.stringify(payload),
     });
 
-    const result = await res.json();
+    const result = await res.json().catch(() => ({ raw: "non-json response" }));
     const latency = Date.now() - start;
+
+    console.log(`[dispatch:result] provider=${provider} status=${res.status} ok=${res.ok} body=${JSON.stringify(result).slice(0,300)}`);
 
     // Log to integration_logs
     await supabase.from("integration_logs").insert({
