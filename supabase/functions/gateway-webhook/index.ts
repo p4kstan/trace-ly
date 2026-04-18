@@ -586,22 +586,7 @@ const gumroadHandler: GatewayHandler = {
   }),
 };
 
-// ── Gumroad ──
-const gumroadHandler: GatewayHandler = {
-  extractEventType: (p) => str(p.resource_name || "sale"),
-  resolveInternalEvent: (e) => ({
-    "sale": "order_paid", "refund": "order_refunded",
-    "cancellation": "subscription_canceled", "subscription_updated": "subscription_renewed",
-    "subscription_ended": "subscription_canceled", "subscription_restarted": "subscription_started",
-  } as Record<string, InternalEvent>)[e] || "order_created",
-  normalize: (p) => ({
-    gateway: "gumroad", external_order_id: str(p.sale_id || p.subscription_id || p.id),
-    external_payment_id: str(p.sale_id || p.id),
-    customer: { email: str(p.email || p.purchaser_id), name: str(p.full_name) },
-    status: str(p.resource_name || "paid"), total_value: num(String(p.price || 0).replace(/[^0-9.]/g, "")),
-    currency: str(p.currency || "usd").toUpperCase(), raw_payload: p,
-  }),
-};
+
 
 // ── Generic fallback ──
 const genericHandler: GatewayHandler = {
@@ -631,12 +616,17 @@ const genericHandler: GatewayHandler = {
 };
 
 // ── Handler Registry ──
+// Handlers extracted to ./handlers/ take precedence (see _registry.ts).
+// Legacy in-file handlers below cover gateways not yet migrated.
 const HANDLERS: Record<string, GatewayHandler> = {
+  // Extracted (authoritative source: ./handlers/)
+  ...REGISTERED_HANDLERS,
+  // Legacy in-file
   stripe: stripeHandler, mercadopago: mercadopagoHandler, pagarme: pagarmeHandler,
-  asaas: asaasHandler, hotmart: hotmartHandler, monetizze: monetizzeHandler,
-  eduzz: eduzzHandler, appmax: appmaxHandler, cakto: caktoHandler,
+  asaas: asaasHandler, monetizze: monetizzeHandler,
+  appmax: appmaxHandler, cakto: caktoHandler,
   kirvano: kirvanoHandler, pagseguro: pagseguroHandler,
-  kiwify: kiwifyHandler, ticto: tictoHandler, greenn: greennHandler,
+  ticto: tictoHandler, greenn: greennHandler,
   shopify: shopifyHandler, paypal: paypalHandler, paddle: paddleHandler,
   fortpay: fortpayHandler, cloudfy: cloudfyHandler, gumroad: gumroadHandler,
   quantumpay: quantumpayHandler,
