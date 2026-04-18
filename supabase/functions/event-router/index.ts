@@ -274,6 +274,20 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Prioritize high-value conversion events: dispatch them first so paid-traffic
+    // platforms (Meta/Google Ads/TikTok) receive purchases with minimal latency.
+    const CONVERSION_EVENTS = new Set([
+      "Purchase", "purchase",
+      "Subscribe", "subscribe",
+      "StartTrial", "start_trial",
+      "CompleteRegistration", "complete_registration",
+      "Lead", "lead",
+    ]);
+    const isConversion = CONVERSION_EVENTS.has(event.event_name);
+    const cdValue = Number((event.custom_data_json as any)?.value || 0);
+    const isHighValue = isConversion && cdValue > 0;
+    console.log(`[event-router] priority=${isHighValue ? "high" : "normal"} event=${event.event_name} value=${cdValue}`);
+
     // Route event to each destination
     const results: RouteResult[] = [];
     const routePromises = destinations.map(async (dest) => {
