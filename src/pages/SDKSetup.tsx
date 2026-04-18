@@ -285,6 +285,10 @@ const response = await fetch("${supabaseUrl}/functions/v1/track", {
             <Database className="w-3.5 h-3.5 mr-1" />
             Data Layer
           </TabsTrigger>
+          <TabsTrigger value="ga4">
+            <BarChart3 className="w-3.5 h-3.5 mr-1" />
+            GA4
+          </TabsTrigger>
           <TabsTrigger value="events">Eventos</TabsTrigger>
           <TabsTrigger value="ecommerce">E-commerce</TabsTrigger>
           <TabsTrigger value="server">Server-Side</TabsTrigger>
