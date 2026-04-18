@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
   Copy, Eye, EyeOff, KeyRound, ShieldCheck, ShieldAlert,
-  ExternalLink, BarChart3, Facebook, Search, Music2, ServerCog,
+  ExternalLink, BarChart3, Share2, Search, Music2, ServerCog,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
