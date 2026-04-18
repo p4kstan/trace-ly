@@ -68,6 +68,9 @@ export default function GA4Analytics() {
         .from("ga4_credentials")
         .select("*")
         .eq("workspace_id", ws!)
+        .neq("property_id", "pending")
+        .order("last_sync_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
       return data as GA4Cred | null;
     },

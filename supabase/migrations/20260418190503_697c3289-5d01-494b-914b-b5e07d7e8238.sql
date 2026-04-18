@@ -1,0 +1,1 @@
+DELETE FROM public.ga4_credentials WHERE property_id = 'pending';
