@@ -84,6 +84,62 @@ async function getRoutingRules(workspaceId: string, eventName: string) {
   return data || [];
 }
 
+/**
+ * Normaliza um evento da tabela `events` no formato `payload_json` esperado
+ * pelos dispatchers downstream (google-ads-capi, ga4-events, meta-capi, tiktok-events),
+ * que originalmente foram escritos pra consumir items vindos do gateway-webhook.
+ */
+function normalizeEventToQueuePayload(event: any) {
+  const ud = event.user_data_json || {};
+  const cd = event.custom_data_json || {};
+
+  return {
+    event_name: event.event_name,
+    event_id: event.event_id || event.id,
+    event_time: event.event_time,
+    event_source_url: event.event_source_url,
+    customer: {
+      email: ud.email || null,
+      email_hash: ud.email_hash || null,
+      phone: ud.phone || null,
+      phone_hash: ud.phone_hash || null,
+      external_id: ud.external_id || null,
+      first_name: ud.first_name || null,
+      last_name: ud.last_name || null,
+      city: ud.city || null,
+      state: ud.state || null,
+      country: ud.country || null,
+      zip: ud.zip || null,
+    },
+    session: {
+      fbp: ud.fbp || null,
+      fbc: ud.fbc || null,
+      ga_client_id: ud.ga_client_id || null,
+      gclid: cd.gclid || null,
+      gbraid: cd.gbraid || null,
+      wbraid: cd.wbraid || null,
+      fbclid: cd.fbclid || null,
+      ttclid: cd.ttclid || null,
+      msclkid: cd.msclkid || null,
+      utm_source: cd.utm_source || null,
+      utm_medium: cd.utm_medium || null,
+      utm_campaign: cd.utm_campaign || null,
+      utm_content: cd.utm_content || null,
+      utm_term: cd.utm_term || null,
+      ip: ud.client_ip_address || null,
+      user_agent: ud.client_user_agent || null,
+    },
+    order: {
+      external_order_id: cd.transaction_id || cd.order_id || event.event_id,
+      total_value: cd.value != null ? Number(cd.value) : 0,
+      currency: cd.currency || "BRL",
+      items: cd.items || [],
+    },
+    custom_data: cd,
+    user_data: ud,
+  };
+}
+
 async function dispatchToProvider(
   provider: string,
   event: any,
@@ -99,19 +155,23 @@ async function dispatchToProvider(
 
   try {
     const url = `${SUPABASE_URL}/functions/v1/${fnName}`;
+    const normalizedPayload = normalizeEventToQueuePayload(event);
+
     const payload = {
       event,
       destination,
       workspace_id: workspaceId,
-      // Pass through for process-events compatibility
+      // Pass through for process-events compatibility (queue item format)
       items: [{
+        id: crypto.randomUUID(),
         workspace_id: workspaceId,
         event_id: event.id,
         provider,
-        payload_json: event,
+        payload_json: normalizedPayload,
         attempt_count: 0,
         max_attempts: 5,
         destination: destination.id,
+        created_at: event.event_time || new Date().toISOString(),
       }],
     };
 
