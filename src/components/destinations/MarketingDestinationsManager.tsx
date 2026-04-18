@@ -39,7 +39,7 @@ export function MarketingDestinationsManager({ workspaceId }: Props) {
     queryFn: async () => {
       const { data } = await supabase
         .from("integration_destinations")
-        .select("id, provider, destination_id, display_name, is_active, events_sent_count, last_event_at, created_at")
+        .select("id, provider, destination_id, display_name, is_active, events_sent_count, last_event_at, created_at, config_json, access_token_encrypted")
         .eq("workspace_id", workspaceId)
         .order("created_at", { ascending: false });
       return data || [];
