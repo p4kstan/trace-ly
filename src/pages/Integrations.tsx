@@ -1,7 +1,22 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useWorkspace } from "@/hooks/use-tracking-data";
+import {
+  useGatewayIntegrations,
+  useCreateGatewayIntegration,
+  useToggleGatewayIntegration,
+  useDeleteGatewayIntegration,
+  useDestinations,
+  useToggleDestination,
+  useDeleteDestination,
+  useCreateDestination,
+  useDeliveryStats,
+  useMetaPixels,
+} from "@/hooks/api/use-integrations";
+import { IntegrationStatusBadge as StatusBadge } from "@/components/dashboard/IntegrationStatusBadge";
+import { IntegrationHealthIndicator as HealthIndicator } from "@/components/dashboard/IntegrationHealthIndicator";
+import { WebhookLogsList as WebhookLogs } from "@/components/dashboard/WebhookLogsList";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,15 +28,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { toast } from "sonner";
 import {
   Plus, Copy, Trash2, Webhook, Play, ChevronDown, ChevronUp,
-  CheckCircle2, XCircle, Clock, AlertTriangle, Activity,
-  Send, Zap, BarChart3, TrendingUp,
+  XCircle, Send, Zap, BarChart3, TrendingUp,
 } from "lucide-react";
 import { IntegrationDialog } from "@/components/integrations/IntegrationDialog";
 import { PROVIDER_CONFIGS } from "@/lib/integration-help-config";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatDistanceToNow } from "date-fns";
-import { ptBR } from "date-fns/locale";
 
 // ── Provider display config ──
 const AD_PROVIDERS: Record<string, { label: string; emoji: string; desc: string; fields: { key: string; label: string; placeholder: string; secret?: boolean; help?: string; helpLink?: { url: string; label: string } }[] }> = {
