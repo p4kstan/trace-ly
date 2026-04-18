@@ -637,6 +637,7 @@ function detectProvider(req: Request, payload: any): string {
   // Header-based detection
   if (req.headers.get("stripe-signature")) return "stripe";
   if (req.headers.get("x-hotmart-hottok")) return "hotmart";
+  if (req.headers.get("x-yampi-hmac-sha256")) return "yampi";
   if (req.headers.get("x-shopify-hmac-sha256") || req.headers.get("x-shopify-topic")) return "shopify";
   if (req.headers.get("paypal-transmission-id")) return "paypal";
   if (req.headers.get("paddle-signature")) return "paddle";
@@ -668,6 +669,12 @@ function getHandler(provider: string): GatewayHandler {
 // ════════════════════════════════════════════════════════════
 
 async function verifySignature(provider: string, rawBody: string, req: Request, webhookSecret: string | null): Promise<{ valid: boolean; reason: string }> {
+  // Delegate to the registered handler when it implements its own validateHMAC.
+  // This keeps gateway-specific signature logic colocated with the handler.
+  const registered = getRegisteredHandler(provider);
+  if (registered?.validateHMAC) {
+    return await registered.validateHMAC(rawBody, req.headers, webhookSecret);
+  }
   if (!webhookSecret) return { valid: true, reason: "no_secret_configured" };
   try {
     const enc = new TextEncoder();
