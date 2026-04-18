@@ -10,7 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ArrowLeft, Loader2, RefreshCw, Pause, Play, DollarSign, MousePointerClick, BarChart3, Target, TrendingUp, AlertCircle, Edit3 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ArrowLeft, Loader2, RefreshCw, Pause, Play, DollarSign, MousePointerClick, BarChart3, Target, TrendingUp, AlertCircle, Edit3, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -676,33 +677,78 @@ function SimpleTable({ loading, rows, columns, labels }: { loading: boolean; row
 
   const colLabel = (c: string) => labels?.[c] || ({
     name: "Nome", impressions: "Impressões", clicks: "Cliques", ctr: "CTR", cpc: "CPC", cost: "Custo",
-    conversions: "Conv.", cpa: "CPA", roas: "ROAS", status: "Status", type: "Tipo", quality_score: "Quality",
+    conversions: "Conv.", cpa: "CPA", roas: "ROAS", status: "Status", type: "Tipo", quality_score: "QS",
   } as Record<string, string>)[c] || c;
 
+  const colHelp: Record<string, string> = {
+    name: "Identificador do item (palavra-chave, anúncio, grupo, etc.).",
+    status: "Estado atual no Google Ads: Ativada, Pausada ou Removida.",
+    quality_score: "Quality Score (1-10): nota do Google avaliando relevância do anúncio, experiência da landing page e CTR esperado. ≥7 é bom, 4-6 médio, <4 ruim.",
+    impressions: "Quantas vezes seu anúncio foi exibido na tela do usuário.",
+    clicks: "Número de cliques recebidos no anúncio.",
+    ctr: "Click-Through Rate = Cliques ÷ Impressões. Mede o quanto o anúncio atrai cliques.",
+    cpc: "Custo por Clique médio = Custo ÷ Cliques.",
+    cost: "Quanto foi gasto no período (em R$).",
+    conversions: "Número de conversões (compras, leads, etc.) atribuídas ao anúncio.",
+    conv_rate: "Taxa de Conversão = Conversões ÷ Cliques.",
+    cpa: "Custo por Aquisição = Custo ÷ Conversões. Quanto custou cada conversão.",
+    roas: "Return on Ad Spend = Receita ÷ Custo. Quantos R$ você ganha por cada R$ investido.",
+    type: "Tipo do item (ex: público, conversão, dispositivo).",
+    match_type: "Tipo de correspondência: EXACT (exata), PHRASE (frase) ou BROAD (ampla).",
+    matched_keyword: "Palavra-chave que disparou o anúncio para esse termo de busca.",
+    bid_modifier: "Ajuste percentual sobre o lance padrão (+ aumenta, − reduz).",
+    negative: "Indica se o segmento está excluído da campanha.",
+    primary: "Conversão principal — usada pelo Google para otimizar lances automáticos.",
+    default_value: "Valor padrão atribuído à conversão quando não vem dinâmico do site.",
+    currency: "Moeda usada nos valores reportados.",
+    category: "Categoria da ação de conversão (Compra, Lead, Cadastro, etc.).",
+    level: "Escopo da palavra negativa (Campanha ou Grupo de anúncios).",
+    ad_group_name: "Nome do grupo de anúncios ao qual o item pertence.",
+    shared_set_name: "Nome da lista compartilhada de palavras negativas.",
+  };
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs">
-        <thead className="text-muted-foreground border-b border-border/50 bg-muted/20">
-          <tr>
-            {columns.map((c) => (
-              <th key={c} className={cn("py-2.5 px-2 font-semibold", c === "name" || c === "matched_keyword" ? "text-left" : "text-right")}>
-                {colLabel(c)}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => (
-            <tr key={r.id || i} className="border-b border-border/30 hover:bg-muted/20">
-              {columns.map((c) => (
-                <td key={c} className={cn("py-2 px-2 tabular-nums", c === "name" || c === "matched_keyword" ? "text-left" : "text-right")}>
-                  {formatCell(c, r[c])}
-                </td>
-              ))}
+    <TooltipProvider delayDuration={200}>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead className="text-muted-foreground border-b border-border/50 bg-muted/20">
+            <tr>
+              {columns.map((c) => {
+                const help = colHelp[c];
+                const isLeft = c === "name" || c === "matched_keyword";
+                return (
+                  <th key={c} className={cn("py-2.5 px-2 font-semibold", isLeft ? "text-left" : "text-right")}>
+                    {help ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex items-center gap-1 cursor-help border-b border-dotted border-muted-foreground/40">
+                            {colLabel(c)}
+                            <HelpCircle className="w-3 h-3 opacity-60" />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-[280px] text-xs leading-relaxed">
+                          {help}
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : colLabel(c)}
+                  </th>
+                );
+              })}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={r.id || i} className="border-b border-border/30 hover:bg-muted/20">
+                {columns.map((c) => (
+                  <td key={c} className={cn("py-2 px-2 tabular-nums", c === "name" || c === "matched_keyword" ? "text-left" : "text-right")}>
+                    {formatCell(c, r[c])}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </TooltipProvider>
   );
 }
