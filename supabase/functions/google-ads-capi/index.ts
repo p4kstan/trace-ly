@@ -11,20 +11,9 @@ const supabase = createClient(
 );
 
 const GOOGLE_ADS_API_VERSION = "v17";
-
-// ── Event name mapping: internal → Google Ads conversion action ──
-const EVENT_TO_GOOGLE: Record<string, string> = {
-  Purchase: "purchase",
-  Lead: "lead",
-  Subscribe: "subscribe",
-  InitiateCheckout: "begin_checkout",
-  AddPaymentInfo: "add_payment_info",
-  AddToCart: "add_to_cart",
-  ViewContent: "page_view",
-  CompleteRegistration: "sign_up",
-  Search: "search",
-  Contact: "contact",
-};
+const GOOGLE_OAUTH_CLIENT_ID = Deno.env.get("GOOGLE_OAUTH_CLIENT_ID")!;
+const GOOGLE_OAUTH_CLIENT_SECRET = Deno.env.get("GOOGLE_OAUTH_CLIENT_SECRET")!;
+const GOOGLE_ADS_DEVELOPER_TOKEN = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN")!;
 
 interface GoogleConversionPayload {
   gclid?: string;
@@ -41,35 +30,67 @@ interface GoogleConversionPayload {
   }>;
 }
 
-/** Build Google Ads offline conversion from queue item */
-function buildGoogleConversion(item: any, conversionActionId: string): GoogleConversionPayload | null {
-  const p = item.payload_json;
+async function sha256Hex(value: string): Promise<string> {
+  const data = new TextEncoder().encode(value.trim().toLowerCase());
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Refresh Google OAuth access token using refresh_token */
+async function refreshAccessToken(refreshToken: string): Promise<string | null> {
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: GOOGLE_OAUTH_CLIENT_ID,
+      client_secret: GOOGLE_OAUTH_CLIENT_SECRET,
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+    }),
+  });
+  if (!res.ok) {
+    const txt = await res.text();
+    console.error("[google-ads-capi] refresh failed:", res.status, txt.slice(0, 300));
+    return null;
+  }
+  const data = await res.json();
+  return data.access_token || null;
+}
+
+/** Build Google Ads offline conversion from queue item (normalized payload) */
+async function buildGoogleConversion(
+  item: any,
+  customerId: string,
+  conversionLabel: string,
+): Promise<GoogleConversionPayload | null> {
+  const p = item.payload_json || {};
   const customer = p.customer || {};
   const session = p.session || {};
   const order = p.order || {};
 
-  // Google Ads requires at least gclid OR user identifiers
   const gclid = session.gclid || p.gclid;
   const gbraid = session.gbraid;
   const wbraid = session.wbraid;
 
   const userIdentifiers: Array<{ hashed_email?: string; hashed_phone_number?: string }> = [];
+  // Prefer pre-hashed; fallback to raw
   if (customer.email_hash) userIdentifiers.push({ hashed_email: customer.email_hash });
+  else if (customer.email) userIdentifiers.push({ hashed_email: await sha256Hex(String(customer.email)) });
   if (customer.phone_hash) userIdentifiers.push({ hashed_phone_number: customer.phone_hash });
+  else if (customer.phone) userIdentifiers.push({ hashed_phone_number: await sha256Hex(String(customer.phone).replace(/[^\d+]/g, "")) });
 
   if (!gclid && !gbraid && !wbraid && userIdentifiers.length === 0) {
-    return null; // Can't match without identifiers
+    return null;
   }
 
-  const eventTime = new Date(item.created_at);
-  const tzOffset = "+00:00";
-  const formattedDate = eventTime.toISOString().replace("T", " ").replace("Z", tzOffset);
+  const eventTime = new Date(p.event_time || item.created_at || Date.now());
+  const formattedDate = eventTime.toISOString().replace("T", " ").replace("Z", "+00:00");
 
   return {
     gclid,
     gbraid,
     wbraid,
-    conversion_action: `customers/${conversionActionId}`,
+    conversion_action: `customers/${customerId}/conversionActions/${conversionLabel}`,
     conversion_date_time: formattedDate,
     conversion_value: order.total_value || 0,
     currency_code: order.currency || "BRL",
@@ -78,39 +99,36 @@ function buildGoogleConversion(item: any, conversionActionId: string): GoogleCon
   };
 }
 
-/** Send conversions to Google Ads API */
 async function sendToGoogleAds(
   customerId: string,
+  loginCustomerId: string | null,
   accessToken: string,
   developerToken: string,
   conversions: GoogleConversionPayload[]
-): Promise<{ ok: boolean; response: any }> {
+): Promise<{ ok: boolean; status: number; response: any }> {
   const url = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${customerId}:uploadClickConversions`;
 
-  const body = {
-    conversions,
-    partial_failure: true, // Don't fail entire batch on individual errors
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${accessToken}`,
+    "developer-token": developerToken,
   };
+  if (loginCustomerId) headers["login-customer-id"] = loginCustomerId;
 
   const res = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-      "developer-token": developerToken,
-    },
-    body: JSON.stringify(body),
+    headers,
+    body: JSON.stringify({ conversions, partial_failure: true }),
   });
 
-  const data = await res.json();
-  return { ok: res.ok, response: data };
+  // Read as text first to handle non-JSON error pages
+  const text = await res.text();
+  let parsed: any;
+  try { parsed = JSON.parse(text); } catch { parsed = { raw: text.slice(0, 500) }; }
+
+  return { ok: res.ok, status: res.status, response: parsed };
 }
 
-/**
- * Google Ads Offline Conversions Dispatcher
- * POST /google-ads-capi
- * Body: { items: QueueItem[], destination: IntegrationDestination }
- */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") {
@@ -120,7 +138,8 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { items, destination } = await req.json();
+    const body = await req.json();
+    const { items, destination, workspace_id } = body;
 
     if (!items?.length || !destination) {
       return new Response(JSON.stringify({ error: "Missing items or destination" }), {
@@ -128,57 +147,89 @@ Deno.serve(async (req) => {
       });
     }
 
-    const config = destination.config_json || {};
-    const customerId = config.customer_id;
-    const developerToken = config.developer_token;
-    const accessToken = destination.access_token_encrypted;
-    const conversionActionId = destination.destination_id;
-
-    if (!customerId || !accessToken || !developerToken) {
-      return new Response(JSON.stringify({ error: "Missing Google Ads credentials" }), {
+    const wsId = workspace_id || items[0]?.workspace_id;
+    if (!wsId) {
+      return new Response(JSON.stringify({ error: "Missing workspace_id" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // ── Resolve credentials: prefer fresh credentials from google_ads_credentials ──
+    const config = destination.config_json || {};
+    const customerId = String(config.customer_id || "").replace(/\D/g, "");
+    const conversionLabel = config.conversion_label || destination.destination_id;
+
+    const { data: creds, error: credsErr } = await supabase
+      .from("google_ads_credentials")
+      .select("refresh_token, access_token, token_expires_at, customer_id, login_customer_id, developer_token")
+      .eq("workspace_id", wsId)
+      .eq("status", "connected")
+      .or(`is_default.eq.true,customer_id.eq.${customerId}`)
+      .order("is_default", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (credsErr || !creds || !creds.refresh_token) {
+      console.error("[google-ads-capi] no credentials:", credsErr, creds);
+      return new Response(JSON.stringify({ error: "No Google Ads credentials connected for this workspace" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Refresh access token (always — they expire in 1h and we don't track expiry reliably)
+    const accessToken = await refreshAccessToken(creds.refresh_token);
+    if (!accessToken) {
+      return new Response(JSON.stringify({ error: "Failed to refresh Google Ads access token" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const developerToken = creds.developer_token || GOOGLE_ADS_DEVELOPER_TOKEN;
+    const finalCustomerId = customerId || String(creds.customer_id || "").replace(/\D/g, "");
+    const loginCustomerId = creds.login_customer_id ? String(creds.login_customer_id).replace(/\D/g, "") : null;
+
+    if (!finalCustomerId || !developerToken || !conversionLabel) {
+      return new Response(JSON.stringify({
+        error: "Missing required: customer_id, developer_token, conversion_label",
+        debug: { customerId: !!finalCustomerId, developerToken: !!developerToken, conversionLabel: !!conversionLabel },
+      }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Build conversions
     const conversions: GoogleConversionPayload[] = [];
     const skipped: string[] = [];
-
     for (const item of items) {
-      const conv = buildGoogleConversion(item, conversionActionId);
-      if (conv) {
-        conversions.push(conv);
-      } else {
-        skipped.push(item.id);
-      }
+      const conv = await buildGoogleConversion(item, finalCustomerId, conversionLabel);
+      if (conv) conversions.push(conv);
+      else skipped.push(item.id || item.event_id || "unknown");
     }
 
     if (conversions.length === 0) {
       return new Response(JSON.stringify({
         status: "ok", delivered: 0, skipped: skipped.length,
-        message: "No conversions with valid identifiers (gclid/email/phone)",
+        message: "No conversions with valid identifiers (gclid/gbraid/wbraid/email/phone)",
       }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Send batch (Google Ads supports up to 2000 per request)
-    const result = await sendToGoogleAds(customerId, accessToken, developerToken, conversions);
+    const result = await sendToGoogleAds(finalCustomerId, loginCustomerId, accessToken, developerToken, conversions);
 
     // Log delivery
     await supabase.from("event_deliveries").insert({
       event_id: items[0]?.event_id || crypto.randomUUID(),
-      workspace_id: items[0]?.workspace_id,
+      workspace_id: wsId,
       provider: "google_ads",
-      destination: conversionActionId,
+      destination: `customers/${finalCustomerId}/conversionActions/${conversionLabel}`,
       status: result.ok ? "delivered" : "failed",
       attempt_count: 1,
       last_attempt_at: new Date().toISOString(),
-      request_json: { customer_id: customerId, batch_size: conversions.length },
+      request_json: { customer_id: finalCustomerId, batch_size: conversions.length, conversion_label: conversionLabel },
       response_json: result.response,
-      error_message: result.ok ? null : JSON.stringify(result.response),
+      error_message: result.ok ? null : JSON.stringify(result.response).slice(0, 1000),
     });
 
     return new Response(JSON.stringify({
       status: result.ok ? "ok" : "error",
+      http_status: result.status,
       delivered: result.ok ? conversions.length : 0,
       failed: result.ok ? 0 : conversions.length,
       skipped: skipped.length,
@@ -187,7 +238,7 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error("Google Ads CAPI error:", err);
-    return new Response(JSON.stringify({ error: "Internal server error" }), {
+    return new Response(JSON.stringify({ error: "Internal server error", detail: String(err) }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
