@@ -12,50 +12,7 @@ import { GTMTab } from "@/components/setup/GTMTab";
 import { DataLayerTemplatesTab } from "@/components/setup/DataLayerTemplatesTab";
 import { GA4ClientSnippets } from "@/components/setup/GA4ClientSnippets";
 
-const GA4_PURCHASE_DATALAYER = `<!-- GA4 Purchase via dataLayer (GTM) -->
-<script>
-  window.dataLayer = window.dataLayer || [];
-  window.dataLayer.push({ ecommerce: null });
-  window.dataLayer.push({
-    event: "purchase",
-    ecommerce: {
-      transaction_id: "{{ORDER_ID}}",
-      value: {{ORDER_VALUE}},
-      currency: "BRL",
-      tax: 0,
-      shipping: 0,
-      coupon: "",
-      items: [{
-        item_id: "{{PRODUCT_ID}}",
-        item_name: "{{PRODUCT_NAME}}",
-        price: {{ORDER_VALUE}},
-        quantity: 1
-      }]
-    }
-  });
-</script>`;
-
-const GA4_PURCHASE_GTAG = `<!-- GA4 Purchase via gtag.js direto -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-GV6CZC4FZW"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'G-GV6CZC4FZW');
-
-  // Dispare ao confirmar o pedido
-  gtag('event', 'purchase', {
-    transaction_id: "{{ORDER_ID}}",
-    value: {{ORDER_VALUE}},
-    currency: "BRL",
-    items: [{
-      item_id: "{{PRODUCT_ID}}",
-      item_name: "{{PRODUCT_NAME}}",
-      price: {{ORDER_VALUE}},
-      quantity: 1
-    }]
-  });
-</script>`;
+// GA4 client snippets moved to <GA4ClientSnippets /> component
 
 function CodeBlock({ code, language = "html" }: { code: string; language?: string }) {
   const copyCode = () => {

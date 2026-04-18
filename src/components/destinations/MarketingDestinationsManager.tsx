@@ -728,3 +728,24 @@ function SyncButton({
     </Button>
   );
 }
+function GA4SnippetsDialog({ measurementId }: { measurementId?: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary" title="Snippets client-side">
+          <Code2 className="w-3.5 h-3.5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Snippets client-side — GA4</DialogTitle>
+          <DialogDescription>
+            Backup/redundância para o envio server-side. Cole na página de confirmação do pedido.
+          </DialogDescription>
+        </DialogHeader>
+        <GA4ClientSnippets measurementId={measurementId} />
+      </DialogContent>
+    </Dialog>
+  );
+}
