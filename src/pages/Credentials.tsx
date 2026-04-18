@@ -108,9 +108,10 @@ export default function Credentials() {
     queryKey: ["all-credentials", ws],
     enabled: !!ws,
     queryFn: async () => {
-      const [apiKeys, googleAds, metaPixels, metaAccounts, gateways] = await Promise.all([
+      const [apiKeys, googleAds, gadsConv, metaPixels, metaAccounts, gateways] = await Promise.all([
         supabase.from("api_keys").select("*").eq("workspace_id", ws!).order("created_at", { ascending: false }),
         supabase.from("google_ads_credentials").select("*").eq("workspace_id", ws!),
+        supabase.from("google_ads_conversion_actions").select("*").eq("workspace_id", ws!).order("created_at", { ascending: false }),
         supabase.from("meta_pixels").select("*").eq("workspace_id", ws!),
         supabase.from("meta_ad_accounts").select("*").eq("workspace_id", ws!),
         supabase.rpc("get_integration_metadata", { _workspace_id: ws! }),
@@ -118,6 +119,7 @@ export default function Credentials() {
       return {
         apiKeys: apiKeys.data || [],
         googleAds: googleAds.data || [],
+        gadsConv: gadsConv.data || [],
         metaPixels: metaPixels.data || [],
         metaAccounts: metaAccounts.data || [],
         gateways: (gateways.data as any[]) || [],
@@ -164,7 +166,7 @@ export default function Credentials() {
         {/* ALL — renders every section stacked */}
         <TabsContent value="all" className="space-y-6 mt-4">
           <CapiTrackSection apiKeys={data!.apiKeys} />
-          <GoogleSection googleAds={data!.googleAds} ga4Destinations={ga4Destinations} />
+          <GoogleSection googleAds={data!.googleAds} gadsConv={data!.gadsConv} ga4Destinations={ga4Destinations} />
           <MetaSection metaPixels={data!.metaPixels} metaAccounts={data!.metaAccounts} />
           <TikTokSection destinations={tiktokDestinations} />
           <GatewaySection gateways={otherGateways} />
@@ -174,7 +176,7 @@ export default function Credentials() {
           <CapiTrackSection apiKeys={data!.apiKeys} />
         </TabsContent>
         <TabsContent value="google" className="mt-4 space-y-6">
-          <GoogleSection googleAds={data!.googleAds} ga4Destinations={ga4Destinations} />
+          <GoogleSection googleAds={data!.googleAds} gadsConv={data!.gadsConv} ga4Destinations={ga4Destinations} />
         </TabsContent>
         <TabsContent value="meta" className="mt-4">
           <MetaSection metaPixels={data!.metaPixels} metaAccounts={data!.metaAccounts} />
@@ -220,7 +222,7 @@ function CapiTrackSection({ apiKeys }: { apiKeys: any[] }) {
   );
 }
 
-function GoogleSection({ googleAds, ga4Destinations }: { googleAds: any[]; ga4Destinations: any[] }) {
+function GoogleSection({ googleAds, gadsConv, ga4Destinations }: { googleAds: any[]; gadsConv: any[]; ga4Destinations: any[] }) {
   return (
     <div className="space-y-3">
       <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Google</h2>
@@ -233,7 +235,9 @@ function GoogleSection({ googleAds, ga4Destinations }: { googleAds: any[]; ga4De
         >
           <p className="text-sm text-muted-foreground">Nenhuma conta Google Ads conectada.</p>
         </PlatformCard>
-      ) : googleAds.map(g => (
+      ) : googleAds.map(g => {
+        const actions = gadsConv.filter(c => c.google_ads_credential_id === g.id);
+        return (
         <PlatformCard
           key={g.id}
           icon={Search}
@@ -249,8 +253,29 @@ function GoogleSection({ googleAds, ga4Destinations }: { googleAds: any[]; ga4De
           <SecretRow label="Access Token" value={g.access_token} />
           <SecretRow label="Expira em" value={g.token_expires_at} mono={false} reveal />
           <SecretRow label="Roteamento" value={`${g.routing_mode}${g.routing_domains?.length ? ` (${g.routing_domains.join(", ")})` : ""}`} mono={false} reveal />
+
+          {actions.length > 0 && (
+            <div className="mt-4 pt-3 border-t border-border/50">
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                Ações de Conversão ({actions.length})
+              </div>
+              {actions.map(a => (
+                <div key={a.id} className="rounded-md bg-muted/20 p-3 mb-2 last:mb-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm font-medium">{a.name}</span>
+                    {a.is_default && <Badge variant="secondary" className="text-[10px] h-4">padrão</Badge>}
+                    <Badge variant="outline" className="text-[10px] h-4">{a.event_name}</Badge>
+                  </div>
+                  <SecretRow label="ID de Conversão" value={a.conversion_id} reveal />
+                  <SecretRow label="Rótulo de Conversão" value={a.conversion_label} reveal />
+                  <SecretRow label="Tag (gtag send_to)" value={`AW-${a.conversion_id}/${a.conversion_label}`} reveal />
+                </div>
+              ))}
+            </div>
+          )}
         </PlatformCard>
-      ))}
+        );
+      })}
 
       {/* GA4 */}
       {ga4Destinations.length === 0 ? (
