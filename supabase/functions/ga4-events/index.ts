@@ -221,10 +221,28 @@ Deno.serve(async (req) => {
       });
     }
 
-    const measurementId = destination.destination_id;
-    const apiSecret = destination.access_token_encrypted;
-    const config = destination.config_json || {};
-    const debug = !!config.debug_mode;
+    // Support both schemas: legacy (destination_id/access_token_encrypted/config_json)
+    // and gateway_integrations (public_config_json.measurement_id + credentials_encrypted + settings_json)
+    const publicCfg = destination.public_config_json || {};
+    const settings = destination.settings_json || destination.config_json || {};
+    const measurementId = publicCfg.measurement_id || destination.destination_id;
+    const apiSecret = destination.credentials_encrypted || destination.access_token_encrypted;
+    const debug = !!settings.debug_mode;
+    const sendFromGatewayOnly = !!settings.send_from_gateway_only;
+
+    // Filter: only send events originating from gateway webhooks if configured
+    const filteredItems = sendFromGatewayOnly
+      ? items.filter((it: any) => {
+          const src = it.payload_json?.source || it.source;
+          return src === "gateway" || src === "webhook" || it.payload_json?.gateway;
+        })
+      : items;
+
+    if (sendFromGatewayOnly && filteredItems.length === 0) {
+      return new Response(JSON.stringify({ status: "ok", delivered: 0, skipped: items.length, reason: "no gateway events" }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     if (!measurementId || !apiSecret) {
       return new Response(JSON.stringify({ error: "Missing GA4 credentials (measurement_id or api_secret)" }), {
