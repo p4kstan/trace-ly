@@ -108,6 +108,13 @@ export default function GoogleAdsCampaignDetail() {
   const geoData = useReport(workspace?.id, customerId, "geo", period, campaignId);
   const audienceData = useReport(workspace?.id, customerId, "audience", period, campaignId);
   const extensions = useReport(workspace?.id, customerId, "extensions", period, campaignId);
+  const ads = useReport(workspace?.id, customerId, "ads", period, campaignId);
+  const bidModifiers = useReport(workspace?.id, customerId, "bid_modifiers", period, campaignId);
+  const adSchedule = useReport(workspace?.id, customerId, "ad_schedule", period, campaignId);
+  const locationsTargeted = useReport(workspace?.id, customerId, "locations_targeted", period, campaignId);
+  const landingPages = useReport(workspace?.id, customerId, "landing_pages", period, campaignId);
+  const conversionActions = useReport(workspace?.id, customerId, "conversion_actions", period, campaignId);
+  const qualityShare = useReport(workspace?.id, customerId, "campaign_quality", period, campaignId);
   const history = useReport(workspace?.id, customerId, "change_history", period, campaignId);
 
   // Mutations
@@ -218,13 +225,18 @@ export default function GoogleAdsCampaignDetail() {
 
       {/* Tabs */}
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="grid grid-cols-3 md:grid-cols-7 lg:w-fit">
+        <TabsList className="flex flex-wrap h-auto justify-start">
           <TabsTrigger value="overview">Visão geral</TabsTrigger>
+          <TabsTrigger value="ads">Anúncios</TabsTrigger>
           <TabsTrigger value="keywords">Palavras-chave</TabsTrigger>
           <TabsTrigger value="negatives">Negativas</TabsTrigger>
           <TabsTrigger value="audiences">Públicos</TabsTrigger>
           <TabsTrigger value="extensions">Extensões</TabsTrigger>
           <TabsTrigger value="search_terms">Termos</TabsTrigger>
+          <TabsTrigger value="landing">Landing Pages</TabsTrigger>
+          <TabsTrigger value="targeting">Segmentação</TabsTrigger>
+          <TabsTrigger value="conversions">Conversões</TabsTrigger>
+          <TabsTrigger value="impression_share">Imp. Share</TabsTrigger>
           <TabsTrigger value="history">Histórico</TabsTrigger>
         </TabsList>
 
@@ -391,6 +403,188 @@ export default function GoogleAdsCampaignDetail() {
           </Card>
         </TabsContent>
 
+        {/* Ads */}
+        <TabsContent value="ads" className="mt-4">
+          <Card className="glass-card">
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Anúncios criativos</CardTitle>
+              <p className="text-[11px] text-muted-foreground mt-1">Performance de cada anúncio (headlines, descrições e métricas).</p>
+            </CardHeader>
+            <CardContent className="p-0">
+              {ads.isLoading ? (
+                <div className="p-8 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+              ) : !ads.data?.rows?.length ? (
+                <div className="p-8 text-center text-sm text-muted-foreground">Sem anúncios no período</div>
+              ) : (
+                <div className="divide-y divide-border/40">
+                  {ads.data.rows.map((ad: any) => (
+                    <div key={ad.id} className="p-4 hover:bg-muted/20">
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge variant="outline" className="text-[10px]">{ad.type}</Badge>
+                            <StatusBadge status={ad.status} />
+                            <span className="text-[10px] text-muted-foreground font-mono">ID {ad.id}</span>
+                          </div>
+                          {ad.headlines?.length > 0 && (
+                            <div className="text-xs space-y-0.5">
+                              <p className="text-muted-foreground/70 text-[10px] uppercase">Títulos</p>
+                              {ad.headlines.slice(0, 5).map((h: string, i: number) => (
+                                <p key={i} className="text-foreground">• {h}</p>
+                              ))}
+                            </div>
+                          )}
+                          {ad.descriptions?.length > 0 && (
+                            <div className="text-xs space-y-0.5 mt-2">
+                              <p className="text-muted-foreground/70 text-[10px] uppercase">Descrições</p>
+                              {ad.descriptions.slice(0, 3).map((d: string, i: number) => (
+                                <p key={i} className="text-muted-foreground">• {d}</p>
+                              ))}
+                            </div>
+                          )}
+                          {ad.final_urls?.length > 0 && (
+                            <p className="text-[10px] text-primary/80 mt-2 truncate">{ad.final_urls[0]}</p>
+                          )}
+                        </div>
+                        <div className="text-right text-xs space-y-0.5 shrink-0">
+                          <p><span className="text-muted-foreground">Impr:</span> <span className="font-bold tabular-nums">{fmtNumber(ad.impressions)}</span></p>
+                          <p><span className="text-muted-foreground">Cliques:</span> <span className="font-bold tabular-nums">{fmtNumber(ad.clicks)}</span></p>
+                          <p><span className="text-muted-foreground">CTR:</span> <span className="tabular-nums">{fmtPct(ad.ctr)}</span></p>
+                          <p><span className="text-muted-foreground">Custo:</span> <span className="font-bold tabular-nums">{fmtMoney(ad.cost)}</span></p>
+                          <p><span className="text-muted-foreground">Conv:</span> <span className="tabular-nums">{fmtFloat(ad.conversions)}</span></p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Landing Pages */}
+        <TabsContent value="landing" className="mt-4">
+          <Card className="glass-card">
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Páginas de destino</CardTitle>
+              <p className="text-[11px] text-muted-foreground mt-1">URLs que receberam tráfego e sua performance.</p>
+            </CardHeader>
+            <CardContent className="p-0">
+              <SimpleTable
+                loading={landingPages.isLoading}
+                rows={landingPages.data?.rows}
+                columns={["name", "impressions", "clicks", "ctr", "cost", "conversions", "cpa"]}
+                labels={{ name: "URL" }}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Targeting (bid modifiers + ad schedule + locations) */}
+        <TabsContent value="targeting" className="mt-4 space-y-4">
+          <Card className="glass-card">
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Ajustes de lance (Bid Modifiers)</CardTitle>
+              <p className="text-[11px] text-muted-foreground mt-1">Modificadores aplicados a dispositivo, interação, etc. Ex: 1.20 = +20%.</p>
+            </CardHeader>
+            <CardContent className="p-0">
+              <SimpleTable
+                loading={bidModifiers.isLoading}
+                rows={bidModifiers.data?.rows}
+                columns={["name", "bid_modifier"]}
+                labels={{ name: "Tipo", bid_modifier: "Modificador" }}
+              />
+            </CardContent>
+          </Card>
+          <Card className="glass-card">
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Programação de anúncios</CardTitle>
+              <p className="text-[11px] text-muted-foreground mt-1">Dias e horários em que a campanha está ativa.</p>
+            </CardHeader>
+            <CardContent className="p-0">
+              <SimpleTable
+                loading={adSchedule.isLoading}
+                rows={adSchedule.data?.rows}
+                columns={["name", "bid_modifier"]}
+                labels={{ name: "Janela", bid_modifier: "Ajuste de lance" }}
+              />
+            </CardContent>
+          </Card>
+          <Card className="glass-card">
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Localizações segmentadas</CardTitle>
+              <p className="text-[11px] text-muted-foreground mt-1">Regiões alvo da campanha (positivas e negativas).</p>
+            </CardHeader>
+            <CardContent className="p-0">
+              <SimpleTable
+                loading={locationsTargeted.isLoading}
+                rows={locationsTargeted.data?.rows}
+                columns={["name", "negative", "bid_modifier"]}
+                labels={{ name: "Local", negative: "Excluída", bid_modifier: "Ajuste" }}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Conversion Actions */}
+        <TabsContent value="conversions" className="mt-4">
+          <Card className="glass-card">
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Ações de conversão configuradas</CardTitle>
+              <p className="text-[11px] text-muted-foreground mt-1">Quais conversões a conta está rastreando.</p>
+            </CardHeader>
+            <CardContent className="p-0">
+              <SimpleTable
+                loading={conversionActions.isLoading}
+                rows={conversionActions.data?.rows}
+                columns={["name", "category", "type", "status", "primary", "default_value", "currency"]}
+                labels={{ name: "Ação", category: "Categoria", type: "Tipo", primary: "Principal", default_value: "Valor padrão", currency: "Moeda" }}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Impression Share */}
+        <TabsContent value="impression_share" className="mt-4">
+          <Card className="glass-card">
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Parcela de impressões (Search Impression Share)</CardTitle>
+              <p className="text-[11px] text-muted-foreground mt-1">Quanto da sua audiência potencial você está alcançando — e por que está perdendo.</p>
+            </CardHeader>
+            <CardContent className="p-4">
+              {qualityShare.isLoading ? (
+                <div className="p-8 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+              ) : !qualityShare.data?.rows?.length ? (
+                <div className="p-8 text-center text-sm text-muted-foreground">Sem dados</div>
+              ) : (() => {
+                const q = qualityShare.data.rows[0];
+                const items = [
+                  { label: "Imp. Share", value: q.search_impression_share, hint: "Total de impressões obtidas" },
+                  { label: "Top Imp. Share", value: q.search_top_impression_share, hint: "Aparecendo acima dos resultados" },
+                  { label: "Abs. Top Imp. Share", value: q.search_absolute_top_impression_share, hint: "Aparecendo na 1ª posição" },
+                  { label: "Perdida (orçamento)", value: q.search_budget_lost_impression_share, hint: "Faltou orçamento", warn: true },
+                  { label: "Perdida (rank)", value: q.search_rank_lost_impression_share, hint: "Lance/QS baixo", warn: true },
+                  { label: "Top perdida (orçamento)", value: q.search_budget_lost_top_impression_share, hint: "—", warn: true },
+                  { label: "Top perdida (rank)", value: q.search_rank_lost_top_impression_share, hint: "—", warn: true },
+                ];
+                return (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {items.map((it) => (
+                      <div key={it.label} className="rounded-md border border-border/40 p-3 bg-muted/10">
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold">{it.label}</p>
+                        <p className={cn("text-lg font-bold tabular-nums mt-1", it.warn && it.value && it.value > 0.1 ? "text-rose-400" : "text-foreground")}>
+                          {it.value != null ? fmtPct(it.value) : "—"}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground/60 mt-0.5">{it.hint}</p>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* History */}
         <TabsContent value="history" className="mt-4">
           <Card className="glass-card">
@@ -458,10 +652,19 @@ function SimpleTable({ loading, rows, columns, labels }: { loading: boolean; row
   const formatCell = (col: string, val: any) => {
     if (val == null || val === "") return "—";
     if (col === "ctr" || col === "conv_rate") return fmtPct(Number(val));
-    if (col === "cost" || col === "cpc" || col === "cpa") return fmtMoney(Number(val));
+    if (col === "cost" || col === "cpc" || col === "cpa" || col === "default_value") return fmtMoney(Number(val));
     if (col === "conversions" || col === "roas") return fmtFloat(Number(val));
     if (col === "impressions" || col === "clicks") return fmtNumber(Number(val));
     if (col === "status") return <StatusBadge status={String(val)} />;
+    if (col === "bid_modifier") {
+      const v = Number(val);
+      const pct = (v - 1) * 100;
+      const cls = pct > 0 ? "text-emerald-400" : pct < 0 ? "text-rose-400" : "text-muted-foreground";
+      return <span className={cn("font-bold tabular-nums", cls)}>{pct > 0 ? "+" : ""}{pct.toFixed(0)}%</span>;
+    }
+    if (col === "negative" || col === "primary") {
+      return val ? <Badge variant="outline" className="text-[10px]">Sim</Badge> : <span className="text-muted-foreground">Não</span>;
+    }
     if (col === "quality_score" && val) {
       const v = Number(val);
       const cls = v >= 7 ? "text-emerald-400" : v >= 4 ? "text-amber-400" : "text-rose-400";

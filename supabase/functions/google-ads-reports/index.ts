@@ -292,6 +292,100 @@ function buildQuery(level: string, period: string, customFrom?: string, customTo
     `;
   }
 
+  if (level === "bid_modifiers") {
+    return `
+      SELECT
+        campaign_bid_modifier.criterion_id,
+        campaign_bid_modifier.bid_modifier,
+        campaign_bid_modifier.interaction_type.type,
+        campaign.id, campaign.name
+      FROM campaign_bid_modifier
+      WHERE campaign.id = ${campaignId}
+      LIMIT 200
+    `;
+  }
+
+  if (level === "ad_schedule") {
+    return `
+      SELECT
+        campaign_criterion.criterion_id,
+        campaign_criterion.ad_schedule.day_of_week,
+        campaign_criterion.ad_schedule.start_hour,
+        campaign_criterion.ad_schedule.end_hour,
+        campaign_criterion.ad_schedule.start_minute,
+        campaign_criterion.ad_schedule.end_minute,
+        campaign_criterion.bid_modifier,
+        campaign.id, campaign.name
+      FROM campaign_criterion
+      WHERE campaign_criterion.type = AD_SCHEDULE
+        AND campaign.id = ${campaignId}
+      LIMIT 200
+    `;
+  }
+
+  if (level === "locations_targeted") {
+    return `
+      SELECT
+        campaign_criterion.criterion_id,
+        campaign_criterion.location.geo_target_constant,
+        campaign_criterion.negative,
+        campaign_criterion.bid_modifier,
+        campaign.id, campaign.name
+      FROM campaign_criterion
+      WHERE campaign_criterion.type = LOCATION
+        AND campaign.id = ${campaignId}
+      LIMIT 200
+    `;
+  }
+
+  if (level === "landing_pages") {
+    return `
+      SELECT
+        landing_page_view.unexpanded_final_url,
+        campaign.id, campaign.name,
+        metrics.impressions, metrics.clicks, metrics.ctr, metrics.average_cpc,
+        metrics.cost_micros, metrics.conversions, metrics.conversions_value
+      FROM landing_page_view
+      WHERE ${dateClause} ${campFilter}
+      ORDER BY metrics.cost_micros DESC
+      LIMIT 200
+    `;
+  }
+
+  if (level === "conversion_actions") {
+    return `
+      SELECT
+        conversion_action.id,
+        conversion_action.name,
+        conversion_action.category,
+        conversion_action.status,
+        conversion_action.type,
+        conversion_action.primary_for_goal,
+        conversion_action.value_settings.default_value,
+        conversion_action.value_settings.default_currency_code,
+        conversion_action.counting_type
+      FROM conversion_action
+      WHERE conversion_action.status != REMOVED
+      LIMIT 100
+    `;
+  }
+
+  if (level === "campaign_quality") {
+    return `
+      SELECT
+        campaign.id, campaign.name,
+        metrics.search_impression_share,
+        metrics.search_top_impression_share,
+        metrics.search_absolute_top_impression_share,
+        metrics.search_budget_lost_impression_share,
+        metrics.search_rank_lost_impression_share,
+        metrics.search_budget_lost_top_impression_share,
+        metrics.search_rank_lost_top_impression_share
+      FROM campaign
+      WHERE ${dateClause} AND campaign.id = ${campaignId}
+    `;
+  }
+
   if (level === "change_history") {
     const now = new Date();
     const past = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
@@ -528,6 +622,76 @@ function mapRow(level: string, r: any) {
     };
   }
 
+  if (level === "bid_modifiers") {
+    const c = r.campaignBidModifier ?? {};
+    return {
+      id: String(c.criterionId ?? ""),
+      name: c.interactionType?.type ?? "—",
+      bid_modifier: c.bidModifier != null ? Number(c.bidModifier) : null,
+      campaign_name: r.campaign?.name ?? "",
+    };
+  }
+
+  if (level === "ad_schedule") {
+    const s = r.campaignCriterion?.adSchedule ?? {};
+    const c = r.campaignCriterion ?? {};
+    return {
+      id: String(c.criterionId ?? ""),
+      name: `${s.dayOfWeek ?? "—"} ${String(s.startHour ?? "").padStart(2,"0")}:${String(s.startMinute ?? "ZERO").replace("ZERO","00")} → ${String(s.endHour ?? "").padStart(2,"0")}:${String(s.endMinute ?? "ZERO").replace("ZERO","00")}`,
+      day: s.dayOfWeek ?? "—",
+      bid_modifier: c.bidModifier != null ? Number(c.bidModifier) : null,
+    };
+  }
+
+  if (level === "locations_targeted") {
+    const c = r.campaignCriterion ?? {};
+    const geoConst = c.location?.geoTargetConstant ?? "";
+    return {
+      id: String(c.criterionId ?? ""),
+      name: geoConst.replace("geoTargetConstants/", "ID ") || "—",
+      negative: c.negative ?? false,
+      bid_modifier: c.bidModifier != null ? Number(c.bidModifier) : null,
+    };
+  }
+
+  if (level === "landing_pages") {
+    return {
+      id: r.landingPageView?.unexpandedFinalUrl ?? "",
+      name: r.landingPageView?.unexpandedFinalUrl ?? "—",
+      ...base,
+    };
+  }
+
+  if (level === "conversion_actions") {
+    const a = r.conversionAction ?? {};
+    return {
+      id: String(a.id ?? ""),
+      name: a.name ?? "",
+      category: a.category ?? null,
+      status: a.status ?? null,
+      type: a.type ?? null,
+      primary: a.primaryForGoal ?? false,
+      counting_type: a.countingType ?? null,
+      default_value: a.valueSettings?.defaultValue != null ? Number(a.valueSettings.defaultValue) : null,
+      currency: a.valueSettings?.defaultCurrencyCode ?? null,
+    };
+  }
+
+  if (level === "campaign_quality") {
+    const m = r.metrics ?? {};
+    return {
+      id: String(r.campaign?.id ?? ""),
+      name: r.campaign?.name ?? "",
+      search_impression_share: m.searchImpressionShare != null ? Number(m.searchImpressionShare) : null,
+      search_top_impression_share: m.searchTopImpressionShare != null ? Number(m.searchTopImpressionShare) : null,
+      search_absolute_top_impression_share: m.searchAbsoluteTopImpressionShare != null ? Number(m.searchAbsoluteTopImpressionShare) : null,
+      search_budget_lost_impression_share: m.searchBudgetLostImpressionShare != null ? Number(m.searchBudgetLostImpressionShare) : null,
+      search_rank_lost_impression_share: m.searchRankLostImpressionShare != null ? Number(m.searchRankLostImpressionShare) : null,
+      search_budget_lost_top_impression_share: m.searchBudgetLostTopImpressionShare != null ? Number(m.searchBudgetLostTopImpressionShare) : null,
+      search_rank_lost_top_impression_share: m.searchRankLostTopImpressionShare != null ? Number(m.searchRankLostTopImpressionShare) : null,
+    };
+  }
+
   if (level === "change_history") {
     const ce = r.changeEvent ?? {};
     return {
@@ -641,7 +805,7 @@ Deno.serve(async (req) => {
     console.log(`[reports] level=${level} campaign=${campaign_id} raw_results=${results.length}`);
 
     // For aggregated levels, group by id; for time_series and change_history, keep all rows
-    const noAggregate = ["time_series", "change_history", "search_terms", "campaign_detail", "negative_keywords", "negative_keywords_ad_group", "negative_keywords_shared"];
+    const noAggregate = ["time_series", "change_history", "search_terms", "campaign_detail", "negative_keywords", "negative_keywords_ad_group", "negative_keywords_shared", "bid_modifiers", "ad_schedule", "locations_targeted", "conversion_actions", "campaign_quality", "ads"];
 
     let rows: any[];
     if (noAggregate.includes(level)) {
