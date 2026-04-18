@@ -50,6 +50,7 @@ const GoogleAdsCampaignDetail = lazy(() => import("@/pages/GoogleAdsCampaignDeta
 const FacebookAdsCampaigns = lazy(() => import("@/pages/FacebookAdsCampaigns"));
 const TikTokAdsCampaigns = lazy(() => import("@/pages/TikTokAdsCampaigns"));
 const PromptGenerator = lazy(() => import("@/pages/PromptGenerator"));
+const NativeCheckoutGuide = lazy(() => import("@/pages/NativeCheckoutGuide"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -87,6 +88,7 @@ function ProtectedRoutes() {
           <Route path="/prompt-generator" element={<PromptGenerator />} />
           <Route path="/integration-logs" element={<IntegrationLogs />} />
           <Route path="/tracking-guide" element={<TrackingGuide />} />
+          <Route path="/native-checkout-guide" element={<NativeCheckoutGuide />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
           <Route path="/setup-facebook" element={<SetupFacebook />} />
           <Route path="/setup-google" element={<SetupGoogle />} />

@@ -30,6 +30,16 @@ interface NormalizedCustomer {
   name?: string; email?: string; phone?: string; document?: string;
 }
 
+interface NormalizedTracking {
+  gclid?: string; gbraid?: string; wbraid?: string;
+  fbclid?: string; fbp?: string; fbc?: string; ttclid?: string;
+  utm_source?: string; utm_medium?: string; utm_campaign?: string;
+  utm_content?: string; utm_term?: string;
+  landing_page?: string; referrer?: string;
+  user_agent?: string; ip?: string;
+  ga_client_id?: string;
+}
+
 interface NormalizedOrder {
   gateway: string;
   external_order_id: string;
@@ -43,7 +53,40 @@ interface NormalizedOrder {
   payment_method?: string;
   installments?: number;
   items?: Array<{ product_id?: string; product_name?: string; category?: string; quantity: number; unit_price?: number; total_price?: number }>;
+  tracking?: NormalizedTracking;
   raw_payload: unknown;
+}
+
+// Extracts tracking attributes from a `metadata` (or similar) bag passed by the merchant's checkout.
+// Accepts snake_case, camelCase and common aliases.
+function extractTrackingFromMetadata(meta: any): NormalizedTracking {
+  if (!meta || typeof meta !== "object") return {};
+  const get = (...keys: string[]) => {
+    for (const k of keys) {
+      const v = meta[k];
+      if (v != null && String(v).trim() !== "") return String(v);
+    }
+    return undefined;
+  };
+  return {
+    gclid: get("gclid", "GCLID"),
+    gbraid: get("gbraid"),
+    wbraid: get("wbraid"),
+    fbclid: get("fbclid"),
+    fbp: get("fbp", "_fbp"),
+    fbc: get("fbc", "_fbc"),
+    ttclid: get("ttclid"),
+    utm_source: get("utm_source", "utmSource"),
+    utm_medium: get("utm_medium", "utmMedium"),
+    utm_campaign: get("utm_campaign", "utmCampaign"),
+    utm_content: get("utm_content", "utmContent"),
+    utm_term: get("utm_term", "utmTerm"),
+    landing_page: get("landing_page", "landingPage", "first_page"),
+    referrer: get("referrer"),
+    user_agent: get("user_agent", "userAgent", "ua"),
+    ip: get("ip", "client_ip", "clientIp"),
+    ga_client_id: get("ga_client_id", "client_id", "gaClientId"),
+  };
 }
 
 const INTERNAL_TO_META: Record<string, string> = {
@@ -558,21 +601,47 @@ const quantumpayHandler: GatewayHandler = {
     const t = p.transaction || p.transfer || {};
     const payer = dig(t, "pix", "payerInfo") || {};
     const isTransfer = !!p.transfer;
+    // QuantumPay encaminha `metadata` (objeto livre) e `externalReference` (string).
+    // Recomendamos enviar tracking + dados do cliente no metadata pelo seu checkout.
+    const meta = (t.metadata && typeof t.metadata === "object") ? t.metadata : {};
+    const customerMeta = (meta.customer && typeof meta.customer === "object") ? meta.customer : meta;
+    const tracking = extractTrackingFromMetadata(meta);
     return {
       gateway: "quantumpay",
       external_order_id: str(t.id || p.id),
       external_payment_id: str(t.id || p.id),
+      external_checkout_id: str(t.externalReference || meta.externalReference || meta.orderCode),
       customer: {
-        name: str(payer.name),
-        document: str(payer.document),
+        name: str(customerMeta.name || payer.name),
+        email: str(customerMeta.email),
+        phone: str(customerMeta.phone || customerMeta.whatsapp),
+        document: str(customerMeta.document || payer.document),
       },
       status: str(t.status),
       total_value: num(t.amount) / 100, // centavos → reais
       currency: "BRL",
       payment_method: isTransfer ? "pix_out" : "pix",
+      tracking,
       raw_payload: p,
     };
   },
+};
+
+// ── Gumroad ──
+const gumroadHandler: GatewayHandler = {
+  extractEventType: (p) => str(p.resource_name || "sale"),
+  resolveInternalEvent: (e) => ({
+    "sale": "order_paid", "refund": "order_refunded",
+    "cancellation": "subscription_canceled", "subscription_updated": "subscription_renewed",
+    "subscription_ended": "subscription_canceled", "subscription_restarted": "subscription_started",
+  } as Record<string, InternalEvent>)[e] || "order_created",
+  normalize: (p) => ({
+    gateway: "gumroad", external_order_id: str(p.sale_id || p.subscription_id || p.id),
+    external_payment_id: str(p.sale_id || p.id),
+    customer: { email: str(p.email || p.purchaser_id), name: str(p.full_name) },
+    status: str(p.resource_name || "paid"), total_value: num(String(p.price || 0).replace(/[^0-9.]/g, "")),
+    currency: str(p.currency || "usd").toUpperCase(), raw_payload: p,
+  }),
 };
 
 // ── Gumroad ──
@@ -953,6 +1022,7 @@ Deno.serve(async (req) => {
     const isChargeback = internalEvent.includes("chargeback");
     const isCanceled = internalEvent.includes("cancel");
 
+    const tk = order.tracking || {};
     const orderData: any = {
       workspace_id: workspaceId, gateway: order.gateway, gateway_order_id: order.external_order_id,
       gateway_integration_id: integrationId, customer_email: order.customer.email || null,
@@ -962,6 +1032,12 @@ Deno.serve(async (req) => {
       financial_status: internalEvent, total_value: order.total_value, currency: order.currency,
       payment_method: order.payment_method, installments: order.installments,
       external_checkout_id: order.external_checkout_id, external_subscription_id: order.external_subscription_id,
+      // ── Tracking carried by checkout via metadata ──
+      gclid: tk.gclid || null, fbclid: tk.fbclid || null, ttclid: tk.ttclid || null,
+      fbp: tk.fbp || null, fbc: tk.fbc || null,
+      utm_source: tk.utm_source || null, utm_medium: tk.utm_medium || null,
+      utm_campaign: tk.utm_campaign || null, utm_content: tk.utm_content || null, utm_term: tk.utm_term || null,
+      landing_page: tk.landing_page || null, referrer: tk.referrer || null,
     };
     if (isPaid) orderData.paid_at = new Date().toISOString();
     if (isRefund) orderData.refunded_at = new Date().toISOString();
@@ -987,18 +1063,26 @@ Deno.serve(async (req) => {
       await supabase.from("order_items").insert(order.items.map(i => ({ order_id: savedOrder.id, workspace_id: workspaceId, ...i })));
     }
 
-    // ── Reconciliation ──
+    // ── Reconciliation (FALLBACK: fills tracking only if checkout did not send it) ──
     const { identityId, sessionId, sessionData, matchField } = await reconcile(workspaceId, order.customer);
 
-    if (sessionData && savedOrder?.id) {
-      await supabase.from("orders").update({
-        session_id: sessionId, identity_id: identityId,
-        utm_source: sessionData.utm_source, utm_medium: sessionData.utm_medium,
-        utm_campaign: sessionData.utm_campaign, utm_content: sessionData.utm_content,
-        utm_term: sessionData.utm_term, fbp: sessionData.fbp, fbc: sessionData.fbc,
-        fbclid: sessionData.fbclid, gclid: sessionData.gclid, ttclid: sessionData.ttclid,
-        landing_page: sessionData.landing_page, referrer: sessionData.referrer,
-      }).eq("id", savedOrder.id);
+    if (savedOrder?.id && (sessionId || identityId || sessionData)) {
+      const fallback: any = { session_id: sessionId, identity_id: identityId };
+      if (sessionData) {
+        if (!tk.utm_source) fallback.utm_source = sessionData.utm_source;
+        if (!tk.utm_medium) fallback.utm_medium = sessionData.utm_medium;
+        if (!tk.utm_campaign) fallback.utm_campaign = sessionData.utm_campaign;
+        if (!tk.utm_content) fallback.utm_content = sessionData.utm_content;
+        if (!tk.utm_term) fallback.utm_term = sessionData.utm_term;
+        if (!tk.fbp) fallback.fbp = sessionData.fbp;
+        if (!tk.fbc) fallback.fbc = sessionData.fbc;
+        if (!tk.fbclid) fallback.fbclid = sessionData.fbclid;
+        if (!tk.gclid) fallback.gclid = sessionData.gclid;
+        if (!tk.ttclid) fallback.ttclid = sessionData.ttclid;
+        if (!tk.landing_page) fallback.landing_page = sessionData.landing_page;
+        if (!tk.referrer) fallback.referrer = sessionData.referrer;
+      }
+      await supabase.from("orders").update(fallback).eq("id", savedOrder.id);
     }
 
     // Upsert gateway_customer
