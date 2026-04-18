@@ -29,12 +29,49 @@ interface RouteResult {
 }
 
 async function getActiveDestinations(workspaceId: string) {
-  const { data } = await supabase
-    .from("gateway_integrations")
-    .select("id, provider, name, status, credentials_encrypted, public_config_json, settings_json")
-    .eq("workspace_id", workspaceId)
-    .eq("status", "active");
-  return data || [];
+  // Lê de DUAS tabelas: gateway_integrations (legado) + integration_destinations (novo)
+  // e normaliza num formato único pro dispatcher
+  const [gwRes, idRes] = await Promise.all([
+    supabase
+      .from("gateway_integrations")
+      .select("id, provider, name, status, credentials_encrypted, public_config_json, settings_json")
+      .eq("workspace_id", workspaceId)
+      .eq("status", "active"),
+    supabase
+      .from("integration_destinations")
+      .select("id, provider, display_name, destination_id, access_token_encrypted, config_json, is_active")
+      .eq("workspace_id", workspaceId)
+      .eq("is_active", true),
+  ]);
+
+  const fromGateway = (gwRes.data || []).map((d: any) => ({
+    id: d.id,
+    provider: d.provider,
+    name: d.name,
+    // gateway_integrations legacy fields kept for downstream compat
+    credentials_encrypted: d.credentials_encrypted,
+    public_config_json: d.public_config_json,
+    settings_json: d.settings_json,
+    config_json: d.public_config_json || {},
+    _source: "gateway_integrations",
+  }));
+
+  const fromDestinations = (idRes.data || []).map((d: any) => ({
+    id: d.id,
+    provider: d.provider,
+    name: d.display_name,
+    destination_id: d.destination_id,
+    access_token_encrypted: d.access_token_encrypted,
+    config_json: d.config_json || {},
+    _source: "integration_destinations",
+  }));
+
+  // Dedupe por provider — prioriza integration_destinations (mais novo) sobre gateway_integrations
+  const byProvider = new Map<string, any>();
+  for (const d of fromGateway) byProvider.set(d.provider, d);
+  for (const d of fromDestinations) byProvider.set(d.provider, d); // overwrite
+
+  return Array.from(byProvider.values());
 }
 
 async function getRoutingRules(workspaceId: string, eventName: string) {
@@ -45,6 +82,62 @@ async function getRoutingRules(workspaceId: string, eventName: string) {
     .eq("enabled", true)
     .or(`internal_event_name.eq.${eventName},gateway_event.eq.${eventName},internal_event_name.is.null`);
   return data || [];
+}
+
+/**
+ * Normaliza um evento da tabela `events` no formato `payload_json` esperado
+ * pelos dispatchers downstream (google-ads-capi, ga4-events, meta-capi, tiktok-events),
+ * que originalmente foram escritos pra consumir items vindos do gateway-webhook.
+ */
+function normalizeEventToQueuePayload(event: any) {
+  const ud = event.user_data_json || {};
+  const cd = event.custom_data_json || {};
+
+  return {
+    event_name: event.event_name,
+    event_id: event.event_id || event.id,
+    event_time: event.event_time,
+    event_source_url: event.event_source_url,
+    customer: {
+      email: ud.email || null,
+      email_hash: ud.email_hash || null,
+      phone: ud.phone || null,
+      phone_hash: ud.phone_hash || null,
+      external_id: ud.external_id || null,
+      first_name: ud.first_name || null,
+      last_name: ud.last_name || null,
+      city: ud.city || null,
+      state: ud.state || null,
+      country: ud.country || null,
+      zip: ud.zip || null,
+    },
+    session: {
+      fbp: ud.fbp || null,
+      fbc: ud.fbc || null,
+      ga_client_id: ud.ga_client_id || null,
+      gclid: cd.gclid || null,
+      gbraid: cd.gbraid || null,
+      wbraid: cd.wbraid || null,
+      fbclid: cd.fbclid || null,
+      ttclid: cd.ttclid || null,
+      msclkid: cd.msclkid || null,
+      utm_source: cd.utm_source || null,
+      utm_medium: cd.utm_medium || null,
+      utm_campaign: cd.utm_campaign || null,
+      utm_content: cd.utm_content || null,
+      utm_term: cd.utm_term || null,
+      ip: ud.client_ip_address || null,
+      user_agent: ud.client_user_agent || null,
+    },
+    order: {
+      external_order_id: cd.transaction_id || cd.order_id || event.event_id,
+      total_value: cd.value != null ? Number(cd.value) : 0,
+      currency: cd.currency || "BRL",
+      items: cd.items || [],
+    },
+    custom_data: cd,
+    user_data: ud,
+  };
 }
 
 async function dispatchToProvider(
@@ -62,21 +155,27 @@ async function dispatchToProvider(
 
   try {
     const url = `${SUPABASE_URL}/functions/v1/${fnName}`;
+    const normalizedPayload = normalizeEventToQueuePayload(event);
+
     const payload = {
       event,
       destination,
       workspace_id: workspaceId,
-      // Pass through for process-events compatibility
+      // Pass through for process-events compatibility (queue item format)
       items: [{
+        id: crypto.randomUUID(),
         workspace_id: workspaceId,
         event_id: event.id,
         provider,
-        payload_json: event,
+        payload_json: normalizedPayload,
         attempt_count: 0,
         max_attempts: 5,
         destination: destination.id,
+        created_at: event.event_time || new Date().toISOString(),
       }],
     };
+
+    console.log(`[dispatch] provider=${provider} fn=${fnName} dest_id=${destination.id} dest_provider=${destination.provider}`);
 
     const res = await fetch(url, {
       method: "POST",
@@ -87,8 +186,10 @@ async function dispatchToProvider(
       body: JSON.stringify(payload),
     });
 
-    const result = await res.json();
+    const result = await res.json().catch(() => ({ raw: "non-json response" }));
     const latency = Date.now() - start;
+
+    console.log(`[dispatch:result] provider=${provider} status=${res.status} ok=${res.ok} body=${JSON.stringify(result).slice(0,300)}`);
 
     // Log to integration_logs
     await supabase.from("integration_logs").insert({
@@ -161,6 +262,8 @@ Deno.serve(async (req) => {
       getActiveDestinations(workspace_id),
       getRoutingRules(workspace_id, event.event_name),
     ]);
+
+    console.log(`[event-router] event=${event.event_name} dests=${destinations.length} providers=${destinations.map((d:any)=>d.provider).join(",")}`);
 
     if (destinations.length === 0) {
       // Update event status
