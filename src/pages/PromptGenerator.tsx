@@ -13,8 +13,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import {
   Wand2, Copy, Search, Wrench, CheckCircle2, ShoppingBag, GraduationCap,
-  Cloud, Users, UtensilsCrossed, Store, Briefcase, Sparkles, Info, HelpCircle, Bot,
+  Cloud, Users, UtensilsCrossed, Store, Briefcase, Sparkles, Info, HelpCircle, Bot, ShoppingCart,
 } from "lucide-react";
+import { NativeCheckoutBuilder } from "@/components/setup/NativeCheckoutBuilder";
 import {
   BUSINESS_PROFILES, generateAuditPrompt, generateFixPrompt, generateValidationPrompt,
   type BusinessType, type Gateway, type Platform, type ProjectConfig, type TargetAI,
@@ -292,6 +293,9 @@ export default function PromptGenerator() {
               <TabsTrigger value="validate">
                 <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> 3. Validação
               </TabsTrigger>
+              <TabsTrigger value="native">
+                <ShoppingCart className="w-3.5 h-3.5 mr-1" /> 4. Checkout Nativo
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="audit" className="mt-4 space-y-3">
@@ -322,6 +326,21 @@ export default function PromptGenerator() {
                 </AlertDescription>
               </Alert>
               <CopyableBlock code={validationPrompt} label="Prompt de validação" />
+            </TabsContent>
+
+            <TabsContent value="native" className="mt-4 space-y-3">
+              <Alert className="border-primary/20 bg-primary/5">
+                <ShoppingCart className="w-4 h-4" />
+                <AlertDescription className="text-xs">
+                  Use SEMPRE que o checkout for próprio (PIX, cartão, boleto, assinatura).
+                  3 modos: <strong>Wizard</strong> (rápido por gateway+métodos), <strong>IA</strong> (analisa seu código real),
+                  <strong> Template</strong> (cobre todos os métodos do gateway escolhido).
+                </AlertDescription>
+              </Alert>
+              <NativeCheckoutBuilder
+                publicKey={config.publicKey}
+                endpoint={config.endpoint}
+              />
             </TabsContent>
           </Tabs>
         </CardContent>
