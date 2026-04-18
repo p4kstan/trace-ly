@@ -251,6 +251,49 @@ Deno.serve(async (req) => {
     // ── Insert event ──
     const deduplicationKey = body.event_id || `${workspaceId}_${body.event_name}_${ipHash}_${Date.now()}`;
 
+    // Bloqueia eventos internos do GTM/gtag que não são tracking real
+    const eventName = String(body.event_name);
+    if (
+      /^gtm\./i.test(eventName) ||
+      /^gtag\./i.test(eventName) ||
+      /^(AW|G|GT|GTM|DC|UA)-[A-Z0-9-]+$/i.test(eventName) ||
+      eventName === "consent"
+    ) {
+      return new Response(
+        JSON.stringify({ status: "filtered", reason: "internal_gtm_event", event_name: eventName }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Enriquece user_data com cookies de tracking (fbp/fbc/ga_client_id) que vêm na raiz
+    const enrichedUserData = {
+      ...(body.user_data || {}),
+      ...(body.user_data_hashed || {}),
+      ...(body.fbp ? { fbp: body.fbp } : {}),
+      ...(body.fbc ? { fbc: body.fbc } : {}),
+      ...(body.ga_client_id ? { ga_client_id: body.ga_client_id } : {}),
+      client_user_agent: userAgent,
+      client_ip_address: ip,
+    };
+
+    // Click IDs e UTMs vão pra custom_data
+    const enrichedCustomData = {
+      ...(body.custom_data || {}),
+      ...(body.value != null ? { value: body.value } : {}),
+      ...(body.currency ? { currency: body.currency } : {}),
+      ...(body.gclid ? { gclid: body.gclid } : {}),
+      ...(body.gbraid ? { gbraid: body.gbraid } : {}),
+      ...(body.wbraid ? { wbraid: body.wbraid } : {}),
+      ...(body.fbclid ? { fbclid: body.fbclid } : {}),
+      ...(body.ttclid ? { ttclid: body.ttclid } : {}),
+      ...(body.msclkid ? { msclkid: body.msclkid } : {}),
+      ...(body.utm_source ? { utm_source: body.utm_source } : {}),
+      ...(body.utm_medium ? { utm_medium: body.utm_medium } : {}),
+      ...(body.utm_campaign ? { utm_campaign: body.utm_campaign } : {}),
+      ...(body.utm_content ? { utm_content: body.utm_content } : {}),
+      ...(body.utm_term ? { utm_term: body.utm_term } : {}),
+    };
+
     const { data: event, error } = await supabase
       .from("events")
       .insert({
@@ -265,8 +308,8 @@ Deno.serve(async (req) => {
         event_source_url: body.url || body.page_url || null,
         page_path: body.page_path || null,
         payload_json: body.payload || null,
-        user_data_json: body.user_data || null,
-        custom_data_json: body.custom_data || (body.value ? { value: body.value, currency: body.currency } : null),
+        user_data_json: Object.keys(enrichedUserData).length > 0 ? enrichedUserData : null,
+        custom_data_json: Object.keys(enrichedCustomData).length > 0 ? enrichedCustomData : null,
         deduplication_key: deduplicationKey,
         processing_status: "pending",
       })

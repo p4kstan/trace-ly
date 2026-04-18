@@ -499,8 +499,15 @@
       seen.add(item);
       var eventName = item.event;
       if (!eventName || typeof eventName !== 'string') return;
-      // Skip GTM internal events
-      if (/^gtm\./.test(eventName) || /^gtag\./.test(eventName) || eventName === 'consent') return;
+      // Skip GTM/gtag internal events and config calls
+      if (/^gtm\./.test(eventName)) return;
+      if (/^gtag\./.test(eventName)) return;
+      if (eventName === 'consent') return;
+      // gtag('config', 'AW-XXXX' or 'G-XXXX' or 'GT-XXXX') leaks into dataLayer
+      // as items with event = the measurement/conversion ID. Filter those out.
+      if (/^(AW|G|GT|GTM|DC|UA)-/i.test(eventName)) return;
+      // Common noise from GTM auto-event listeners
+      if (/^(gtm\.|optimize\.|debug_|gtm\b)/i.test(eventName)) return;
       var mapped = mapGa4ToCapitrack(eventName, item.ecommerce || item);
       if (shouldThrottle(mapped.name, mapped.data)) return;
       enqueueEvent(buildEvent(mapped.name, mapped.data));
