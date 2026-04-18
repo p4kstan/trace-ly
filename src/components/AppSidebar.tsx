@@ -79,7 +79,7 @@ const accountItems = [
   { title: "Configurações", url: "/settings", icon: Settings },
 ];
 
-function SidebarNavGroup({ items, label, collapsed }: { items: typeof mainItems; label: string; collapsed: boolean }) {
+function SidebarNavGroup({ items, label, collapsed }: { items: typeof overviewItems; label: string; collapsed: boolean }) {
   const location = useLocation();
   const isActive = (path: string) => location.pathname === path;
 
