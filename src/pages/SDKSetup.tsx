@@ -343,8 +343,8 @@ const response = await fetch("${supabaseUrl}/functions/v1/track", {
                   <code className="text-sm font-mono">marmitex</code>
                 </div>
               </div>
-              <div className="flex items-start gap-2 bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-3">
-                <CheckCircle className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
+              <div className="flex items-start gap-2 bg-primary/5 border border-primary/20 rounded-lg p-3">
+                <CheckCircle className="w-4 h-4 text-primary mt-0.5 shrink-0" />
                 <div className="text-xs text-muted-foreground space-y-1">
                   <p><strong className="text-foreground">Server-side ativo:</strong> Purchases vindos de webhooks de gateway (Hotmart, Yampi, Kiwify…) são enviados automaticamente ao GA4 via Measurement Protocol.</p>
                   <p><strong className="text-foreground">Client-side (opcional):</strong> use os snippets abaixo no checkout para deduplicação e dados extras.</p>
