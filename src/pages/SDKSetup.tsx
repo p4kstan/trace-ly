@@ -7,9 +7,54 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Copy, CheckCircle, Code, Terminal, Zap, Globe, Layers, Database } from "lucide-react";
+import { Copy, CheckCircle, Code, Terminal, Zap, Globe, Layers, Database, BarChart3 } from "lucide-react";
 import { GTMTab } from "@/components/setup/GTMTab";
 import { DataLayerTemplatesTab } from "@/components/setup/DataLayerTemplatesTab";
+
+const GA4_PURCHASE_DATALAYER = `<!-- GA4 Purchase via dataLayer (GTM) -->
+<script>
+  window.dataLayer = window.dataLayer || [];
+  window.dataLayer.push({ ecommerce: null });
+  window.dataLayer.push({
+    event: "purchase",
+    ecommerce: {
+      transaction_id: "{{ORDER_ID}}",
+      value: {{ORDER_VALUE}},
+      currency: "BRL",
+      tax: 0,
+      shipping: 0,
+      coupon: "",
+      items: [{
+        item_id: "{{PRODUCT_ID}}",
+        item_name: "{{PRODUCT_NAME}}",
+        price: {{ORDER_VALUE}},
+        quantity: 1
+      }]
+    }
+  });
+</script>`;
+
+const GA4_PURCHASE_GTAG = `<!-- GA4 Purchase via gtag.js direto -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-GV6CZC4FZW"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-GV6CZC4FZW');
+
+  // Dispare ao confirmar o pedido
+  gtag('event', 'purchase', {
+    transaction_id: "{{ORDER_ID}}",
+    value: {{ORDER_VALUE}},
+    currency: "BRL",
+    items: [{
+      item_id: "{{PRODUCT_ID}}",
+      item_name: "{{PRODUCT_NAME}}",
+      price: {{ORDER_VALUE}},
+      quantity: 1
+    }]
+  });
+</script>`;
 
 function CodeBlock({ code, language = "html" }: { code: string; language?: string }) {
   const copyCode = () => {
@@ -240,6 +285,10 @@ const response = await fetch("${supabaseUrl}/functions/v1/track", {
             <Database className="w-3.5 h-3.5 mr-1" />
             Data Layer
           </TabsTrigger>
+          <TabsTrigger value="ga4">
+            <BarChart3 className="w-3.5 h-3.5 mr-1" />
+            GA4
+          </TabsTrigger>
           <TabsTrigger value="events">Eventos</TabsTrigger>
           <TabsTrigger value="ecommerce">E-commerce</TabsTrigger>
           <TabsTrigger value="server">Server-Side</TabsTrigger>
@@ -274,6 +323,59 @@ const response = await fetch("${supabaseUrl}/functions/v1/track", {
 
         <TabsContent value="datalayer" className="mt-4">
           <DataLayerTemplatesTab />
+        </TabsContent>
+
+        <TabsContent value="ga4" className="mt-4 space-y-4">
+          <Card className="glass-card">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-primary" /> Google Analytics 4 — Configurado ✓
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="bg-muted/30 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Measurement ID</p>
+                  <code className="text-sm font-mono text-primary">G-GV6CZC4FZW</code>
+                </div>
+                <div className="bg-muted/30 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground mb-1">Stream</p>
+                  <code className="text-sm font-mono">marmitex</code>
+                </div>
+              </div>
+              <div className="flex items-start gap-2 bg-primary/5 border border-primary/20 rounded-lg p-3">
+                <CheckCircle className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p><strong className="text-foreground">Server-side ativo:</strong> Purchases vindos de webhooks de gateway (Hotmart, Yampi, Kiwify…) são enviados automaticamente ao GA4 via Measurement Protocol.</p>
+                  <p><strong className="text-foreground">Client-side (opcional):</strong> use os snippets abaixo no checkout para deduplicação e dados extras.</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="glass-card">
+            <CardHeader>
+              <CardTitle className="text-base">Snippet client-side — DataLayer (GTM)</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Cole na página de confirmação do pedido. Funciona com qualquer container GTM que tenha tag GA4 Purchase configurada.
+              </p>
+              <CodeBlock code={GA4_PURCHASE_DATALAYER} />
+            </CardContent>
+          </Card>
+
+          <Card className="glass-card">
+            <CardHeader>
+              <CardTitle className="text-base">Snippet client-side — gtag.js direto</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Use se o seu site não tem GTM. Inclui o gtag.js do GA4 e dispara o evento purchase.
+              </p>
+              <CodeBlock code={GA4_PURCHASE_GTAG} />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="events" className="mt-4">
