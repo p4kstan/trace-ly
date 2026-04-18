@@ -153,27 +153,122 @@ export default function GA4Analytics() {
   if (credLoading) return <Skeleton className="h-96" />;
 
   if (!cred || cred.status !== "connected") {
+    const needsProperty = cred?.status === "needs_property_selection";
     return (
       <div className="space-y-6 animate-fade-in">
         <div>
           <h1 className="text-2xl font-bold text-gradient-primary">GA4 — Relatórios & Admin</h1>
           <p className="text-sm text-muted-foreground">Conecte sua conta Google para ler relatórios e gerenciar a propriedade GA4.</p>
         </div>
+
+        {needsProperty && (
+          <Card className="glass-card border-amber-500/30 bg-amber-500/5">
+            <CardContent className="pt-6 space-y-2">
+              <div className="flex items-center gap-2 text-amber-500 font-semibold text-sm">
+                <Activity className="w-4 h-4" /> Conexão parcial detectada
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Você autorizou com sucesso, mas o sistema não conseguiu ler suas propriedades GA4 automaticamente.
+                Isso normalmente significa que as <strong>APIs do Google Analytics ainda não estão ativadas</strong> no
+                seu projeto Google Cloud. Siga os passos abaixo e clique em <strong>"Reconectar"</strong>.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Pré-requisitos */}
         <Card className="glass-card">
-          <CardContent className="pt-6 flex flex-col items-center text-center gap-4 py-16">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-primary" />
+              Pré-requisitos para integrar o GA4
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            <div className="space-y-2">
+              <div className="font-semibold text-foreground">1. Ative as 2 APIs no Google Cloud</div>
+              <p className="text-muted-foreground">
+                No <strong>mesmo projeto</strong> onde você criou o OAuth Client (o mesmo do Google Ads), ative:
+              </p>
+              <ul className="space-y-1.5 ml-4">
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  <div>
+                    <strong>Google Analytics Admin API</strong> — gerencia propriedades, streams e conversões
+                    <a
+                      href="https://console.cloud.google.com/apis/library/analyticsadmin.googleapis.com"
+                      target="_blank" rel="noreferrer"
+                      className="ml-2 inline-flex items-center gap-1 text-primary hover:underline text-xs"
+                    >
+                      Abrir <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  <div>
+                    <strong>Google Analytics Data API</strong> — lê relatórios (sessões, receita, conversões)
+                    <a
+                      href="https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com"
+                      target="_blank" rel="noreferrer"
+                      className="ml-2 inline-flex items-center gap-1 text-primary hover:underline text-xs"
+                    >
+                      Abrir <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                </li>
+              </ul>
+              <p className="text-xs text-muted-foreground italic mt-1">
+                Em cada link, clique em <strong>ENABLE / ATIVAR</strong> e aguarde ~1 minuto antes de continuar.
+              </p>
+            </div>
+
+            <div className="space-y-2 pt-2 border-t border-border/40">
+              <div className="font-semibold text-foreground">2. Tenha uma propriedade GA4 criada</div>
+              <p className="text-muted-foreground">
+                Em <a href="https://analytics.google.com" target="_blank" rel="noreferrer" className="text-primary hover:underline">analytics.google.com</a>,
+                no menu <strong>Admin → Criar → Propriedade</strong> (escolha tipo <em>GA4</em>, não Universal Analytics).
+                Se já tem, basta confirmar que está logado com a conta Google certa.
+              </p>
+            </div>
+
+            <div className="space-y-2 pt-2 border-t border-border/40">
+              <div className="font-semibold text-foreground">3. Confira o redirect URI</div>
+              <p className="text-muted-foreground">
+                No OAuth Client do Google Cloud, em <strong>Authorized redirect URIs</strong>, deve existir:
+              </p>
+              <code className="block text-xs bg-muted/40 px-2 py-1.5 rounded border border-border/40 break-all">
+                https://xpgsipmyrwyjerjvbhmb.supabase.co/functions/v1/ga4-oauth-callback
+              </code>
+            </div>
+
+            <div className="space-y-2 pt-2 border-t border-border/40">
+              <div className="font-semibold text-foreground">4. Aceite todas as permissões na tela do Google</div>
+              <p className="text-muted-foreground">
+                Quando o Google pedir consentimento, marque <strong>todas as caixas</strong> (Visualizar e Editar Analytics).
+                Sem isso a listagem de propriedades não funciona.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="glass-card">
+          <CardContent className="pt-6 flex flex-col items-center text-center gap-4 py-12">
             <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
               <BarChart3 className="w-10 h-10 text-primary" />
             </div>
             <div className="space-y-1">
-              <h2 className="text-xl font-semibold">Conectar Google Analytics 4</h2>
+              <h2 className="text-xl font-semibold">
+                {needsProperty ? "Reconectar Google Analytics 4" : "Conectar Google Analytics 4"}
+              </h2>
               <p className="text-sm text-muted-foreground max-w-md">
-                Autorize o CapiTrack a ler relatórios (sessões, conversões, receita) e gerenciar
-                eventos de conversão da sua propriedade GA4 sem sair daqui.
+                Após concluir os 4 passos acima, clique abaixo para autorizar o CapiTrack a ler relatórios e
+                gerenciar eventos de conversão da sua propriedade GA4.
               </p>
             </div>
             <Button size="lg" onClick={() => connect.mutate()} disabled={connect.isPending}>
               <Plug className="w-4 h-4 mr-2" />
-              {connect.isPending ? "Redirecionando..." : "Conectar com Google"}
+              {connect.isPending ? "Redirecionando..." : needsProperty ? "Reconectar com Google" : "Conectar com Google"}
             </Button>
             <p className="text-xs text-muted-foreground">
               Permissões solicitadas: <code>analytics.readonly</code> + <code>analytics.edit</code>
