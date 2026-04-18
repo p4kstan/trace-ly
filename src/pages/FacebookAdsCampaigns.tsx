@@ -1,12 +1,12 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { Facebook, Construction } from "lucide-react";
+import { Megaphone, Construction } from "lucide-react";
 
 export default function FacebookAdsCampaigns() {
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-gradient-primary flex items-center gap-2">
-          <Facebook className="w-6 h-6 text-primary" /> Campanhas Facebook Ads
+          <Megaphone className="w-6 h-6 text-primary" /> Campanhas Facebook Ads
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
           Visualize campanhas, conjuntos de anúncios e anúncios da Meta Ads em tempo real

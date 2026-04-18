@@ -2,7 +2,7 @@ import {
   LayoutDashboard, GitBranch, MonitorDot, ScrollText, Bug, Settings,
   Zap, Brain, CreditCard, HeartPulse, Key, LogOut, ShoppingCart, Webhook, Inbox, BookOpen, Cpu, Gauge,
   Shield, TrendingUp, Lightbulb, Filter, Radio, Send, Code, FileText, HelpCircle, Layers, BarChart3, Wand2,
-  Facebook2 as Facebook, Music2,
+  Megaphone, Music2,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -31,7 +31,7 @@ const mainItems = [
 
 const platformsItems = [
   { title: "Google Ads", url: "/google-ads-campaigns", icon: BarChart3 },
-  { title: "Facebook Ads", url: "/facebook-ads-campaigns", icon: Facebook },
+  { title: "Facebook Ads", url: "/facebook-ads-campaigns", icon: Megaphone },
   { title: "TikTok Ads", url: "/tiktok-ads-campaigns", icon: Music2 },
 ];
 
