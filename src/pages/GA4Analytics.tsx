@@ -15,6 +15,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
+import { getGa4Cache, setGa4Cache } from "@/lib/ga4-cache";
 import {
   AlertTriangle, BarChart3, Plug, RefreshCw, ShieldCheck, ExternalLink, Plus, Trash2,
   Users, Activity, DollarSign, MousePointerClick, Target,
