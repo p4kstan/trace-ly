@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useWorkspace } from "@/hooks/use-tracking-data";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +16,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import {
-  BarChart3, Plug, RefreshCw, ShieldCheck, ExternalLink, Plus, Trash2,
+  AlertTriangle, BarChart3, Plug, RefreshCw, ShieldCheck, ExternalLink, Plus, Trash2,
   Users, Activity, DollarSign, MousePointerClick, Target,
 } from "lucide-react";
 
@@ -33,6 +34,38 @@ function fmt(n: number | string | undefined, currency = false) {
   const v = Number(n || 0);
   if (currency) return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   return v.toLocaleString("pt-BR");
+}
+
+function extractGa4SetupIssue(error: unknown) {
+  const fallbackMessage = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  const jsonStart = fallbackMessage.indexOf("{");
+
+  let payload: any = null;
+  if (jsonStart >= 0) {
+    try {
+      payload = JSON.parse(fallbackMessage.slice(jsonStart));
+    } catch {
+      payload = null;
+    }
+  }
+
+  const details = payload?.details?.error?.details ?? [];
+  const errorInfo = details.find((item: any) => item?.["@type"]?.includes("ErrorInfo"));
+  const help = details.find((item: any) => item?.["@type"]?.includes("Help"));
+  const localized = details.find((item: any) => item?.["@type"]?.includes("LocalizedMessage"));
+
+  const message = payload?.error || localized?.message || fallbackMessage;
+  if (!message) return null;
+
+  return {
+    message,
+    apiName: errorInfo?.metadata?.serviceTitle || null,
+    activationUrl: help?.links?.[0]?.url || errorInfo?.metadata?.activationUrl || null,
+    isConfigurationIssue:
+      errorInfo?.reason === "SERVICE_DISABLED" ||
+      errorInfo?.reason === "ACCESS_TOKEN_SCOPE_INSUFFICIENT" ||
+      /not been used|disabled|scope/i.test(message),
+  };
 }
 
 function MetricBox({ icon: Icon, label, value, color }: any) {
@@ -56,11 +89,10 @@ function MetricBox({ icon: Icon, label, value, color }: any) {
 export default function GA4Analytics() {
   const { data: workspace } = useWorkspace();
   const ws = workspace?.id;
-  const qc = useQueryClient();
   const [dateRange, setDateRange] = useState("last_7_days");
   const [activeTab, setActiveTab] = useState("overview");
 
-  const { data: cred, isLoading: credLoading, refetch: refetchCred } = useQuery({
+  const { data: cred, isLoading: credLoading } = useQuery({
     queryKey: ["ga4-cred", ws],
     enabled: !!ws,
     queryFn: async () => {
@@ -78,9 +110,10 @@ export default function GA4Analytics() {
 
   const isConnected = cred?.status === "connected";
 
-  const { data: report, isLoading: reportLoading, refetch: refetchReport } = useQuery({
+  const { data: report, error: reportError, isLoading: reportLoading, refetch: refetchReport } = useQuery({
     queryKey: ["ga4-report", ws, activeTab, dateRange, cred?.property_id],
     enabled: !!ws && isConnected,
+    retry: false,
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("ga4-data-reports", {
         body: { workspace_id: ws, report_type: activeTab, date_range: dateRange },
@@ -90,24 +123,28 @@ export default function GA4Analytics() {
     },
   });
 
-  const { data: conversionEvents, refetch: refetchConvs } = useQuery({
+  const { data: conversionEvents = [], error: conversionEventsError, refetch: refetchConvs } = useQuery({
     queryKey: ["ga4-conv-events", ws, cred?.property_id],
     enabled: !!ws && isConnected,
+    retry: false,
     queryFn: async () => {
-      const { data } = await supabase.functions.invoke("ga4-admin", {
+      const { data, error } = await supabase.functions.invoke("ga4-admin", {
         body: { workspace_id: ws, action: "list_conversion_events" },
       });
+      if (error) throw error;
       return data?.data?.conversionEvents || [];
     },
   });
 
-  const { data: dataStreams } = useQuery({
+  const { data: dataStreams = [], error: dataStreamsError } = useQuery({
     queryKey: ["ga4-streams", ws, cred?.property_id],
     enabled: !!ws && isConnected,
+    retry: false,
     queryFn: async () => {
-      const { data } = await supabase.functions.invoke("ga4-admin", {
+      const { data, error } = await supabase.functions.invoke("ga4-admin", {
         body: { workspace_id: ws, action: "list_data_streams" },
       });
+      if (error) throw error;
       return data?.data?.dataStreams || [];
     },
   });
@@ -120,6 +157,7 @@ export default function GA4Analytics() {
       if (error) throw error;
       window.location.href = data.auth_url;
     },
+    onError: (e: any) => toast.error(e.message || "Erro ao iniciar conexão com o GA4"),
   });
 
   const createConv = useMutation({
@@ -152,6 +190,7 @@ export default function GA4Analytics() {
   });
 
   const [newEventName, setNewEventName] = useState("");
+  const ga4SetupIssue = extractGa4SetupIssue(reportError || dataStreamsError || conversionEventsError);
 
   if (credLoading) return <Skeleton className="h-96" />;
 
@@ -320,7 +359,31 @@ export default function GA4Analytics() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        {ga4SetupIssue?.isConfigurationIssue && (
+          <Alert className="border-border bg-muted/30">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Falta ativar a API do Google Analytics</AlertTitle>
+            <AlertDescription className="space-y-2">
+              <p>{ga4SetupIssue.message}</p>
+              <p>
+                Ative a <strong>{ga4SetupIssue.apiName || "Google Analytics Data API"}</strong> no mesmo projeto Google Cloud do seu OAuth,
+                aguarde 1–5 minutos e clique em atualizar.
+              </p>
+              {ga4SetupIssue.activationUrl && (
+                <a
+                  href={ga4SetupIssue.activationUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                >
+                  Abrir ativação da API <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="bg-muted/30">
           <TabsTrigger value="overview">Visão Geral</TabsTrigger>
           <TabsTrigger value="by_channel">Canais</TabsTrigger>
@@ -337,6 +400,14 @@ export default function GA4Analytics() {
             <div className="grid gap-3 md:grid-cols-3">
               {[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="h-24" />)}
             </div>
+          ) : ga4SetupIssue?.isConfigurationIssue ? (
+            <Card className="glass-card">
+              <CardContent className="pt-6">
+                <p className="text-sm text-muted-foreground">
+                  Os relatórios não podem ser carregados até a API ser ativada no Google Cloud.
+                </p>
+              </CardContent>
+            </Card>
           ) : (
             <div className="grid gap-3 md:grid-cols-3">
               <MetricBox icon={Users} label="Sessões" value={fmt(overview[0]?.value)} color="hsl(214 89% 52%)" />
@@ -403,7 +474,7 @@ export default function GA4Analytics() {
               <CardTitle className="text-base">Data Streams</CardTitle>
             </CardHeader>
             <CardContent>
-              {!dataStreams ? <Skeleton className="h-24" /> : dataStreams.length === 0 ? (
+                {dataStreamsError ? <p className="text-sm text-muted-foreground">Os streams ficarão disponíveis após ativar a API.</p> : !dataStreams ? <Skeleton className="h-24" /> : dataStreams.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhum stream encontrado.</p>
               ) : (
                 <div className="space-y-2">
@@ -446,7 +517,7 @@ export default function GA4Analytics() {
                 </Button>
               </div>
 
-              {!conversionEvents ? <Skeleton className="h-24" /> : conversionEvents.length === 0 ? (
+              {conversionEventsError ? <p className="text-sm text-muted-foreground">Os eventos de conversão aparecerão após ativar a API.</p> : !conversionEvents ? <Skeleton className="h-24" /> : conversionEvents.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhum evento de conversão configurado.</p>
               ) : (
                 <div className="space-y-2">
