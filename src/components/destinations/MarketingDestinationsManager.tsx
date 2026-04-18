@@ -424,27 +424,27 @@ function EditGoogleAdsDialog({ dest, onSaved }: { dest: any; onSaved: () => void
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Editar Google Ads</DialogTitle>
-          <DialogDescription>Configure a Conversion Action que vai receber as compras.</DialogDescription>
+          <DialogDescription>Configure a ação de conversão que vai receber as compras.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <Label className="text-xs">Nome</Label>
+            <Label className="text-xs">Nome do destino</Label>
             <Input value={name} onChange={e => setName(e.target.value)} placeholder="Marmitex" />
           </div>
           <div>
-            <Label className="text-xs">Customer ID (sem hífens)</Label>
+            <Label className="text-xs">ID do cliente (sem hífens)</Label>
             <Input value={customerId} onChange={e => setCustomerId(e.target.value.replace(/-/g, ""))} placeholder="1234567890" className="font-mono" />
-            <p className="text-[10px] text-muted-foreground mt-1">Conta Google Ads (10 dígitos, sem hífens)</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Conta Google Ads — 10 dígitos, sem hífens (ex.: 123-456-7890 → 1234567890)</p>
           </div>
           <div>
-            <Label className="text-xs">Conversion ID *</Label>
+            <Label className="text-xs">ID de conversão *</Label>
             <Input value={conversionId} onChange={e => setConversionId(e.target.value)} placeholder="17862172125" className="font-mono" />
-            <p className="text-[10px] text-muted-foreground mt-1">Em Google Ads → Goals → Summary → sua conversão "Compra"</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Em Google Ads → Metas → Resumo → sua conversão "Compra"</p>
           </div>
           <div>
-            <Label className="text-xs">Conversion Label *</Label>
+            <Label className="text-xs">Rótulo de conversão *</Label>
             <Input value={conversionLabel} onChange={e => setConversionLabel(e.target.value)} placeholder="UITqCOjA95wcEN27rMVC" className="font-mono" />
-            <p className="text-[10px] text-muted-foreground mt-1">Necessário para o match correto da conversão offline</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Necessário para identificar a conversão offline correta</p>
           </div>
           {cfg.conversion_label && (
             <div className="text-[10px] text-success bg-success/10 border border-success/30 rounded p-2 font-mono">
