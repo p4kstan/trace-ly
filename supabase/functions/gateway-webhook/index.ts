@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.103.0";
+import { getRegisteredHandler, HANDLERS as REGISTERED_HANDLERS } from "./handlers/_registry.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
