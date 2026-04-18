@@ -39,16 +39,25 @@ const campaignsItems = [
 ];
 
 // 4. SETUP & INSTALAÇÃO — tudo que é configuração inicial
-const setupItems = [
+// 4a. CONEXÕES — onde os dados entram e saem
+const connectionsItems = [
   { title: "Contas Conectadas", url: "/contas-conectadas", icon: Layers },
   { title: "Pixels", url: "/pixels", icon: MonitorDot },
   { title: "Fontes de Tracking", url: "/tracking-sources", icon: Radio },
   { title: "Destinos", url: "/destinations", icon: Send },
+];
+
+// 4b. INSTALAÇÃO — passo-a-passo por plataforma
+const installationItems = [
   { title: "Instalação SDK", url: "/sdk-setup", icon: Code },
   { title: "Setup Facebook / Meta", url: "/setup-facebook", icon: Megaphone },
   { title: "Setup Google (GA4+Ads)", url: "/setup-google", icon: BarChart3 },
   { title: "Setup TikTok", url: "/setup-tiktok", icon: Music2 },
   { title: "Checkout Próprio (PIX)", url: "/native-checkout-guide", icon: ShoppingCart },
+];
+
+// 4c. AJUDA — guias, prompts, tutoriais
+const helpItems = [
   { title: "Gerador de Prompts", url: "/prompt-generator", icon: Wand2 },
   { title: "Guia de Setup", url: "/tracking-guide", icon: BookOpen },
   { title: "Tutoriais", url: "/tutorials", icon: HelpCircle },
