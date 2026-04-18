@@ -359,7 +359,31 @@ export default function GA4Analytics() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        {ga4SetupIssue?.isConfigurationIssue && (
+          <Alert className="border-border bg-muted/30">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Falta ativar a API do Google Analytics</AlertTitle>
+            <AlertDescription className="space-y-2">
+              <p>{ga4SetupIssue.message}</p>
+              <p>
+                Ative a <strong>{ga4SetupIssue.apiName || "Google Analytics Data API"}</strong> no mesmo projeto Google Cloud do seu OAuth,
+                aguarde 1–5 minutos e clique em atualizar.
+              </p>
+              {ga4SetupIssue.activationUrl && (
+                <a
+                  href={ga4SetupIssue.activationUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                >
+                  Abrir ativação da API <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="bg-muted/30">
           <TabsTrigger value="overview">Visão Geral</TabsTrigger>
           <TabsTrigger value="by_channel">Canais</TabsTrigger>
@@ -376,6 +400,14 @@ export default function GA4Analytics() {
             <div className="grid gap-3 md:grid-cols-3">
               {[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="h-24" />)}
             </div>
+          ) : ga4SetupIssue?.isConfigurationIssue ? (
+            <Card className="glass-card">
+              <CardContent className="pt-6">
+                <p className="text-sm text-muted-foreground">
+                  Os relatórios não podem ser carregados até a API ser ativada no Google Cloud.
+                </p>
+              </CardContent>
+            </Card>
           ) : (
             <div className="grid gap-3 md:grid-cols-3">
               <MetricBox icon={Users} label="Sessões" value={fmt(overview[0]?.value)} color="hsl(214 89% 52%)" />
@@ -442,7 +474,7 @@ export default function GA4Analytics() {
               <CardTitle className="text-base">Data Streams</CardTitle>
             </CardHeader>
             <CardContent>
-              {!dataStreams ? <Skeleton className="h-24" /> : dataStreams.length === 0 ? (
+                {dataStreamsError ? <p className="text-sm text-muted-foreground">Os streams ficarão disponíveis após ativar a API.</p> : !dataStreams ? <Skeleton className="h-24" /> : dataStreams.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhum stream encontrado.</p>
               ) : (
                 <div className="space-y-2">
@@ -485,7 +517,7 @@ export default function GA4Analytics() {
                 </Button>
               </div>
 
-              {!conversionEvents ? <Skeleton className="h-24" /> : conversionEvents.length === 0 ? (
+              {conversionEventsError ? <p className="text-sm text-muted-foreground">Os eventos de conversão aparecerão após ativar a API.</p> : !conversionEvents ? <Skeleton className="h-24" /> : conversionEvents.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhum evento de conversão configurado.</p>
               ) : (
                 <div className="space-y-2">
