@@ -50,6 +50,7 @@ const GoogleAdsCampaignDetail = lazy(() => import("@/pages/GoogleAdsCampaignDeta
 const FacebookAdsCampaigns = lazy(() => import("@/pages/FacebookAdsCampaigns"));
 const TikTokAdsCampaigns = lazy(() => import("@/pages/TikTokAdsCampaigns"));
 const PromptGenerator = lazy(() => import("@/pages/PromptGenerator"));
+const NativeCheckoutGuide = lazy(() => import("@/pages/NativeCheckoutGuide"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
