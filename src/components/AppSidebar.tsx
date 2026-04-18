@@ -15,58 +15,71 @@ import {
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter, useSidebar,
 } from "@/components/ui/sidebar";
 
-const mainItems = [
+// 1. VISÃO GERAL — o que o usuário olha todo dia
+const overviewItems = [
   { title: "Painel", url: "/", icon: LayoutDashboard },
-  { title: "Tempo Real & ML", url: "/realtime", icon: Gauge },
-  { title: "Insights IA", url: "/ai-analytics", icon: Brain },
-  { title: "Predições", url: "/predictions", icon: TrendingUp },
-  { title: "Otimização", url: "/optimization", icon: Lightbulb },
-  { title: "Atribuição", url: "/attribution", icon: GitBranch },
-  { title: "Funis", url: "/funnels", icon: Filter },
+  { title: "Tempo Real", url: "/realtime", icon: Gauge },
   { title: "Pedidos", url: "/orders", icon: ShoppingCart },
-  { title: "Pixels", url: "/pixels", icon: MonitorDot },
-  { title: "Logs de Eventos", url: "/logs", icon: ScrollText },
-  { title: "Depurador", url: "/debugger", icon: Bug },
+  { title: "Funis", url: "/funnels", icon: Filter },
 ];
 
-const platformsItems = [
+// 2. INTELIGÊNCIA — IA, ML, atribuição, predição
+const intelligenceItems = [
+  { title: "Insights IA", url: "/ai-analytics", icon: Brain },
+  { title: "Atribuição", url: "/attribution", icon: GitBranch },
+  { title: "Predições", url: "/predictions", icon: TrendingUp },
+  { title: "Otimização", url: "/optimization", icon: Lightbulb },
+];
+
+// 3. CAMPANHAS — visualização das plataformas de ads
+const campaignsItems = [
   { title: "Google Ads", url: "/google-ads-campaigns", icon: BarChart3 },
   { title: "Facebook Ads", url: "/facebook-ads-campaigns", icon: Megaphone },
   { title: "TikTok Ads", url: "/tiktok-ads-campaigns", icon: Music2 },
 ];
 
-const trackingHubItems = [
+// 4. SETUP & INSTALAÇÃO — tudo que é configuração inicial
+const setupItems = [
   { title: "Contas Conectadas", url: "/contas-conectadas", icon: Layers },
+  { title: "Pixels", url: "/pixels", icon: MonitorDot },
   { title: "Fontes de Tracking", url: "/tracking-sources", icon: Radio },
   { title: "Destinos", url: "/destinations", icon: Send },
   { title: "Instalação SDK", url: "/sdk-setup", icon: Code },
-  { title: "Gerador de Prompts", url: "/prompt-generator", icon: Wand2 },
-  { title: "Logs de Integração", url: "/integration-logs", icon: FileText },
-  { title: "Guia de Setup", url: "/tracking-guide", icon: BookOpen },
-  { title: "Checkout Próprio (PIX)", url: "/native-checkout-guide", icon: BookOpen },
-];
-
-const setupsItems = [
   { title: "Setup Facebook / Meta", url: "/setup-facebook", icon: Megaphone },
   { title: "Setup Google (GA4+Ads)", url: "/setup-google", icon: BarChart3 },
   { title: "Setup TikTok", url: "/setup-tiktok", icon: Music2 },
+  { title: "Checkout Próprio (PIX)", url: "/native-checkout-guide", icon: ShoppingCart },
+  { title: "Gerador de Prompts", url: "/prompt-generator", icon: Wand2 },
+  { title: "Guia de Setup", url: "/tracking-guide", icon: BookOpen },
+  { title: "Tutoriais", url: "/tutorials", icon: HelpCircle },
 ];
 
-const settingsItems = [
-  { title: "Chaves API", url: "/api-keys", icon: Key },
+// 5. OPERAÇÃO — infra, integrações, fila
+const operationItems = [
   { title: "Integrações", url: "/integrations", icon: Zap },
-  { title: "Logs Webhook", url: "/webhook-logs", icon: Webhook },
-  { title: "Fila", url: "/queue", icon: Inbox },
-  { title: "Tutoriais", url: "/tutorials", icon: BookOpen },
+  { title: "Fila de Eventos", url: "/queue", icon: Inbox },
   { title: "MCP", url: "/mcp", icon: Cpu },
   { title: "Enterprise", url: "/enterprise", icon: Shield },
-  { title: "Planos", url: "/plans", icon: CreditCard },
-  { title: "Uso", url: "/usage", icon: Gauge },
-  { title: "Configurações", url: "/settings", icon: Settings },
+];
+
+// 6. LOGS & DIAGNÓSTICO — tudo de observabilidade junto
+const logsItems = [
+  { title: "Logs de Eventos", url: "/logs", icon: ScrollText },
+  { title: "Logs de Integração", url: "/integration-logs", icon: FileText },
+  { title: "Logs Webhook", url: "/webhook-logs", icon: Webhook },
+  { title: "Depurador", url: "/debugger", icon: Bug },
   { title: "Saúde do Sistema", url: "/system-diagnostic", icon: HeartPulse },
 ];
 
-function SidebarNavGroup({ items, label, collapsed }: { items: typeof mainItems; label: string; collapsed: boolean }) {
+// 7. CONTA — tudo que é "minha conta"
+const accountItems = [
+  { title: "Chaves API", url: "/api-keys", icon: Key },
+  { title: "Uso", url: "/usage", icon: Gauge },
+  { title: "Planos", url: "/plans", icon: CreditCard },
+  { title: "Configurações", url: "/settings", icon: Settings },
+];
+
+function SidebarNavGroup({ items, label, collapsed }: { items: typeof overviewItems; label: string; collapsed: boolean }) {
   const location = useLocation();
   const isActive = (path: string) => location.pathname === path;
 
@@ -143,15 +156,19 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="px-2 py-3">
-        <SidebarNavGroup items={mainItems} label="Análises" collapsed={collapsed} />
+        <SidebarNavGroup items={overviewItems} label="Visão Geral" collapsed={collapsed} />
         <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
-        <SidebarNavGroup items={platformsItems} label="Visualização Plataformas" collapsed={collapsed} />
+        <SidebarNavGroup items={intelligenceItems} label="Inteligência" collapsed={collapsed} />
         <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
-        <SidebarNavGroup items={trackingHubItems} label="Hub de Tracking" collapsed={collapsed} />
+        <SidebarNavGroup items={campaignsItems} label="Campanhas" collapsed={collapsed} />
         <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
-        <SidebarNavGroup items={setupsItems} label="Setups" collapsed={collapsed} />
+        <SidebarNavGroup items={setupItems} label="Setup & Instalação" collapsed={collapsed} />
         <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
-        <SidebarNavGroup items={settingsItems} label="Configurações" collapsed={collapsed} />
+        <SidebarNavGroup items={operationItems} label="Operação" collapsed={collapsed} />
+        <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
+        <SidebarNavGroup items={logsItems} label="Logs & Diagnóstico" collapsed={collapsed} />
+        <div className="my-3 mx-3 h-px bg-sidebar-border/30" />
+        <SidebarNavGroup items={accountItems} label="Conta" collapsed={collapsed} />
       </SidebarContent>
 
       <SidebarFooter className="p-3 border-t border-sidebar-border/40 space-y-2.5">
