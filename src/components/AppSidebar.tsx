@@ -42,11 +42,16 @@ const trackingHubItems = [
   { title: "Instalação SDK", url: "/sdk-setup", icon: Code },
   { title: "Gerador de Prompts", url: "/prompt-generator", icon: Wand2 },
   { title: "Logs de Integração", url: "/integration-logs", icon: FileText },
-  
-  { title: "Setup Facebook / Meta", url: "/setup-facebook", icon: Send },
-  { title: "Setup Google (GA4+Ads)", url: "/setup-google", icon: Send },
   { title: "Guia de Setup", url: "/tracking-guide", icon: BookOpen },
   { title: "Checkout Próprio (PIX)", url: "/native-checkout-guide", icon: BookOpen },
+];
+
+const setupFacebookItems = [
+  { title: "Setup Facebook / Meta", url: "/setup-facebook", icon: Megaphone },
+];
+
+const setupGoogleItems = [
+  { title: "Setup Google (GA4+Ads)", url: "/setup-google", icon: BarChart3 },
 ];
 
 const settingsItems = [
