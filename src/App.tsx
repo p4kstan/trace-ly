@@ -88,6 +88,7 @@ function ProtectedRoutes() {
           <Route path="/prompt-generator" element={<PromptGenerator />} />
           <Route path="/integration-logs" element={<IntegrationLogs />} />
           <Route path="/tracking-guide" element={<TrackingGuide />} />
+          <Route path="/native-checkout-guide" element={<NativeCheckoutGuide />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
           <Route path="/setup-facebook" element={<SetupFacebook />} />
           <Route path="/setup-google" element={<SetupGoogle />} />
