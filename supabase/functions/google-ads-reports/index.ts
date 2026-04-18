@@ -292,6 +292,100 @@ function buildQuery(level: string, period: string, customFrom?: string, customTo
     `;
   }
 
+  if (level === "bid_modifiers") {
+    return `
+      SELECT
+        campaign_bid_modifier.criterion_id,
+        campaign_bid_modifier.bid_modifier,
+        campaign_bid_modifier.interaction_type.type,
+        campaign.id, campaign.name
+      FROM campaign_bid_modifier
+      WHERE campaign.id = ${campaignId}
+      LIMIT 200
+    `;
+  }
+
+  if (level === "ad_schedule") {
+    return `
+      SELECT
+        campaign_criterion.criterion_id,
+        campaign_criterion.ad_schedule.day_of_week,
+        campaign_criterion.ad_schedule.start_hour,
+        campaign_criterion.ad_schedule.end_hour,
+        campaign_criterion.ad_schedule.start_minute,
+        campaign_criterion.ad_schedule.end_minute,
+        campaign_criterion.bid_modifier,
+        campaign.id, campaign.name
+      FROM campaign_criterion
+      WHERE campaign_criterion.type = AD_SCHEDULE
+        AND campaign.id = ${campaignId}
+      LIMIT 200
+    `;
+  }
+
+  if (level === "locations_targeted") {
+    return `
+      SELECT
+        campaign_criterion.criterion_id,
+        campaign_criterion.location.geo_target_constant,
+        campaign_criterion.negative,
+        campaign_criterion.bid_modifier,
+        campaign.id, campaign.name
+      FROM campaign_criterion
+      WHERE campaign_criterion.type = LOCATION
+        AND campaign.id = ${campaignId}
+      LIMIT 200
+    `;
+  }
+
+  if (level === "landing_pages") {
+    return `
+      SELECT
+        landing_page_view.unexpanded_final_url,
+        campaign.id, campaign.name,
+        metrics.impressions, metrics.clicks, metrics.ctr, metrics.average_cpc,
+        metrics.cost_micros, metrics.conversions, metrics.conversions_value
+      FROM landing_page_view
+      WHERE ${dateClause} ${campFilter}
+      ORDER BY metrics.cost_micros DESC
+      LIMIT 200
+    `;
+  }
+
+  if (level === "conversion_actions") {
+    return `
+      SELECT
+        conversion_action.id,
+        conversion_action.name,
+        conversion_action.category,
+        conversion_action.status,
+        conversion_action.type,
+        conversion_action.primary_for_goal,
+        conversion_action.value_settings.default_value,
+        conversion_action.value_settings.default_currency_code,
+        conversion_action.counting_type
+      FROM conversion_action
+      WHERE conversion_action.status != REMOVED
+      LIMIT 100
+    `;
+  }
+
+  if (level === "campaign_quality") {
+    return `
+      SELECT
+        campaign.id, campaign.name,
+        metrics.search_impression_share,
+        metrics.search_top_impression_share,
+        metrics.search_absolute_top_impression_share,
+        metrics.search_budget_lost_impression_share,
+        metrics.search_rank_lost_impression_share,
+        metrics.search_budget_lost_top_impression_share,
+        metrics.search_rank_lost_top_impression_share
+      FROM campaign
+      WHERE ${dateClause} AND campaign.id = ${campaignId}
+    `;
+  }
+
   if (level === "change_history") {
     const now = new Date();
     const past = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
