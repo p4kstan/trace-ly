@@ -338,9 +338,13 @@
   async function buildEvent(eventName, data) {
     var utms = captureAndPersistUTMs();
     var ga4ClientId = getGa4ClientId();
+    // For checkout-related events, reuse the persistent journey id so it
+    // matches what we inject into outbound checkout URLs (and the gateway
+    // webhook will re-emit it back via metadata).
+    var isCheckoutEvent = /^(InitiateCheckout|AddPaymentInfo|Purchase|Lead|Subscribe|StartTrial)$/i.test(eventName);
     var event = {
       event_name: eventName,
-      event_id: generateId(),
+      event_id: isCheckoutEvent ? getJourneyEventId() : generateId(),
       url: window.location.href,
       page_path: window.location.pathname,
       referrer: document.referrer || undefined,
@@ -570,6 +574,123 @@
       log('DL bridge: ' + eventName + ' → ' + mapped.name);
     }
     log('dataLayer bridge active');
+  }
+
+  // ---- Checkout Link Auto-Decorator ----
+  // Detects clicks/forms targeting known checkout domains (Hotmart, Kiwify,
+  // Stripe, Eduzz, Yampi, etc.) and appends:
+  //   - metadata[event_id] / metadata[ct_event_id]  → for gateways that
+  //     forward custom metadata into the webhook (Hotmart, Kiwify, Stripe,
+  //     Pagar.me, Eduzz, Yampi, Cakto, Monetizze, Asaas, Pagseguro …)
+  //   - src       → fallback for gateways that only echo `?src=` back
+  //   - xcod / sck → Hotmart-specific tracking aliases (echoed in webhook)
+  // Also forwards gclid / fbclid / utm_* so attribution survives the redirect.
+  function isCheckoutHost(host) {
+    if (!host) return false;
+    host = String(host).toLowerCase();
+    for (var i = 0; i < CHECKOUT_DOMAINS.length; i++) {
+      var d = CHECKOUT_DOMAINS[i];
+      if (host === d || host.endsWith('.' + d)) return true;
+    }
+    return false;
+  }
+
+  function decorateCheckoutUrl(rawUrl) {
+    if (!rawUrl) return rawUrl;
+    try {
+      var url = new URL(rawUrl, window.location.href);
+      if (!isCheckoutHost(url.hostname)) return rawUrl;
+
+      var eventId = getJourneyEventId();
+      var utms = (function(){ try { return JSON.parse(getLS('ct_last_touch') || '{}'); } catch(e){ return {}; } })();
+
+      // Primary: metadata[event_id] (most flexible — survives in webhook payload)
+      if (!url.searchParams.has('metadata[event_id]'))      url.searchParams.set('metadata[event_id]', eventId);
+      if (!url.searchParams.has('metadata[ct_event_id]'))   url.searchParams.set('metadata[ct_event_id]', eventId);
+      if (!url.searchParams.has('metadata[anonymous_id]'))  url.searchParams.set('metadata[anonymous_id]', getAnonymousId());
+      if (!url.searchParams.has('metadata[session_id]'))    url.searchParams.set('metadata[session_id]', getSessionId());
+
+      // Cookies de tracking → metadata (vital pra Meta CAPI dedup)
+      var fbp = getFbp(); var fbc = getFbc();
+      if (fbp && !url.searchParams.has('metadata[fbp]')) url.searchParams.set('metadata[fbp]', fbp);
+      if (fbc && !url.searchParams.has('metadata[fbc]')) url.searchParams.set('metadata[fbc]', fbc);
+      var gaCid = getGa4ClientId();
+      if (gaCid && !url.searchParams.has('metadata[ga_client_id]')) url.searchParams.set('metadata[ga_client_id]', gaCid);
+
+      // Click IDs persistidos
+      CLICK_IDS.forEach(function(k){
+        var v = getLS('ct_' + k) || getCookie('ct_' + k);
+        if (v && !url.searchParams.has('metadata[' + k + ']')) url.searchParams.set('metadata[' + k + ']', v);
+      });
+
+      // UTMs persistidas
+      UTM_KEYS.forEach(function(k){
+        if (utms[k] && !url.searchParams.has('metadata[' + k + ']')) url.searchParams.set('metadata[' + k + ']', utms[k]);
+      });
+
+      // Hotmart-specific aliases (echoed back in webhook as `xcod`/`sck`)
+      if (url.hostname.indexOf('hotmart') !== -1) {
+        if (!url.searchParams.has('xcod')) url.searchParams.set('xcod', eventId);
+        if (!url.searchParams.has('sck'))  url.searchParams.set('sck', getAnonymousId());
+      }
+      // Generic ?src= fallback (echoed by Kiwify, Eduzz, Cakto, …)
+      if (!url.searchParams.has('src')) url.searchParams.set('src', eventId);
+
+      return url.toString();
+    } catch(e) {
+      log('decorateCheckoutUrl error: ' + e.message);
+      return rawUrl;
+    }
+  }
+
+  function setupCheckoutLinkDecorator() {
+    // 1. Click-time decoration (covers <a>, buttons inside <a>, dynamic links)
+    document.addEventListener('click', function(ev) {
+      try {
+        var el = ev.target;
+        while (el && el !== document.body && el.tagName !== 'A') el = el.parentNode;
+        if (!el || el.tagName !== 'A' || !el.href) return;
+        var decorated = decorateCheckoutUrl(el.href);
+        if (decorated !== el.href) {
+          el.href = decorated;
+          log('🔗 Checkout link decorated: ' + el.hostname);
+        }
+      } catch(e) {}
+    }, true); // capture phase → runs before navigation
+
+    // 2. Form submissions (some gateways use POST forms)
+    document.addEventListener('submit', function(ev) {
+      try {
+        var form = ev.target;
+        if (!form || !form.action) return;
+        var decorated = decorateCheckoutUrl(form.action);
+        if (decorated !== form.action) {
+          form.action = decorated;
+          log('📝 Checkout form decorated: ' + form.action);
+        }
+      } catch(e) {}
+    }, true);
+
+    // 3. Pre-decorate existing links on page (helps with right-click "copy link")
+    function decorateExisting() {
+      try {
+        var links = document.querySelectorAll('a[href]');
+        for (var i = 0; i < links.length; i++) {
+          var a = links[i];
+          if (!a.href) continue;
+          try {
+            var u = new URL(a.href, window.location.href);
+            if (isCheckoutHost(u.hostname)) a.href = decorateCheckoutUrl(a.href);
+          } catch(e) {}
+        }
+      } catch(e) {}
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', decorateExisting);
+    } else {
+      decorateExisting();
+    }
+    log('Checkout link decorator active (' + CHECKOUT_DOMAINS.length + ' gateways)');
   }
 
   // ---- Auto-tracking ----
