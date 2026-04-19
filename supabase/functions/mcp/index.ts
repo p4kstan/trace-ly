@@ -69,16 +69,26 @@ function hasPermission(tokenPerms: string[], required: string[]): boolean {
 
 // ── MCP Tools registry ──────────────────────────────────────────────
 const MCP_TOOLS = [
+  // Read
   { name: "analytics.get_events", description: "Retorna eventos recentes do workspace", permissions: ["read"] },
   { name: "analytics.get_conversions", description: "Retorna conversões e receita", permissions: ["read"] },
+  { name: "analytics.get_enriched_conversions", description: "Conversões com gclid/fbclid/utm cruzados", permissions: ["read"] },
+  { name: "analytics.get_roi_snapshot", description: "ROI 7d por canal + atribuição híbrida", permissions: ["read"] },
   { name: "tracking.get_sessions", description: "Retorna sessões ativas", permissions: ["read"] },
   { name: "tracking.get_pixels", description: "Retorna pixels configurados", permissions: ["read"] },
   { name: "system.get_logs", description: "Retorna logs do sistema", permissions: ["read"] },
   { name: "system.get_errors", description: "Retorna erros e falhas recentes", permissions: ["read"] },
   { name: "system.get_performance", description: "Retorna métricas de performance", permissions: ["read", "analyze"] },
+  { name: "system.get_automation_actions", description: "Histórico de ações dos agentes", permissions: ["read"] },
   { name: "workspace.get_settings", description: "Retorna configurações do workspace", permissions: ["read"] },
   { name: "queue.get_status", description: "Retorna status da fila de eventos", permissions: ["read"] },
   { name: "deliveries.get_failed", description: "Retorna entregas com falha", permissions: ["read"] },
+  // Write (require 'write' permission — log every action in automation_actions)
+  { name: "campaigns.pause", description: "Pausa uma campanha do Google Ads", permissions: ["write"] },
+  { name: "campaigns.resume", description: "Reativa uma campanha do Google Ads", permissions: ["write"] },
+  { name: "campaigns.update_budget", description: "Atualiza o orçamento diário (BRL) de uma campanha", permissions: ["write"] },
+  { name: "ad_groups.set_status", description: "Pausa/reativa um ad group (dry-run hoje)", permissions: ["write"] },
+  { name: "bid_modifiers.update", description: "Ajusta bid modifier por critério (dry-run hoje)", permissions: ["write"] },
 ];
 
 // ── Tool executors ───────────────────────────────────────────────────
