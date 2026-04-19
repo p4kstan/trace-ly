@@ -207,8 +207,37 @@ async function executeTool(
         .limit(limit);
       return { dead_letters: data || [], count: (data || []).length };
     }
+    case "analytics.get_enriched_conversions":
+      return await getEnrichedConversions(supabase, workspaceId, Number(params.limit) || 50);
+    case "analytics.get_roi_snapshot":
+      return await getRoiSnapshot(supabase, workspaceId);
+    case "system.get_automation_actions":
+      return await getRecentAutomationActions(supabase, workspaceId, Number(params.limit) || 20);
     default:
       return { error: "Tool not found" };
+  }
+}
+
+// Write tools dispatcher — separate from executeTool because they need ctx (token id)
+// and they record into automation_actions for audit/UI.
+async function executeWriteTool(
+  ctx: { supabase: ReturnType<typeof createClient>; workspaceId: string; tokenId: string },
+  toolName: string,
+  params: Record<string, any>,
+) {
+  switch (toolName) {
+    case "campaigns.pause":
+      return await execCampaignsPause(ctx, params as any);
+    case "campaigns.resume":
+      return await execCampaignsResume(ctx, params as any);
+    case "campaigns.update_budget":
+      return await execCampaignsUpdateBudget(ctx, params as any);
+    case "ad_groups.set_status":
+      return await execAdGroupsSetStatus(ctx, params as any);
+    case "bid_modifiers.update":
+      return await execBidModifiersUpdate(ctx, params as any);
+    default:
+      return { ok: false, error: "Unknown write tool" };
   }
 }
 
