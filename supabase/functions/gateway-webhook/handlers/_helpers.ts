@@ -70,5 +70,8 @@ export function extractTrackingFromMetadata(meta: any): NormalizedTracking {
     user_agent: get("user_agent", "userAgent", "ua"),
     ip: get("ip", "client_ip", "clientIp"),
     ga_client_id: get("ga_client_id", "client_id", "gaClientId"),
+    // Browser event_id propagated through checkout metadata.
+    // Critical for browser↔CAPI dedup (Meta/Google Ads).
+    event_id: get("event_id", "eventId", "trace_event_id", "browser_event_id"),
   };
 }

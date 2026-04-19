@@ -39,6 +39,9 @@ interface NormalizedTracking {
   landing_page?: string; referrer?: string;
   user_agent?: string; ip?: string;
   ga_client_id?: string;
+  // Browser-side event_id propagated through checkout metadata.
+  // Used to dedup browser Pixel ↔ server CAPI events on Meta/Google.
+  event_id?: string;
 }
 
 interface NormalizedOrder {
@@ -87,6 +90,8 @@ function extractTrackingFromMetadata(meta: any): NormalizedTracking {
     user_agent: get("user_agent", "userAgent", "ua"),
     ip: get("ip", "client_ip", "clientIp"),
     ga_client_id: get("ga_client_id", "client_id", "gaClientId"),
+    // Browser event_id → critical for browser↔CAPI dedup
+    event_id: get("event_id", "eventId", "trace_event_id", "browser_event_id"),
   };
 }
 
@@ -1046,23 +1051,44 @@ Deno.serve(async (req) => {
     });
 
     // ── Map to marketing event ──
+    // Resolution priority:
+    //   1. Workspace-specific override in `event_mappings`
+    //   2. Global canonical dictionary in `default_event_mappings` (DB-driven)
+    //   3. Hardcoded INTERNAL_TO_META fallback (legacy safety net)
     const { data: customMapping } = await supabase.from("event_mappings")
       .select("marketing_event, external_event_name")
       .eq("workspace_id", workspaceId).eq("gateway", provider).eq("gateway_event", eventType)
-      .eq("is_active", true).limit(1).single();
+      .eq("is_active", true).limit(1).maybeSingle();
 
-    const marketingEvent = customMapping?.marketing_event || customMapping?.external_event_name || INTERNAL_TO_META[internalEvent] || null;
+    let marketingEvent: string | null =
+      customMapping?.marketing_event || customMapping?.external_event_name || null;
+
+    if (!marketingEvent) {
+      const { data: defaultMapping } = await supabase.from("default_event_mappings")
+        .select("external_event_name")
+        .eq("gateway", provider).eq("gateway_event", eventType).eq("external_platform", "meta")
+        .limit(1).maybeSingle();
+      marketingEvent = defaultMapping?.external_event_name || INTERNAL_TO_META[internalEvent] || null;
+    }
 
     // ── Create event ──
+    // Reuse browser event_id from checkout metadata when present → guarantees
+    // perfect deduplication between Pixel (browser) and CAPI (server-side).
     let eventId: string | null = null;
     if (marketingEvent || internalEvent) {
       const evtName = marketingEvent || internalEvent;
+      const browserEventId = (order.tracking?.event_id || "").trim();
+      const persistedEventId = browserEventId || crypto.randomUUID();
       const { data: evt } = await supabase.from("events").insert({
-        workspace_id: workspaceId, event_name: evtName, event_id: crypto.randomUUID(),
+        workspace_id: workspaceId, event_name: evtName, event_id: persistedEventId,
         event_time: new Date().toISOString(), action_source: "system",
         source: `webhook_${provider}`, session_id: sessionId, identity_id: identityId,
         processing_status: META_EVENTS.has(evtName) ? "queued" : "internal",
-        custom_data_json: { value: order.total_value, currency: order.currency, order_id: order.external_order_id, payment_method: order.payment_method, internal_event: internalEvent },
+        custom_data_json: {
+          value: order.total_value, currency: order.currency, order_id: order.external_order_id,
+          payment_method: order.payment_method, internal_event: internalEvent,
+          browser_event_id: browserEventId || null,
+        },
         deduplication_key: dedupKey,
       }).select("id").single();
       eventId = evt?.id || null;
