@@ -87,9 +87,19 @@ export default function Destinations() {
             </Button>
           </CardContent>
         </Card>
-      ) : (
+      ) : (() => {
+        const activeDestinations = destinations.filter((d: any) => d.status === "active");
+        return activeDestinations.length === 0 ? (
+          <Card className="glass-card">
+            <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+              <Send className="w-10 h-10 text-muted-foreground/30 mb-3" />
+              <h3 className="text-base font-medium mb-1">Nenhum destino conectado</h3>
+              <p className="text-xs text-muted-foreground">Ative um destino em Integrações para vê-lo aqui.</p>
+            </CardContent>
+          </Card>
+        ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {destinations.map((dest: any) => {
+          {activeDestinations.map((dest: any) => {
             const meta = PROVIDER_META[dest.provider] || { label: dest.provider, color: "hsl(var(--primary))" };
             const stats = providerStats[dest.provider];
 
