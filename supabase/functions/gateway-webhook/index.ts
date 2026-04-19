@@ -578,10 +578,25 @@ Deno.serve(async (req) => {
       }
 
       if (marketingEvent && eventId) {
-        if (META_EVENTS.has(marketingEvent)) {
-          await enqueueForMeta(workspaceId, eventId, savedOrder?.id || null, order, marketingEvent, sessionData, identityId);
+        // Capture inbound IP/UA as fallback when gateway didn't provide them
+        if (!order.customer.ip) {
+          order.customer.ip = req.headers.get("cf-connecting-ip")
+            || req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+            || req.headers.get("x-real-ip")
+            || undefined;
         }
-        await enqueueForOtherProviders(workspaceId, eventId, savedOrder?.id || null, order, marketingEvent, sessionData, identityId);
+        if (!order.customer.user_agent) {
+          order.customer.user_agent = req.headers.get("user-agent") || undefined;
+        }
+
+        // Enrich + pre-hash once, reuse across providers
+        const enriched = await enrichCustomer(workspaceId, order.customer, identityId);
+        const enrichedHashed = await buildHashedCustomer(enriched);
+
+        if (META_EVENTS.has(marketingEvent)) {
+          await enqueueForMeta(workspaceId, eventId, savedOrder?.id || null, order, marketingEvent, sessionData, identityId, enrichedHashed);
+        }
+        await enqueueForOtherProviders(workspaceId, eventId, savedOrder?.id || null, order, marketingEvent, sessionData, identityId, enrichedHashed);
       }
     }
 
