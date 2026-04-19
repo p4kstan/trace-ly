@@ -316,6 +316,13 @@ Deno.serve(async (req) => {
     const normalizedPayload = normalizeEventToQueuePayload(event);
 
     const routePromises = destinations.map(async (dest) => {
+      // P0 Filter: behavioral events MUST NOT reach ad-platform CAPIs.
+      if (isConversionOnlyProvider(dest.provider) && !isConversionEvent(event.event_name)) {
+        console.log(`[event-router] skip provider=${dest.provider} reason=non_conversion_event event=${event.event_name}`);
+        results.push({ provider: dest.provider, status: "skipped", latency_ms: 0 });
+        return;
+      }
+
       const providerRules = rules.filter(
         r => r.external_platform === dest.provider || r.provider === dest.provider
       );
