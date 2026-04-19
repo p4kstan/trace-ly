@@ -134,6 +134,38 @@ export default function TrackingSources() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      if (!editing) return;
+      const { error } = await supabase
+        .from("tracking_sources")
+        .update({
+          name: editForm.name,
+          primary_domain: editForm.primary_domain || null,
+          status: editForm.status,
+          api_key_id: editForm.api_key_id || null,
+        })
+        .eq("id", editing.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tracking-sources"] });
+      toast.success("Configurações salvas");
+      setEditing(null);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const openEdit = (source: any) => {
+    setEditing(source);
+    setEditForm({
+      name: source.name || "",
+      primary_domain: source.primary_domain || "",
+      status: source.status || "active",
+      api_key_id: source.api_key_id || "",
+    });
+  };
+
   const openWizard = () => {
     setWizardStep(0);
     setForm({ name: "", type: "website", primary_domain: "" });
