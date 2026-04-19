@@ -48,7 +48,7 @@ export function extractTrackingFromMetadata(meta: any): NormalizedTracking {
   const get = (...keys: string[]) => {
     for (const k of keys) {
       const v = meta[k];
-      if (v != null && String(v).trim() !== "") return String(v);
+      if (v != null && String(v).trim() !== "") return String(v).trim();
     }
     return undefined;
   };

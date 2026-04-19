@@ -246,7 +246,7 @@ Deno.serve(async (req) => {
     const identityPromise = resolveIdentity(workspaceId, emailHash, phoneHash, body, rawEmail, rawPhone);
     const sessionPromise = supabase
       .from("sessions")
-      .select("id")
+      .select("id, gclid, gbraid, wbraid")
       .eq("workspace_id", workspaceId)
       .eq("ip_hash", ipHash)
       .eq("user_agent", userAgent)
@@ -257,10 +257,28 @@ Deno.serve(async (req) => {
 
     const [identityId, sessionResult] = await Promise.all([identityPromise, sessionPromise]);
 
+    const sanitizedGclid = body.gclid ? String(body.gclid).trim() : null;
+    const sanitizedGbraid = body.gbraid ? String(body.gbraid).trim() : null;
+    const sanitizedWbraid = body.wbraid ? String(body.wbraid).trim() : null;
+
     // ── Session: reuse or create ──
     let sessionId: string | null = null;
     if (sessionResult.data) {
       sessionId = sessionResult.data.id;
+      if (
+        (sanitizedGclid && !sessionResult.data.gclid) ||
+        (sanitizedGbraid && !sessionResult.data.gbraid) ||
+        (sanitizedWbraid && !sessionResult.data.wbraid)
+      ) {
+        await supabase
+          .from("sessions")
+          .update({
+            ...(sanitizedGclid && !sessionResult.data.gclid ? { gclid: sanitizedGclid } : {}),
+            ...(sanitizedGbraid && !sessionResult.data.gbraid ? { gbraid: sanitizedGbraid } : {}),
+            ...(sanitizedWbraid && !sessionResult.data.wbraid ? { wbraid: sanitizedWbraid } : {}),
+          })
+          .eq("id", sessionId);
+      }
     } else {
       const { data: newSession } = await supabase
         .from("sessions")
@@ -278,55 +296,22 @@ Deno.serve(async (req) => {
           utm_term: body.utm_term || body.utm?.utm_term || null,
           fbp: body.fbp || null,
           fbc: body.fbc || null,
+          gclid: sanitizedGclid,
+          gbraid: sanitizedGbraid,
+          wbraid: sanitizedWbraid,
         })
         .select("id")
         .single();
       sessionId = newSession?.id || null;
     }
-
-    // ── Insert event ──
-    const deduplicationKey = body.event_id || `${workspaceId}_${body.event_name}_${ipHash}_${Date.now()}`;
-
-    // Bloqueia eventos internos do GTM/gtag que não são tracking real
-    const eventName = String(body.event_name);
-    if (
-      /^gtm\./i.test(eventName) ||
-      /^gtag\./i.test(eventName) ||
-      /^(AW|G|GT|GTM|DC|UA)-[A-Z0-9-]+$/i.test(eventName) ||
-      eventName === "consent"
-    ) {
-      return new Response(
-        JSON.stringify({ status: "filtered", reason: "internal_gtm_event", event_name: eventName }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Enriquece user_data com cookies de tracking (fbp/fbc/ga_client_id) que vêm na raiz
-    // P0: persistir email_hash/phone_hash/ip_hash explicitamente para garantir match rate
-    // máximo nos dispatchers downstream (Meta CAPI, Google Ads CAPI, TikTok Events).
-    const enrichedUserData = {
-      ...(body.user_data || {}),
-      ...(body.user_data_hashed || {}),
-      ...(body.fbp ? { fbp: body.fbp } : {}),
-      ...(body.fbc ? { fbc: body.fbc } : {}),
-      ...(body.ga_client_id ? { ga_client_id: body.ga_client_id } : {}),
-      ...(emailHash ? { email_hash: emailHash } : {}),
-      ...(phoneHash ? { phone_hash: phoneHash } : {}),
-      ...(rawEmail ? { email: String(rawEmail).toLowerCase() } : {}),
-      ...(rawPhone ? { phone: String(rawPhone) } : {}),
-      ip_hash: ipHash,
-      client_user_agent: userAgent,
-      client_ip_address: ip,
-    };
-
-    // Click IDs e UTMs vão pra custom_data
+...
     const enrichedCustomData = {
       ...(body.custom_data || {}),
       ...(body.value != null ? { value: body.value } : {}),
       ...(body.currency ? { currency: body.currency } : {}),
-      ...(body.gclid ? { gclid: body.gclid } : {}),
-      ...(body.gbraid ? { gbraid: body.gbraid } : {}),
-      ...(body.wbraid ? { wbraid: body.wbraid } : {}),
+      ...(sanitizedGclid ? { gclid: sanitizedGclid } : {}),
+      ...(sanitizedGbraid ? { gbraid: sanitizedGbraid } : {}),
+      ...(sanitizedWbraid ? { wbraid: sanitizedWbraid } : {}),
       ...(body.fbclid ? { fbclid: body.fbclid } : {}),
       ...(body.ttclid ? { ttclid: body.ttclid } : {}),
       ...(body.msclkid ? { msclkid: body.msclkid } : {}),

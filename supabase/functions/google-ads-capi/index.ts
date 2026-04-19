@@ -49,6 +49,16 @@ async function sha256Hex(value: string): Promise<string> {
   return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
+function sanitizeClickId(value: unknown): string | undefined {
+  if (value == null) return undefined;
+  const trimmed = String(value).trim();
+  return trimmed || undefined;
+}
+
+function isMalformedGoogleClickId(value: string): boolean {
+  return !/^[A-Za-z0-9_-]+$/.test(value);
+}
+
 /** Refresh Google OAuth access token using refresh_token */
 async function refreshAccessToken(refreshToken: string): Promise<string | null> {
   const res = await fetch("https://oauth2.googleapis.com/token", {
@@ -82,9 +92,13 @@ async function buildGoogleConversion(
   const session = p.session || {};
   const order = p.order || {};
 
-  const gclid = session.gclid || p.gclid;
-  const gbraid = session.gbraid;
-  const wbraid = session.wbraid;
+  const gclid = sanitizeClickId(session.gclid || p.gclid);
+  const gbraid = sanitizeClickId(session.gbraid);
+  const wbraid = sanitizeClickId(session.wbraid);
+
+  if (gclid && isMalformedGoogleClickId(gclid)) {
+    console.warn(`[google-ads-capi] Malformed GCLID detected for order=${order.external_order_id || item.id || "unknown"}: ${gclid}`);
+  }
 
   // Prefer pre-hashed PII; fallback to raw with on-the-fly hashing
   const emailHash: string | undefined =
@@ -102,8 +116,6 @@ async function buildGoogleConversion(
   const streetHash: string | undefined =
     customer.address ? await sha256Hex(String(customer.address)) : undefined;
 
-  // Build address_info block — Google requires either hashed_first_name+hashed_last_name
-  // OR hashed_street_address along with city/region/postal/country to count as a match.
   const addressInfo: GoogleUserAddressInfo = {};
   if (firstNameHash) addressInfo.hashed_first_name = firstNameHash;
   if (lastNameHash) addressInfo.hashed_last_name = lastNameHash;
@@ -124,11 +136,12 @@ async function buildGoogleConversion(
 
   const eventTime = new Date(p.event_time || item.created_at || Date.now());
   const formattedDate = eventTime.toISOString().replace("T", " ").replace("Z", "+00:00");
+  console.log(`[google-ads-capi] gclid_sent=${gclid || "none"} order_id=${order.external_order_id || "unknown"}`);
 
   return {
-    gclid,
-    gbraid,
-    wbraid,
+    ...(gclid ? { gclid } : {}),
+    ...(gbraid ? { gbraid } : {}),
+    ...(wbraid ? { wbraid } : {}),
     conversion_action: `customers/${customerId}/conversionActions/${conversionLabel}`,
     conversion_date_time: formattedDate,
     conversion_value: order.total_value || 0,
@@ -168,7 +181,8 @@ async function sendToGoogleAds(
   let parsed: any;
   try { parsed = JSON.parse(text); } catch { parsed = { raw: text.slice(0, 500) }; }
 
-  return { ok: res.ok, status: res.status, response: parsed };
+  const hasPartialFailure = !!parsed?.partialFailureError?.message;
+  return { ok: res.ok && !hasPartialFailure, status: res.status, response: parsed };
 }
 
 Deno.serve(async (req) => {
