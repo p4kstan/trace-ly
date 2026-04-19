@@ -24,7 +24,11 @@ export default function ApiKeys() {
   const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
 
-  const activeKeyId = keys?.find((k: any) => k.status === "active")?.id;
+  // Most recent active key — this is what the install snippet uses
+  const activeKeyRecord = keys
+    ?.filter((k: any) => k.status === "active")
+    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+  const activeKeyId = activeKeyRecord?.id;
 
   const handleCreate = async () => {
     if (!workspace?.id || !name) return;
