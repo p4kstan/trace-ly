@@ -115,9 +115,9 @@ export function AutomationCommandCenter({ workspaceId, targetId, limit = 10, cla
             >
               <div className="mt-0.5">
                 {a.status === "success" ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <CheckCircle2 className="w-4 h-4 text-success" />
                 ) : a.status === "failed" ? (
-                  <AlertCircle className="w-4 h-4 text-rose-400" />
+                  <AlertCircle className="w-4 h-4 text-destructive" />
                 ) : (
                   <Bot className="w-4 h-4 text-primary" />
                 )}
@@ -136,7 +136,7 @@ export function AutomationCommandCenter({ workspaceId, targetId, limit = 10, cla
                   </p>
                 )}
                 {a.error_message && (
-                  <p className="text-[11px] text-rose-400 mt-0.5 truncate">{a.error_message}</p>
+                  <p className="text-[11px] text-destructive mt-0.5 truncate">{a.error_message}</p>
                 )}
                 {a.after_value && Object.keys(a.after_value).length > 0 && (
                   <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
