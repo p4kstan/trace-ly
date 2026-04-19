@@ -656,10 +656,23 @@ Deno.serve(async (req) => {
         const enriched = await enrichCustomer(workspaceId, order.customer, identityId);
         const enrichedHashed = await buildHashedCustomer(enriched);
 
-        if (META_EVENTS.has(marketingEvent)) {
-          await enqueueForMeta(workspaceId, eventId, savedOrder?.id || null, order, marketingEvent, sessionData, identityId, enrichedHashed);
+        // Retro lookup — recover gclid/fbp from previously stored orders when
+        // the live session reconciler returned nothing. Fixes Google Ads
+        // "No conversions with valid identifiers" dead-letters caused by
+        // gateway webhooks firing before the SDK session is available.
+        let finalSessionData = sessionData;
+        if (!finalSessionData?.gclid && !finalSessionData?.fbp && !finalSessionData?.ttclid) {
+          const retro = await lookupClickIdsByOrder(workspaceId, order.external_order_id, enriched);
+          if (retro) {
+            console.log(`[gateway-webhook] retro lookup hit (${retro._retro_source}) for order=${order.external_order_id}`);
+            finalSessionData = { ...(finalSessionData || {}), ...retro };
+          }
         }
-        await enqueueForOtherProviders(workspaceId, eventId, savedOrder?.id || null, order, marketingEvent, sessionData, identityId, enrichedHashed);
+
+        if (META_EVENTS.has(marketingEvent)) {
+          await enqueueForMeta(workspaceId, eventId, savedOrder?.id || null, order, marketingEvent, finalSessionData, identityId, enrichedHashed);
+        }
+        await enqueueForOtherProviders(workspaceId, eventId, savedOrder?.id || null, order, marketingEvent, finalSessionData, identityId, enrichedHashed);
 
         // ── Auto-feedback (fire-and-forget): on Purchase, recompute ROI + log automation event.
         // Uses EdgeRuntime.waitUntil so the webhook responds immediately to the gateway.
