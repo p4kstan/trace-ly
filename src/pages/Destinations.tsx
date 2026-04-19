@@ -157,7 +157,8 @@ export default function Destinations() {
             );
           })}
         </div>
-      )}
+        );
+      })()}
 
       {/* Recent Logs */}
       {recentLogs.length > 0 && (
