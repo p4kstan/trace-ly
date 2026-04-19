@@ -128,9 +128,11 @@ export default function GoogleAdsCampaigns() {
     },
   });
 
-  // Auto-select first/default account
+  // Auto-select first/default account, and reset if current selection no longer exists
   useEffect(() => {
-    if (!customerId && accounts && accounts.length > 0) {
+    if (!accounts || accounts.length === 0) return;
+    const exists = customerId && accounts.some((a) => a.customer_id === customerId);
+    if (!exists) {
       const def = accounts.find((a) => a.is_default) || accounts[0];
       setCustomerId(def.customer_id);
     }
