@@ -420,6 +420,68 @@ export type Database = {
           },
         ]
       }
+      automation_actions: {
+        Row: {
+          action: string
+          after_value: Json | null
+          before_value: Json | null
+          created_at: string
+          customer_id: string | null
+          error_message: string | null
+          id: string
+          metadata_json: Json | null
+          source_event_id: string | null
+          status: string
+          target_id: string | null
+          target_type: string | null
+          token_id: string | null
+          trigger: string
+          workspace_id: string
+        }
+        Insert: {
+          action: string
+          after_value?: Json | null
+          before_value?: Json | null
+          created_at?: string
+          customer_id?: string | null
+          error_message?: string | null
+          id?: string
+          metadata_json?: Json | null
+          source_event_id?: string | null
+          status?: string
+          target_id?: string | null
+          target_type?: string | null
+          token_id?: string | null
+          trigger: string
+          workspace_id: string
+        }
+        Update: {
+          action?: string
+          after_value?: Json | null
+          before_value?: Json | null
+          created_at?: string
+          customer_id?: string | null
+          error_message?: string | null
+          id?: string
+          metadata_json?: Json | null
+          source_event_id?: string | null
+          status?: string
+          target_id?: string | null
+          target_type?: string | null
+          token_id?: string | null
+          trigger?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_actions_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversions: {
         Row: {
           attributed_campaign: string | null
@@ -3278,7 +3340,7 @@ export type Database = {
           name: string
           permissions: string[]
           revoked: boolean
-          token: string
+          token_hash: string
           workspace_id: string
         }
         Insert: {
@@ -3289,7 +3351,7 @@ export type Database = {
           name?: string
           permissions?: string[]
           revoked?: boolean
-          token: string
+          token_hash: string
           workspace_id: string
         }
         Update: {
@@ -3300,7 +3362,7 @@ export type Database = {
           name?: string
           permissions?: string[]
           revoked?: boolean
-          token?: string
+          token_hash?: string
           workspace_id?: string
         }
         Relationships: []
