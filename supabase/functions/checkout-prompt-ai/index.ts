@@ -40,10 +40,17 @@ Tarefa: o usuário vai colar trechos do código do checkout dele. Analise e gere
 REGRAS:
 1. Identifique no código colado: nome das funções de criação de cobrança, nome das variáveis (order, payment, customer), framework (React/Next/Vue/Node), gateway de pagamento.
 2. Gere um prompt que CITA esses nomes reais — não use placeholders genéricos.
-3. Cubra os 4 passos: (1) capturar UTMs/gclid/_fbp em cookies no <head>, (2) helper readTracking(), (3) injetar metadata na chamada do gateway identificada no código, (4) disparar Purchase no CapiTrack quando o pagamento confirmar.
+3. Cubra os 4 passos: (1) capturar UTMs/gclid/fbclid/ttclid/_fbp/_fbc em cookies no <head>, (2) helper readTracking() que SEMPRE retorna session_id e usa apenas .trim() (NUNCA .toLowerCase()) em click IDs, (3) injetar metadata na chamada do gateway identificada no código, (4) disparar Purchase no CapiTrack quando o pagamento confirmar.
 4. Diferencie cartão (síncrono) de PIX/boleto (assíncrono via webhook ou polling).
-5. Use SEMPRE o endpoint e a public key fornecidos.
-6. Retorne APENAS o prompt final em markdown, sem comentários, sem explicações antes/depois.`;
+5. **CRÍTICO — Módulo de Deduplicação de Elite (04/2026)**:
+   - O payload do Purchase enviado ao CapiTrack DEVE conter \`external_id\` (ID da transação no gateway) e \`event_id\` no formato \`\${external_id}:Purchase\`.
+   - O backend deduplica em janela de 48h por \`external_id:event_name\` em event_deliveries — então é seguro disparar client-side e webhook simultaneamente.
+   - Inclua \`session_id\` no payload (lido do cookie \`ct_session\` ou sessionStorage) — permite fallback de atribuição via tabela sessions.
+   - Click IDs (gclid/gbraid/wbraid/fbclid/ttclid) são case-sensitive: NUNCA aplique .toLowerCase()/.normalize(). Apenas .trim().
+   - Trava de status: só dispare Purchase quando o status do gateway estiver em {paid, approved, confirmed, succeeded, captured, pix_paid, order_paid}. Status pending/checkout_created/boleto_printed devem usar InitiateCheckout ou generate_lead.
+   - Roteamento Last-Click é decidido pelo backend (gclid→Google Ads, fbclid→Meta, ttclid→TikTok) — só envie todos os IDs disponíveis, não filtre.
+6. Use SEMPRE o endpoint e a public key fornecidos.
+7. Retorne APENAS o prompt final em markdown, sem comentários, sem explicações antes/depois.`;
 
     const userPrompt = `Gateway selecionado pelo usuário: ${body.gateway}
 Métodos de pagamento ativos: ${body.methods.join(", ")}

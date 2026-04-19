@@ -153,12 +153,20 @@ export function readTracking()${typed ? "" : ""} {
     }).filter(([k]) => k)
   );
   const url = new URLSearchParams(location.search);
-  const get = (k${typed ? ": string" : ""}) => c["ct_" + k] || url.get(k) || null;
+  // ⚠️ Click IDs são case-sensitive. Apenas .trim() — NUNCA .toLowerCase().
+  const get = (k${typed ? ": string" : ""}) => {
+    const v = c["ct_" + k] || url.get(k) || null;
+    return v ? String(v).trim() : null;
+  };
+
+  // session_id do CapiTrack — usado pelo backend pra fallback de atribuição
+  const sessionId = c.ct_session || sessionStorage.getItem("ct_session") || null;
 
   return {
     gclid: get("gclid"), gbraid: get("gbraid"), wbraid: get("wbraid"),
     fbclid: get("fbclid"), ttclid: get("ttclid"),
     fbp: c._fbp || null, fbc: c._fbc || null,
+    session_id: sessionId,
     utm_source: get("utm_source"), utm_medium: get("utm_medium"),
     utm_campaign: get("utm_campaign"), utm_content: get("utm_content"),
     utm_term: get("utm_term"),
@@ -210,12 +218,19 @@ function purchaseBlock(cfg: NativeCheckoutConfig): string {
 \`\`\`ts
 import { readTracking } from "@/lib/tracking";
 
-// Logo após receber response approved da API:
+// ⚠️ DISPARE APENAS quando a API retornar status ∈ {approved, paid, succeeded, captured}.
+// Status como "pending"/"requires_action" NÃO devem disparar Purchase.
+const PAID_STATUSES = ["approved", "paid", "succeeded", "captured", "confirmed"];
+if (!PAID_STATUSES.includes(String(response.status).toLowerCase())) return;
+
+const externalId = order.id; // ID da transação no gateway — usado pra dedupe (48h)
+const eventId = \`\${externalId}:Purchase\`; // mesmo formato usado pelo webhook server-side
+
 window.dataLayer = window.dataLayer || [];
 window.dataLayer.push({
   event: "purchase",
   ecommerce: {
-    transaction_id: order.id,
+    transaction_id: externalId,
     value: order.total,
     currency: "BRL",
     payment_type: "card",
@@ -230,12 +245,15 @@ await fetch("${cfg.endpoint}", {
   headers: { "Content-Type": "application/json", "x-api-key": "${cfg.publicKey}" },
   body: JSON.stringify({
     event_name: "Purchase",
-    event_id: order.id,
-    value: order.total, currency: "BRL", order_id: order.id,
+    event_id: eventId,
+    external_id: externalId,        // CRÍTICO pra dedupe de 48h no backend
+    order_id: externalId,
+    value: order.total, currency: "BRL",
     payment_type: "card",
+    payment_status: response.status, // backend valida o gate de status
     email: order.customer.email, phone: order.customer.phone,
-    external_id: order.customer.document,
-    ...readTracking(),
+    customer_document: order.customer.document,
+    ...readTracking(),               // inclui session_id pro fallback de atribuição
     action_source: "website", url: location.href,
   }),
 });
@@ -259,11 +277,14 @@ async function pollPix(chargeId) {
 }
 
 function firePurchase(order, payment_type) {
+  const externalId = order.id; // mesmo ID que o gateway envia no webhook → dedupe
+  const eventId = \`\${externalId}:Purchase\`;
+
   window.dataLayer = window.dataLayer || [];
   window.dataLayer.push({
     event: "purchase",
     ecommerce: {
-      transaction_id: order.id,
+      transaction_id: externalId,
       value: order.total, currency: "BRL", payment_type,
       items: order.items,
     },
@@ -272,16 +293,23 @@ function firePurchase(order, payment_type) {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-api-key": "${cfg.publicKey}" },
     body: JSON.stringify({
-      event_name: "Purchase", event_id: order.id,
-      value: order.total, currency: "BRL", order_id: order.id, payment_type,
+      event_name: "Purchase",
+      event_id: eventId,
+      external_id: externalId,        // CRÍTICO pra dedupe de 48h no backend
+      order_id: externalId,
+      value: order.total, currency: "BRL", payment_type,
+      payment_status: "paid",
       email: order.customer.email, phone: order.customer.phone,
-      external_id: order.customer.document,
-      ...readTracking(),
+      customer_document: order.customer.document,
+      ...readTracking(),               // session_id incluso
       action_source: "website", url: location.href,
     }),
   });
 }
-\`\`\``);
+\`\`\`
+
+> ℹ️ Se o webhook server-side do gateway também disparar Purchase, o backend do CapiTrack
+> deduplica automaticamente pela chave \`external_id:Purchase\` em janela de 48h. Pode coexistir.`);
   }
 
   if (hasBoleto) {
@@ -360,17 +388,29 @@ ${purchaseBlock(cfg)}
 ## Particularidades por método
 ${cfg.methods.map(m => `- **${PAYMENT_META[m].label}**: ${PAYMENT_META[m].hint}`).join("\n")}
 
+## ⚠️ Regras críticas (Módulo de Deduplicação de Elite — 04/2026)
+1. **\`external_id\` obrigatório**: SEMPRE envie no payload do CapiTrack o ID da transação do gateway. É a chave de dedupe.
+2. **\`event_id\` padronizado**: \`\${external_id}:Purchase\` — mesmo formato no client e no webhook.
+3. **Janela de 48h**: o backend bloqueia automaticamente disparos duplicados do mesmo \`external_id:event_name\` em 48h.
+4. **Click IDs case-sensitive**: \`gclid\`, \`gbraid\`, \`wbraid\`, \`fbclid\`, \`ttclid\` NUNCA podem passar por \`.toLowerCase()\`. Apenas \`.trim()\`.
+5. **Trava de status pago**: Purchase só dispara quando o status do gateway estiver em \`{paid, approved, confirmed, succeeded, captured, pix_paid}\`. Pendente/aguardando = NÃO disparar.
+6. **\`session_id\` no payload**: permite que o backend faça fallback de atribuição buscando o clique original na tabela \`sessions\` se o webhook chegar "seco".
+7. **Roteamento Last-Click**: o CapiTrack envia o Purchase pra plataforma do último clique (gclid→Google Ads, fbclid→Meta, ttclid→TikTok). Você não precisa decidir — só envie todos os IDs disponíveis.
+
 ## Validação
-1. Abra o site com \`?gclid=TESTE123&utm_source=google\` na URL.
+1. Abra o site com \`?gclid=TESTE-CaseSensitive_123&utm_source=google&utm_term=palavra-chave\` na URL.
 2. Faça uma compra de teste em cada método ativo (${methods}).
-3. Cheque cookie \`ct_gclid\` (DevTools → Application → Cookies).
-4. Confirme que o body para ${g.label} tem o bloco com gclid + customer.
-5. Confirme que a request POST para ${cfg.endpoint} retorna status 200.
-6. Verifique no painel CapiTrack (/event-logs) que Purchase aparece com event_id = order.id.
+3. Cheque cookie \`ct_gclid\` — o valor deve estar EXATAMENTE como veio na URL (case preservado).
+4. Confirme que o body para ${g.label} tem o bloco com gclid + customer + session_id.
+5. Confirme que a request POST para ${cfg.endpoint} retorna status 200 e contém \`external_id\`.
+6. Verifique em /event-logs que Purchase aparece com event_id = \`<order.id>:Purchase\`.
+7. Faça uma 2ª compra com o mesmo \`order.id\` em <48h: o segundo disparo deve aparecer como \`skipped: dedup_window\`.
 
 ## Não faça
 - Não remova nenhuma chamada ao ${g.label} existente.
 - Não troque o gateway.
 - Não altere o fluxo visual do checkout.
+- Não use \`.toLowerCase()\` em click IDs.
+- Não dispare Purchase em status pendente/checkout_created/boleto_printed.
 - Apenas adicione as 4 camadas acima.`;
 }

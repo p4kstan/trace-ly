@@ -4,6 +4,15 @@
  *   1. Auditoria  → o usuário cola no Lovable do projeto-alvo
  *   2. Correção   → aplica as melhorias com base no relatório
  *   3. Validação  → roteiro de teste pós-implementação
+ *
+ * ⚠️ Atualizado em 19/04/2026 com as regras do "Módulo de Deduplicação de Elite":
+ *  - Persistência granular: orders.gclid/fbclid/ttclid/session_id/utm_* (TEXT, case-sensitive)
+ *  - Click IDs NUNCA passam por .toLowerCase() — apenas .trim()
+ *  - deduplication_key = `${external_id}:${event_name}` com janela de 48h em event_deliveries
+ *  - Roteamento Last-Click: gclid→Google Ads, fbclid/fbc→Meta, ttclid→TikTok
+ *  - Trava de status: Purchase só dispara em status paid/approved/confirmed/pix_paid
+ *  - Whitelist de eventos no event-router (MouseActivity/Scroll/Dwell bloqueados)
+ *  - Fallback: se webhook chega sem gclid, busca em sessions via session_id
  */
 
 export type BusinessType =
@@ -293,9 +302,19 @@ ${cfg.hasMetaAds ? "   - Meta Pixel ID e Access Token configurados?\n" : ""}${cf
    - Eventos enviam email/phone/nome? Estão sendo hasheados (SHA-256) antes do envio?
    - fbp/fbc, gclid, ttclid sendo capturados e persistidos?
 
-7) DEDUPLICAÇÃO
-   - event_id consistente entre client e webhook?
-   - Formato usado: \`{transaction_id}:{event_name}\`?
+7) DEDUPLICAÇÃO E SANITIZAÇÃO (CRÍTICO — atualizado 04/2026)
+   - O Purchase client-side e o webhook server-side usam o MESMO \`external_id\` (ID da transação no gateway)?
+   - O event_id segue o formato \`{external_id}:{event_name}\` (ex: \`ord_abc123:Purchase\`)?
+   - Os click IDs (gclid, gbraid, wbraid, fbclid, ttclid) são tratados como TEXT puro
+     (apenas .trim(), NUNCA .toLowerCase()/.normalize/replace)?
+   - O sistema verifica em event_deliveries se já existe disparo nas últimas 48h antes de re-enviar?
+   - O Purchase só é disparado quando status ∈ {paid, approved, confirmed, succeeded, pix_paid, order_paid}?
+     (status pending, checkout_created, boleto_printed NÃO devem disparar Purchase)
+   - O session_id é enviado no payload pra permitir fallback de atribuição via tabela sessions?
+
+8) ROTEAMENTO LAST-CLICK
+   - Quando uma venda chega, qual identificador "ganha"? (esperado: gclid > fbclid/fbc > ttclid)
+   - Plataformas que NÃO são donas do clique recebem só sinais auxiliares (não Purchase principal)?
 
 ═══════════════════════════════════════════════
 FORMATO DA RESPOSTA
@@ -420,6 +439,25 @@ URL: ${cfg.endpoint.replace("/track", "/gateway-webhook")}/${cfg.gateway}?worksp
 Use APENAS UM webhook (não duplique). O CapiTrack distribui para todos os destinos automaticamente.
 
 CRÍTICO para dedup: o transaction_id enviado no purchase client-side deve ser EXATAMENTE o mesmo que o webhook do gateway envia.` : "Sem gateway — pular esta etapa."}
+
+═══════════════════════════════════════════════
+4.1) PAYLOAD DO PURCHASE — REGRAS CRÍTICAS (atualizado 04/2026)
+═══════════════════════════════════════════════
+Quando disparar o Purchase (client-side OU server-side), o payload PRECISA conter:
+
+- **external_id**: ID da transação no gateway (ex: \`ord_abc123\`). Usado pra dedupe.
+- **event_id**: SEMPRE no formato \`\${external_id}:Purchase\` (mesmo entre client e webhook).
+- **event_name**: "Purchase" (ou "Subscribe" pra assinatura).
+- **session_id**: lido do cookie/sessionStorage do CapiTrack (\`ct_session\`). Permite fallback de atribuição.
+- **gclid / gbraid / wbraid / fbclid / ttclid**: lidos dos cookies \`ct_*\` ou da URL.
+  ⚠️ NUNCA aplique .toLowerCase(), .normalize() ou regex destrutivo nesses valores. Apenas .trim().
+- **utm_source / utm_medium / utm_campaign / utm_term / utm_content**: dos cookies \`ct_utm_*\`.
+- **status do pagamento**: só dispare Purchase quando status ∈ \`{paid, approved, confirmed, succeeded, pix_paid, order_paid}\`.
+  Para status \`pending\`, \`checkout_created\`, \`boleto_printed\` use \`InitiateCheckout\` ou \`generate_lead\` — NÃO Purchase.
+
+A janela de dedupe do CapiTrack é de **48h**: o mesmo \`external_id:Purchase\` enviado 2x dentro
+desse período é automaticamente bloqueado pelo backend, então é seguro disparar tanto client-side
+quanto webhook (o segundo será ignorado).
 
 ═══════════════════════════════════════════════
 5) ALTERNATIVA — IMPORTAR CONTAINER GTM (opcional)
