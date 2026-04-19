@@ -650,9 +650,56 @@ Deno.serve(async (req) => {
             }
           };
 
+          // Snapshot click identifiers + utm_term so the agent can map sale → keyword.
+          const gclid: string | null = (tk?.gclid as string) || (sessionData?.gclid as string) || null;
+          const fbclid: string | null = (tk?.fbclid as string) || (sessionData?.fbclid as string) || null;
+          const utmTerm: string | null = (tk?.utm_term as string) || (sessionData?.utm_term as string) || null;
+          const utmSource: string | null = (tk?.utm_source as string) || (sessionData?.utm_source as string) || null;
+          const utmCampaign: string | null = (tk?.utm_campaign as string) || (sessionData?.utm_campaign as string) || null;
+
+          // Resolve keyword: SDK utm_term first, GCLID lookup as fallback.
+          const resolveKeyword = async (): Promise<{ keyword: string | null; match_type: string | null; keyword_id: string | null; source: string | null }> => {
+            if (utmTerm) return { keyword: utmTerm, match_type: null, keyword_id: null, source: "sdk_utm_term" };
+            if (!gclid) return { keyword: null, match_type: null, keyword_id: null, source: null };
+            try {
+              const { data: cred } = await supabase
+                .from("google_ads_credentials")
+                .select("customer_id")
+                .eq("workspace_id", wsId)
+                .limit(1)
+                .maybeSingle();
+              if (!cred?.customer_id) return { keyword: null, match_type: null, keyword_id: null, source: null };
+              const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/google-ads-mutate`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                  "x-internal-source": "automation",
+                },
+                body: JSON.stringify({
+                  workspace_id: wsId,
+                  customer_id: cred.customer_id,
+                  action: "lookup_keyword_by_gclid",
+                  gclid,
+                }),
+              });
+              const j = await r.json().catch(() => ({}));
+              if (!r.ok || !j?.ok) return { keyword: null, match_type: null, keyword_id: null, source: null };
+              return {
+                keyword: j.keyword_text ?? null,
+                match_type: j.match_type ?? null,
+                keyword_id: j.keyword_resource ? String(j.keyword_resource).split("~").pop() ?? null : null,
+                source: "click_view",
+              };
+            } catch {
+              return { keyword: null, match_type: null, keyword_id: null, source: null };
+            }
+          };
+
           // Notify MCP server so external agents can react to the conversion in real time.
           const notifyMcp = async () => {
             try {
+              const keywordRef = await resolveKeyword();
               const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/mcp`, {
                 method: "POST",
                 headers: {
@@ -674,6 +721,13 @@ Deno.serve(async (req) => {
                     currency: order.currency,
                     marketing_event: marketingEvent,
                     occurred_at: new Date().toISOString(),
+                    // Sale → Event_ID → GCLID → Keyword chain for the agent.
+                    click_ids: { gclid, fbclid },
+                    utm: { source: utmSource, campaign: utmCampaign, term: utmTerm },
+                    keyword: keywordRef,
+                    suggested_action: keywordRef.keyword
+                      ? `Venda confirmada para a palavra-chave [${keywordRef.keyword}]. Avaliar aumento de lance.`
+                      : null,
                   },
                 }),
               });
@@ -686,7 +740,11 @@ Deno.serve(async (req) => {
                 target_type: "mcp",
                 status: r.ok ? "success" : "failed",
                 after_value: body,
-                metadata_json: { provider, order_id: orderId, value: orderValue },
+                metadata_json: {
+                  provider, order_id: orderId, value: orderValue,
+                  gclid, utm_term: utmTerm,
+                  keyword: keywordRef.keyword, keyword_source: keywordRef.source,
+                },
                 error_message: r.ok ? null : `mcp ${r.status}`,
               });
             } catch (e) {
