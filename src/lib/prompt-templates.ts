@@ -4,6 +4,15 @@
  *   1. Auditoria  → o usuário cola no Lovable do projeto-alvo
  *   2. Correção   → aplica as melhorias com base no relatório
  *   3. Validação  → roteiro de teste pós-implementação
+ *
+ * ⚠️ Atualizado em 19/04/2026 com as regras do "Módulo de Deduplicação de Elite":
+ *  - Persistência granular: orders.gclid/fbclid/ttclid/session_id/utm_* (TEXT, case-sensitive)
+ *  - Click IDs NUNCA passam por .toLowerCase() — apenas .trim()
+ *  - deduplication_key = `${external_id}:${event_name}` com janela de 48h em event_deliveries
+ *  - Roteamento Last-Click: gclid→Google Ads, fbclid/fbc→Meta, ttclid→TikTok
+ *  - Trava de status: Purchase só dispara em status paid/approved/confirmed/pix_paid
+ *  - Whitelist de eventos no event-router (MouseActivity/Scroll/Dwell bloqueados)
+ *  - Fallback: se webhook chega sem gclid, busca em sessions via session_id
  */
 
 export type BusinessType =
