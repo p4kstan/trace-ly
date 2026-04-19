@@ -82,15 +82,15 @@ Deno.serve(async (req) => {
 
     for (const evt of deadEvents) {
       try {
-        // Re-enqueue into event_queue
-        const { error: insertErr } = await supabase.from("event_queue").insert({
+        // Re-enqueue into event_queue (upsert + ignoreDuplicates evita reinjeção dupla)
+        const { error: insertErr } = await supabase.from("event_queue").upsert({
           workspace_id: evt.workspace_id,
           provider: evt.provider || "meta",
           payload_json: evt.payload_json || {},
           status: "queued",
           attempt_count: 0,
           event_id: evt.source_id,
-        });
+        }, { onConflict: "workspace_id,event_id,provider", ignoreDuplicates: true });
 
         if (insertErr) {
           failed++;

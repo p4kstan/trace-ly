@@ -798,7 +798,8 @@ async function enqueueForMeta(
   if (!pixels?.length) return;
 
   for (const pixel of pixels) {
-    await supabase.from("event_queue").insert({
+    // P0: upsert ignoreDuplicates → evita conversão Meta duplicada se webhook reentrega
+    await supabase.from("event_queue").upsert({
       workspace_id: workspaceId,
       event_id: eventId,
       order_id: orderId,
@@ -812,7 +813,7 @@ async function enqueueForMeta(
         session: sessionData ? { fbp: sessionData.fbp, fbc: sessionData.fbc, ip_hash: sessionData.ip_hash, user_agent: sessionData.user_agent, landing_page: sessionData.landing_page, gclid: sessionData.gclid, ttclid: sessionData.ttclid, ttp: sessionData.ttp, referrer: sessionData.referrer, utm_source: sessionData.utm_source, utm_medium: sessionData.utm_medium, utm_campaign: sessionData.utm_campaign } : null,
         identity_id: identityId,
       },
-    });
+    }, { onConflict: "workspace_id,event_id,provider", ignoreDuplicates: true });
   }
 }
 
@@ -841,7 +842,8 @@ async function enqueueForOtherProviders(
   const enrichedCustomer = { ...c, email_hash: emailHash, phone_hash: phoneHash, document_hash: documentHash };
 
   for (const dest of destinations) {
-    await supabase.from("event_queue").insert({
+    // P0: upsert ignoreDuplicates → evita conversão Google Ads/TikTok/GA4 duplicada
+    await supabase.from("event_queue").upsert({
       workspace_id: workspaceId,
       event_id: eventId,
       order_id: orderId,
@@ -855,7 +857,7 @@ async function enqueueForOtherProviders(
         session: sessionData ? { fbp: sessionData.fbp, fbc: sessionData.fbc, ip_hash: sessionData.ip_hash, user_agent: sessionData.user_agent, landing_page: sessionData.landing_page, gclid: sessionData.gclid, ttclid: sessionData.ttclid, ttp: sessionData.ttp, gbraid: sessionData.gbraid, wbraid: sessionData.wbraid, referrer: sessionData.referrer, utm_source: sessionData.utm_source, utm_medium: sessionData.utm_medium, utm_campaign: sessionData.utm_campaign, client_id: sessionData.ga_client_id } : null,
         identity_id: identityId,
       },
-    });
+    }, { onConflict: "workspace_id,event_id,provider", ignoreDuplicates: true });
   }
 }
 
