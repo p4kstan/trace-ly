@@ -187,6 +187,93 @@ async function reconcile(
 }
 
 // ════════════════════════════════════════════════════════════
+// PII enrichment — cross-reference identities + gateway_customers
+// to fill in missing fields (email/phone/document) before enqueueing.
+// Strategy: identity_id first (richest data), then email/phone fallback.
+// ════════════════════════════════════════════════════════════
+
+async function enrichCustomer(
+  workspaceId: string,
+  customer: NormalizedCustomer,
+  identityId: string | null,
+): Promise<NormalizedCustomer> {
+  const enriched: NormalizedCustomer = { ...customer };
+
+  // Tier 1 — identity_id reconciled
+  if (identityId) {
+    const { data: ident } = await supabase
+      .from("identities")
+      .select("name, email, phone, external_id")
+      .eq("id", identityId)
+      .maybeSingle();
+    if (ident) {
+      if (!enriched.email && ident.email) enriched.email = ident.email;
+      if (!enriched.phone && ident.phone) enriched.phone = ident.phone;
+      if (!enriched.name && ident.name) enriched.name = ident.name;
+      if (!enriched.document && ident.external_id) enriched.document = ident.external_id;
+    }
+  }
+
+  // Tier 2 — gateway_customers by email/phone
+  if ((!enriched.email || !enriched.phone) && (enriched.email || enriched.phone)) {
+    let q = supabase
+      .from("gateway_customers")
+      .select("name, email, phone, document")
+      .eq("workspace_id", workspaceId);
+    if (enriched.email) q = q.eq("email", enriched.email);
+    else q = q.eq("phone", enriched.phone!);
+    const { data } = await q.order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (data) {
+      if (!enriched.email && data.email) enriched.email = data.email;
+      if (!enriched.phone && data.phone) enriched.phone = data.phone;
+      if (!enriched.name && data.name) enriched.name = data.name;
+      if (!enriched.document && data.document) enriched.document = data.document;
+    }
+  }
+
+  // Derive first/last name when only `name` is present
+  if (!enriched.first_name && enriched.name) {
+    const parts = enriched.name.trim().split(/\s+/);
+    enriched.first_name = parts[0];
+    enriched.last_name = enriched.last_name || parts.slice(1).join(" ") || undefined;
+  }
+
+  return enriched;
+}
+
+/** Pre-hash all PII fields once — used by both Meta and other-provider enqueue. */
+async function buildHashedCustomer(c: NormalizedCustomer) {
+  const norm = (v?: string) => (v ? String(v).trim().toLowerCase() : "");
+  const digits = (v?: string) => (v ? String(v).replace(/\D/g, "") : "");
+
+  const emailHash = c.email ? await sha256(norm(c.email)) : null;
+  const phoneDigits = digits(c.phone);
+  const phoneHash = phoneDigits
+    ? await sha256(phoneDigits.startsWith("55") ? phoneDigits : "55" + phoneDigits)
+    : null;
+  const documentHash = c.document ? await sha256(digits(c.document)) : null;
+  const firstNameHash = c.first_name ? await sha256(norm(c.first_name)) : null;
+  const lastNameHash = c.last_name ? await sha256(norm(c.last_name)) : null;
+  const cityHash = c.city ? await sha256(norm(c.city).replace(/\s+/g, "")) : null;
+  const stateHash = c.state ? await sha256(norm(c.state).replace(/\s+/g, "")) : null;
+  const zipHash = c.zip ? await sha256(digits(c.zip)) : null;
+  const countryHash = c.country ? await sha256(norm(c.country)) : null;
+
+  return {
+    ...c,
+    email_hash: emailHash,
+    phone_hash: phoneHash,
+    document_hash: documentHash,
+    first_name_hash: firstNameHash,
+    last_name_hash: lastNameHash,
+    city_hash: cityHash,
+    state_hash: stateHash,
+    zip_hash: zipHash,
+    country_hash: countryHash,
+  };
+}
+
+// ════════════════════════════════════════════════════════════
 // Queue dispatch — Meta CAPI + Google Ads / TikTok / GA4
 // ════════════════════════════════════════════════════════════
 
@@ -194,6 +281,7 @@ async function enqueueForMeta(
   workspaceId: string, eventId: string, orderId: string | null,
   order: NormalizedOrder, marketingEvent: string,
   sessionData: any, identityId: string | null,
+  enrichedCustomer: any,
 ) {
   const { data: pixels } = await supabase.from("meta_pixels")
     .select("id, pixel_id").eq("workspace_id", workspaceId).eq("is_active", true);
@@ -206,8 +294,11 @@ async function enqueueForMeta(
       payload_json: {
         marketing_event: marketingEvent,
         order: { total_value: order.total_value, currency: order.currency, external_order_id: order.external_order_id, payment_method: order.payment_method, items: order.items },
-        customer: order.customer,
+        customer: enrichedCustomer,
         session: sessionData ? { fbp: sessionData.fbp, fbc: sessionData.fbc, ip_hash: sessionData.ip_hash, user_agent: sessionData.user_agent, landing_page: sessionData.landing_page, gclid: sessionData.gclid, ttclid: sessionData.ttclid, ttp: sessionData.ttp, referrer: sessionData.referrer, utm_source: sessionData.utm_source, utm_medium: sessionData.utm_medium, utm_campaign: sessionData.utm_campaign } : null,
+        // Webhook-provided IP/UA as fallback when no session matched
+        webhook_client_ip: order.customer?.ip || null,
+        webhook_user_agent: order.customer?.user_agent || null,
         identity_id: identityId,
       },
     }, { onConflict: "workspace_id,event_id,provider", ignoreDuplicates: true });
@@ -218,22 +309,13 @@ async function enqueueForOtherProviders(
   workspaceId: string, eventId: string, orderId: string | null,
   order: NormalizedOrder, marketingEvent: string,
   sessionData: any, identityId: string | null,
+  enrichedCustomer: any,
 ) {
   const { data: destinations } = await supabase.from("integration_destinations")
     .select("id, provider, destination_id")
     .eq("workspace_id", workspaceId).eq("is_active", true)
     .in("provider", ["google_ads", "tiktok", "ga4"]);
   if (!destinations?.length) return;
-
-  // Pre-hash PII for Enhanced Conversions
-  const c = order.customer || {};
-  const emailHash = c.email ? await sha256(c.email.toLowerCase().trim()) : null;
-  const phoneDigits = c.phone ? c.phone.replace(/\D/g, "") : "";
-  const phoneHash = phoneDigits
-    ? await sha256(phoneDigits.startsWith("55") ? phoneDigits : "55" + phoneDigits)
-    : null;
-  const documentHash = c.document ? await sha256(c.document.replace(/\D/g, "")) : null;
-  const enrichedCustomer = { ...c, email_hash: emailHash, phone_hash: phoneHash, document_hash: documentHash };
 
   for (const dest of destinations) {
     await supabase.from("event_queue").upsert({
@@ -244,6 +326,8 @@ async function enqueueForOtherProviders(
         order: { total_value: order.total_value, currency: order.currency, external_order_id: order.external_order_id, payment_method: order.payment_method, items: order.items },
         customer: enrichedCustomer,
         session: sessionData ? { fbp: sessionData.fbp, fbc: sessionData.fbc, ip_hash: sessionData.ip_hash, user_agent: sessionData.user_agent, landing_page: sessionData.landing_page, gclid: sessionData.gclid, ttclid: sessionData.ttclid, ttp: sessionData.ttp, gbraid: sessionData.gbraid, wbraid: sessionData.wbraid, referrer: sessionData.referrer, utm_source: sessionData.utm_source, utm_medium: sessionData.utm_medium, utm_campaign: sessionData.utm_campaign, client_id: sessionData.ga_client_id } : null,
+        webhook_client_ip: order.customer?.ip || null,
+        webhook_user_agent: order.customer?.user_agent || null,
         identity_id: identityId,
       },
     }, { onConflict: "workspace_id,event_id,provider", ignoreDuplicates: true });
