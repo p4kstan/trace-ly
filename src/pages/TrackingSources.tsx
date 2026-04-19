@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import {
   Plus, Globe, Webhook, ShoppingCart, Code, Radio, Trash2, Copy,
   ArrowRight, ArrowLeft, CheckCircle, Circle, Loader2, HelpCircle,
-  BookOpen, Zap,
+  BookOpen, Zap, Settings, Save,
 } from "lucide-react";
 
 const SOURCE_TYPES = [
