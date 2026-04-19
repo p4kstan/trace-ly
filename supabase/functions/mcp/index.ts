@@ -4,11 +4,16 @@ import {
   execCampaignsResume,
   execCampaignsUpdateBudget,
   execAdGroupsSetStatus,
+  execAdGroupsUpdateBid,
   execBidModifiersUpdate,
+  execKeywordsUpdateBid,
+  execKeywordsSetStatus,
+  execNegativeKeywordsAdd,
 } from "./tools-write.ts";
 import {
   getEnrichedConversions,
   getRoiSnapshot,
+  getKeywordBehavior,
   getRecentAutomationActions,
 } from "./tools-read-enriched.ts";
 
@@ -83,11 +88,16 @@ const MCP_TOOLS = [
   { name: "workspace.get_settings", description: "Retorna configurações do workspace", permissions: ["read"] },
   { name: "queue.get_status", description: "Retorna status da fila de eventos", permissions: ["read"] },
   { name: "deliveries.get_failed", description: "Retorna entregas com falha", permissions: ["read"] },
+  { name: "analytics.get_keyword_behavior", description: "Sinais comportamentais (scroll/dwell/CTA) por keyword + flags de keywords engajadas sem conversão", permissions: ["read"] },
   // Write (require 'write' permission — log every action in automation_actions)
   { name: "campaigns.pause", description: "Pausa uma campanha do Google Ads", permissions: ["write"] },
   { name: "campaigns.resume", description: "Reativa uma campanha do Google Ads", permissions: ["write"] },
   { name: "campaigns.update_budget", description: "Atualiza o orçamento diário (BRL) de uma campanha", permissions: ["write"] },
+  { name: "keywords.update_bid", description: "Ajusta CPC máximo de uma palavra-chave específica baseado no ROI real", permissions: ["write"] },
+  { name: "keywords.set_status", description: "Pausa ou ativa uma palavra-chave específica", permissions: ["write"] },
+  { name: "ad_groups.update_bid", description: "Ajusta CPC default de um ad group inteiro", permissions: ["write"] },
   { name: "ad_groups.set_status", description: "Pausa/reativa um ad group (dry-run hoje)", permissions: ["write"] },
+  { name: "negative_keywords.add", description: "Adiciona palavra-chave negativa em campanha ou ad group", permissions: ["write"] },
   { name: "bid_modifiers.update", description: "Ajusta bid modifier por critério (dry-run hoje)", permissions: ["write"] },
 ];
 
@@ -211,6 +221,8 @@ async function executeTool(
       return await getEnrichedConversions(supabase, workspaceId, Number(params.limit) || 50);
     case "analytics.get_roi_snapshot":
       return await getRoiSnapshot(supabase, workspaceId);
+    case "analytics.get_keyword_behavior":
+      return await getKeywordBehavior(supabase, workspaceId, Number(params.window_days) || 14);
     case "system.get_automation_actions":
       return await getRecentAutomationActions(supabase, workspaceId, Number(params.limit) || 20);
     default:
@@ -232,8 +244,16 @@ async function executeWriteTool(
       return await execCampaignsResume(ctx, params as any);
     case "campaigns.update_budget":
       return await execCampaignsUpdateBudget(ctx, params as any);
+    case "keywords.update_bid":
+      return await execKeywordsUpdateBid(ctx, params as any);
+    case "keywords.set_status":
+      return await execKeywordsSetStatus(ctx, params as any);
+    case "ad_groups.update_bid":
+      return await execAdGroupsUpdateBid(ctx, params as any);
     case "ad_groups.set_status":
       return await execAdGroupsSetStatus(ctx, params as any);
+    case "negative_keywords.add":
+      return await execNegativeKeywordsAdd(ctx, params as any);
     case "bid_modifiers.update":
       return await execBidModifiersUpdate(ctx, params as any);
     default:
