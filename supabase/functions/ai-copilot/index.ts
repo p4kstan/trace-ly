@@ -40,6 +40,7 @@ serve(async (req) => {
       { data: predictions },
       { data: anomalies },
       { data: attributionResults },
+      { data: hybridAttribution },
     ] = await Promise.all([
       supabase.from("events").select("id", { count: "exact", head: true })
         .eq("workspace_id", workspace_id).gte("created_at", oneDayAgo.toISOString()),
@@ -49,8 +50,19 @@ serve(async (req) => {
         .eq("workspace_id", workspace_id).limit(50),
       supabase.from("anomaly_alerts").select("*")
         .eq("workspace_id", workspace_id).eq("acknowledged", false).limit(10),
-      supabase.from("attribution_results").select("source, medium, campaign, credit, attributed_value, model")
-        .eq("workspace_id", workspace_id).limit(200),
+      // P1: filter attribution_results by data-driven models only (drop heuristic noise)
+      supabase.from("attribution_results")
+        .select("source, medium, campaign, credit, attributed_value, model")
+        .eq("workspace_id", workspace_id)
+        .in("model", ["markov", "shapley", "time_decay", "data_driven"])
+        .gte("created_at", sevenDaysAgo.toISOString())
+        .limit(500),
+      // P1: hybrid (Markov + Shapley) ensemble for high-confidence budget reallocation
+      supabase.from("attribution_hybrid")
+        .select("source, medium, campaign, markov_credit, shapley_credit, hybrid_credit, hybrid_value, conversion_value")
+        .eq("workspace_id", workspace_id)
+        .gte("created_at", sevenDaysAgo.toISOString())
+        .limit(500),
     ]);
 
     // Build data context
@@ -67,11 +79,28 @@ serve(async (req) => {
       .map(([ch, rev]) => `${ch}: R$${rev.toFixed(2)}`);
 
     const predSummary = (predictions || [])
-      .filter(p => p.confidence > 0.4)
+      .filter((p: any) => p.confidence > 0.4)
       .slice(0, 8)
-      .map(p => `${p.channel} ${p.prediction_type}: R$${Number(p.predicted_value).toFixed(0)} (${(p.confidence * 100).toFixed(0)}% conf)`);
+      .map((p: any) => `${p.channel} ${p.prediction_type}: R$${Number(p.predicted_value).toFixed(0)} (${(p.confidence * 100).toFixed(0)}% conf)`);
 
-    const anomalySummary = (anomalies || []).map(a => `⚠️ ${a.metric_name}: ${a.message}`);
+    const anomalySummary = (anomalies || []).map((a: any) => `⚠️ ${a.metric_name}: ${a.message}`);
+
+    // P1: aggregate hybrid attribution by source/campaign so the model can reason
+    // about Markov vs Shapley credits and recommend budget reallocation.
+    const hybridAgg = new Map<string, { markov: number; shapley: number; hybrid: number; value: number }>();
+    for (const h of (hybridAttribution || []) as any[]) {
+      const key = `${h.source || "Direct"} / ${h.campaign || "-"}`;
+      const cur = hybridAgg.get(key) || { markov: 0, shapley: 0, hybrid: 0, value: 0 };
+      cur.markov += Number(h.markov_credit || 0);
+      cur.shapley += Number(h.shapley_credit || 0);
+      cur.hybrid += Number(h.hybrid_credit || 0);
+      cur.value += Number(h.hybrid_value || 0);
+      hybridAgg.set(key, cur);
+    }
+    const hybridSummary = [...hybridAgg.entries()]
+      .sort((a, b) => b[1].value - a[1].value)
+      .slice(0, 10)
+      .map(([k, v]) => `${k}: Markov=${v.markov.toFixed(2)}, Shapley=${v.shapley.toFixed(2)}, Hybrid=${v.hybrid.toFixed(2)}, R$${v.value.toFixed(2)}`);
 
     const dataContext = `
 DADOS EM TEMPO REAL DO WORKSPACE:
@@ -89,25 +118,27 @@ ${predSummary.join('\n') || 'Sem predições'}
 Anomalias Ativas:
 ${anomalySummary.join('\n') || 'Nenhuma'}
 
-Attribution (top sources):
-${(attributionResults || []).slice(0, 10).map(a => `${a.source || 'Direct'}/${a.medium || '-'}: credit=${a.credit}, value=R$${Number(a.attributed_value || 0).toFixed(2)} (${a.model})`).join('\n') || 'Sem dados'}
+Attribution data-driven (modelos: markov/shapley/time_decay/data_driven):
+${(attributionResults || []).slice(0, 10).map((a: any) => `${a.source || 'Direct'}/${a.medium || '-'} (${a.campaign || '-'}): credit=${Number(a.credit).toFixed(2)}, value=R$${Number(a.attributed_value || 0).toFixed(2)} [${a.model}]`).join('\n') || 'Sem dados'}
+
+Atribuição Híbrida (Markov + Shapley — use para realocação de orçamento):
+${hybridSummary.join('\n') || 'Sem dados'}
 `.trim();
 
     const systemPrompt = `Você é o CapiTrack AI Copilot — um assistente de marketing intelligence ultra avançado.
 
-Você tem acesso a dados REAIS do workspace do usuário. Use-os para responder com precisão.
+Você tem acesso a dados REAIS do workspace, incluindo atribuição estatística (Markov Chain + Shapley Value).
 
 ${dataContext}
 
 REGRAS:
 - Responda SEMPRE em português
-- Use dados reais para fundamentar respostas
-- Seja específico com números e percentuais
-- Quando sugerir ações, seja prático e direto
+- Para recomendações de ORÇAMENTO, BASEIE-SE em Markov/Shapley (atribuição híbrida) — não em last-click
+- Identifique canais com baixo crédito Hybrid mas alto gasto → sugira corte/realocação
+- Identifique canais com alto crédito Markov+Shapley mas baixo investimento → sugira aumento
+- Seja específico com números, percentuais e valores em R$
 - Se não tiver dados suficientes, diga claramente
-- Formate com markdown para melhor leitura
-- Mencione canais, valores e tendências reais
-- Sugira otimizações de budget quando relevante
+- Formate com markdown
 - Interprete predições ML quando perguntado`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {

@@ -274,8 +274,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Prioritize high-value conversion events: dispatch them first so paid-traffic
-    // platforms (Meta/Google Ads/TikTok) receive purchases with minimal latency.
+    // P0: High-value conversion events go to event_queue (durable + exponential retry)
+    // instead of fire-and-forget fetch. Guarantees delivery even on Google/Meta 429/5xx.
     const CONVERSION_EVENTS = new Set([
       "Purchase", "purchase",
       "Subscribe", "subscribe",
@@ -288,15 +288,15 @@ Deno.serve(async (req) => {
     const isHighValue = isConversion && cdValue > 0;
     console.log(`[event-router] priority=${isHighValue ? "high" : "normal"} event=${event.event_name} value=${cdValue}`);
 
-    // Route event to each destination
     const results: RouteResult[] = [];
+    const queueRows: any[] = [];
+    const normalizedPayload = normalizeEventToQueuePayload(event);
+
     const routePromises = destinations.map(async (dest) => {
-      // Check if there's a mapping rule for this provider
       const providerRules = rules.filter(
         r => r.external_platform === dest.provider || r.provider === dest.provider
       );
 
-      // If rules exist but none match this event, skip
       if (providerRules.length > 0) {
         const hasMatch = providerRules.some(
           r => r.internal_event_name === event.event_name || r.gateway_event === event.event_name
@@ -307,7 +307,6 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Map event name if needed
       const mappedRule = providerRules.find(
         r => r.internal_event_name === event.event_name || r.gateway_event === event.event_name
       );
@@ -316,16 +315,47 @@ Deno.serve(async (req) => {
         mapped_event_name: mappedRule?.external_event_name || mappedRule?.marketing_event || event.event_name,
       };
 
+      // High-value conversions: enqueue for durable delivery + exponential retry
+      // handled by `process-events` worker.
+      if (isHighValue) {
+        queueRows.push({
+          workspace_id: workspace_id,
+          event_id: event.id,
+          provider: dest.provider,
+          destination: dest.id,
+          payload_json: { ...normalizedPayload, mapped_event_name: mappedEvent.mapped_event_name, destination: dest },
+          status: "pending",
+          attempt_count: 0,
+          max_attempts: 8,
+          next_retry_at: new Date().toISOString(),
+        });
+        results.push({ provider: dest.provider, status: "delivered", latency_ms: 0 });
+        return;
+      }
+
       const result = await dispatchToProvider(dest.provider, mappedEvent, dest, workspace_id);
       results.push(result);
     });
 
     await Promise.all(routePromises);
 
-    // Update event processing status
+    if (queueRows.length > 0) {
+      const { error: qErr } = await supabase.from("event_queue").insert(queueRows);
+      if (qErr) {
+        console.error("[event-router] event_queue insert error, falling back to direct dispatch:", qErr);
+        for (const dest of destinations) {
+          await dispatchToProvider(dest.provider, event, dest, workspace_id).catch((e) =>
+            console.error("fallback dispatch error", e)
+          );
+        }
+      } else {
+        console.log(`[event-router] enqueued ${queueRows.length} high-value conversion deliveries`);
+      }
+    }
+
     const allDelivered = results.every(r => r.status === "delivered" || r.status === "skipped");
     const anyDelivered = results.some(r => r.status === "delivered");
-    const newStatus = allDelivered ? "delivered" : anyDelivered ? "partial" : "failed";
+    const newStatus = isHighValue ? "queued" : (allDelivered ? "delivered" : anyDelivered ? "partial" : "failed");
     await supabase.from("events").update({ processing_status: newStatus }).eq("id", event_id);
 
     return new Response(
