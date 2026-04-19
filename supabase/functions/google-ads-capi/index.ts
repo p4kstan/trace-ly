@@ -251,7 +251,8 @@ Deno.serve(async (req) => {
 
     if (!finalCustomerId || !developerToken || !conversionLabel) {
       return new Response(JSON.stringify({
-        error: "Missing required: customer_id, developer_token, conversion_label",
+        error: "Missing required: customer_id, developer_token, or NUMERIC conversion_action_id",
+        hint: "conversion_action_id must be the numeric ConversionAction.id from Google Ads, not the gtag label.",
         debug: { customerId: !!finalCustomerId, developerToken: !!developerToken, conversionLabel: !!conversionLabel },
       }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
