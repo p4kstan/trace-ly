@@ -41,7 +41,6 @@ interface GoogleConversionPayload {
   currency_code?: string;
   order_id?: string;
   user_identifiers?: GoogleUserIdentifier[];
-  user_agent?: string;
 }
 
 async function sha256Hex(value: string): Promise<string> {
