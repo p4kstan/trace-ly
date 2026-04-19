@@ -737,6 +737,7 @@
           log('Auto PageView: ' + window.location.pathname);
         }
         setupSPATracking();
+        setupCheckoutLinkDecorator();
         setupDataLayerBridge();
         if (document.readyState === 'loading') {
           document.addEventListener('DOMContentLoaded', autoCaptureFromForms);
@@ -771,7 +772,12 @@
         }
         break;
 
-      case 'purchase': enqueueEvent(buildEvent('Purchase', args[0])); log('Purchase'); break;
+      case 'purchase':
+        enqueueEvent(buildEvent('Purchase', args[0]));
+        // Confirmed conversion → start a fresh journey id for the next funnel.
+        refreshJourneyEventId();
+        log('Purchase');
+        break;
       case 'lead': enqueueEvent(buildEvent('Lead', args[0])); log('Lead'); break;
       case 'addToCart': enqueueEvent(buildEvent('AddToCart', args[0])); log('AddToCart'); break;
       case 'initiateCheckout': enqueueEvent(buildEvent('InitiateCheckout', args[0])); log('InitiateCheckout'); break;
