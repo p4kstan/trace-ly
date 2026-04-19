@@ -153,12 +153,20 @@ export function readTracking()${typed ? "" : ""} {
     }).filter(([k]) => k)
   );
   const url = new URLSearchParams(location.search);
-  const get = (k${typed ? ": string" : ""}) => c["ct_" + k] || url.get(k) || null;
+  // ⚠️ Click IDs são case-sensitive. Apenas .trim() — NUNCA .toLowerCase().
+  const get = (k${typed ? ": string" : ""}) => {
+    const v = c["ct_" + k] || url.get(k) || null;
+    return v ? String(v).trim() : null;
+  };
+
+  // session_id do CapiTrack — usado pelo backend pra fallback de atribuição
+  const sessionId = c.ct_session || sessionStorage.getItem("ct_session") || null;
 
   return {
     gclid: get("gclid"), gbraid: get("gbraid"), wbraid: get("wbraid"),
     fbclid: get("fbclid"), ttclid: get("ttclid"),
     fbp: c._fbp || null, fbc: c._fbc || null,
+    session_id: sessionId,
     utm_source: get("utm_source"), utm_medium: get("utm_medium"),
     utm_campaign: get("utm_campaign"), utm_content: get("utm_content"),
     utm_term: get("utm_term"),
