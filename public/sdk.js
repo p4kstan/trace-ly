@@ -788,6 +788,8 @@
       case 'getAttribution': return { firstTouch: getFirstTouch(), lastTouch: getLastTouch() };
       case 'getGa4ClientId': return getGa4ClientId();
       case 'getSessionId': return getSessionId();
+      case 'getJourneyEventId': return getJourneyEventId();
+      case 'decorateCheckoutUrl': return decorateCheckoutUrl(args[0]);
       case 'getAnonymousId': return getAnonymousId();
       case 'getConsent': return Object.assign({}, consentGranted);
 
