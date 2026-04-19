@@ -15,6 +15,7 @@ import { CampaignHeader } from "@/components/google-ads/CampaignHeader";
 import { MetricsOverview } from "@/components/google-ads/MetricsOverview";
 import { ConversionDistribution } from "@/components/google-ads/ConversionDistribution";
 import { CampaignSettings } from "@/components/google-ads/CampaignSettings";
+import { AutomationCommandCenter } from "@/components/automation/AutomationCommandCenter";
 
 const fmtNumber = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
 const fmtMoney = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });

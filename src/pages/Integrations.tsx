@@ -10,6 +10,7 @@ import { GatewayGrid } from "@/components/integrations/GatewayGrid";
 import { DestinationList } from "@/components/integrations/DestinationList";
 import { DestinationDialog } from "@/components/integrations/DestinationDialog";
 import { AD_PROVIDERS } from "@/components/integrations/ad-providers";
+import { AutomationCommandCenter } from "@/components/automation/AutomationCommandCenter";
 
 export default function Integrations() {
   const { data: workspace } = useWorkspace();
@@ -36,6 +37,8 @@ export default function Integrations() {
         destinationCount={m.destinations.length}
         activeCount={activeCount}
       />
+
+      <AutomationCommandCenter workspaceId={workspace?.id} limit={6} />
 
       <IntegrationSearch value={m.search} onChange={m.setSearch} />
 
