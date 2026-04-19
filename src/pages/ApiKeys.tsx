@@ -20,6 +20,11 @@ export default function ApiKeys() {
   const [name, setName] = useState("Default Key");
   const [saving, setSaving] = useState(false);
   const [newKey, setNewKey] = useState("");
+  const [revealed, setRevealed] = useState<Record<string, boolean>>({});
+  const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const activeKeyId = keys?.find((k: any) => k.status === "active")?.id;
 
   const handleCreate = async () => {
     if (!workspace?.id || !name) return;
@@ -41,6 +46,19 @@ export default function ApiKeys() {
     setSaving(false);
   };
 
+  const handleSaveEdit = async () => {
+    if (!editing) return;
+    setSavingEdit(true);
+    const { error } = await supabase.from("api_keys").update({ name: editing.name }).eq("id", editing.id);
+    if (error) toast.error(error.message);
+    else {
+      queryClient.invalidateQueries({ queryKey: ["api-keys"] });
+      toast.success("Nome atualizado");
+      setEditing(null);
+    }
+    setSavingEdit(false);
+  };
+
   const handleRevoke = async (id: string) => {
     if (!confirm("Revogar esta chave?")) return;
     await supabase.from("api_keys").update({ status: "revoked" }).eq("id", id);
@@ -52,6 +70,8 @@ export default function ApiKeys() {
     navigator.clipboard.writeText(key);
     toast.success("Copiado!");
   };
+
+  const toggleReveal = (id: string) => setRevealed((r) => ({ ...r, [id]: !r[id] }));
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const activeKey = keys?.find((k: any) => k.status === "active")?.public_key || "pk_xxxxx";
