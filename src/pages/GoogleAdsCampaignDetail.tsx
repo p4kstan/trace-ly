@@ -55,6 +55,8 @@ export default function GoogleAdsCampaignDetail() {
         </div>
       )}
 
+      <AutomationCommandCenter workspaceId={workspace?.id} targetId={campaignId} limit={6} />
+
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex flex-wrap h-auto justify-start">
           <TabsTrigger value="overview">Visão geral</TabsTrigger>
