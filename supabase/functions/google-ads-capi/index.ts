@@ -199,18 +199,26 @@ Deno.serve(async (req) => {
     // ── Resolve credentials: prefer fresh credentials from google_ads_credentials ──
     const config = destination.config_json || {};
     const customerId = String(config.customer_id || "").replace(/\D/g, "");
-    // Google Ads aceita TANTO o ID numérico quanto o LABEL alfanumérico em
-    // `customers/{cid}/conversionActions/{X}`. Priorizamos o que o usuário
-    // efetivamente cadastrou (`conversion_label` na UI). Só caímos para
-    // `conversion_action_id` / `destination_id` (legado) como fallback.
-    // Mantemos caracteres alfanuméricos + underscores/hífens (labels podem ter).
-    const rawConversionRef = String(
-      config.conversion_label ||
-      config.conversion_action_id ||
-      destination.destination_id ||
-      ""
-    ).trim();
-    const conversionLabel = rawConversionRef.replace(/[^A-Za-z0-9_-]/g, "");
+    // ⚠️ CRÍTICO: O endpoint `uploadClickConversions` da Google Ads API exige o
+    // ID NUMÉRICO da Conversion Action (ex: 17862172125), NÃO o label alfanumérico
+    // do gtag (ex: "UITqCOjA95wcEN27rMVC"). O label só funciona no pixel
+    // client-side (gtag `send_to: AW-XXX/LABEL`). Para a API offline precisamos
+    // do `ConversionAction.id` (resource ID numérico). Confirmado pela resposta
+    // RESOURCE_NAME_MALFORMED ao tentar o label.
+    const candidates = [
+      config.conversion_action_id,
+      destination.destination_id,
+      config.conversion_label,
+    ].map((v) => String(v ?? "").trim()).filter(Boolean);
+    const numericCandidate = candidates.find((v) => /^\d+$/.test(v));
+    const conversionLabel = numericCandidate || "";
+    if (!conversionLabel && candidates.length > 0) {
+      console.error(
+        `[google-ads-capi] No NUMERIC conversion_action_id found. ` +
+        `Got candidates=${JSON.stringify(candidates)}. ` +
+        `Google Ads API requires the numeric ConversionAction.id, NOT the gtag label.`
+      );
+    }
 
     const { data: creds, error: credsErr } = await supabase
       .from("google_ads_credentials")
