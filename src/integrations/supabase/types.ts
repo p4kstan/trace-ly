@@ -515,6 +515,36 @@ export type Database = {
         }
         Relationships: []
       }
+      default_event_mappings: {
+        Row: {
+          created_at: string
+          external_event_name: string
+          external_platform: string
+          gateway: string
+          gateway_event: string
+          id: string
+          internal_event_name: string
+        }
+        Insert: {
+          created_at?: string
+          external_event_name: string
+          external_platform?: string
+          gateway: string
+          gateway_event: string
+          id?: string
+          internal_event_name: string
+        }
+        Update: {
+          created_at?: string
+          external_event_name?: string
+          external_platform?: string
+          gateway?: string
+          gateway_event?: string
+          id?: string
+          internal_event_name?: string
+        }
+        Relationships: []
+      }
       event_deliveries: {
         Row: {
           attempt_count: number
