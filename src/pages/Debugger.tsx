@@ -48,8 +48,8 @@ export default function Debugger() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="space-y-2">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+          <div className="space-y-2 lg:max-h-[calc(100vh-16rem)] lg:overflow-y-auto lg:pr-2">
             {deliveries.map((d) => (
               <button
                 key={d.id}
@@ -79,7 +79,7 @@ export default function Debugger() {
           </div>
 
           {selected && (
-            <div className="lg:col-span-2 space-y-4">
+            <div className="lg:col-span-2 space-y-4 lg:sticky lg:top-4">
               <div className="glass-card p-4">
                 <div className="flex items-center gap-3 mb-3">
                   <span className="text-xs font-medium text-muted-foreground uppercase">Requisição</span>
