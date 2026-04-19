@@ -597,6 +597,64 @@ Deno.serve(async (req) => {
           await enqueueForMeta(workspaceId, eventId, savedOrder?.id || null, order, marketingEvent, sessionData, identityId, enrichedHashed);
         }
         await enqueueForOtherProviders(workspaceId, eventId, savedOrder?.id || null, order, marketingEvent, sessionData, identityId, enrichedHashed);
+
+        // ── Auto-feedback (fire-and-forget): on Purchase, recompute ROI + log automation event.
+        // Uses EdgeRuntime.waitUntil so the webhook responds immediately to the gateway.
+        if (marketingEvent === "Purchase" || isPaid) {
+          const wsId = workspaceId;
+          const evtId = eventId;
+          const triggerAutoFeedback = async () => {
+            try {
+              await supabase.from("automation_actions").insert({
+                workspace_id: wsId,
+                trigger: "auto_feedback",
+                source_event_id: evtId,
+                action: "recompute_roi",
+                target_type: "workspace",
+                status: "pending",
+                metadata_json: { provider, order_id: savedOrder?.id, value: order.total_value },
+              });
+              const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/optimization-engine`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                },
+                body: JSON.stringify({ workspace_id: wsId }),
+              });
+              const okBody = await r.json().catch(() => ({}));
+              await supabase.from("automation_actions").insert({
+                workspace_id: wsId,
+                trigger: "auto_feedback",
+                source_event_id: evtId,
+                action: "recompute_roi",
+                target_type: "workspace",
+                status: r.ok ? "success" : "failed",
+                after_value: okBody,
+                error_message: r.ok ? null : `optimization-engine ${r.status}`,
+              });
+            } catch (e) {
+              console.error("auto-feedback error", e);
+              await supabase.from("automation_actions").insert({
+                workspace_id: wsId,
+                trigger: "auto_feedback",
+                source_event_id: evtId,
+                action: "recompute_roi",
+                target_type: "workspace",
+                status: "failed",
+                error_message: String(e instanceof Error ? e.message : e).slice(0, 500),
+              });
+            }
+          };
+          // @ts-ignore — Deno Edge Runtime global
+          if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
+            // @ts-ignore
+            EdgeRuntime.waitUntil(triggerAutoFeedback());
+          } else {
+            // Fallback: don't block the response
+            triggerAutoFeedback().catch(() => {});
+          }
+        }
       }
     }
 

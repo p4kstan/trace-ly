@@ -1,4 +1,16 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import {
+  execCampaignsPause,
+  execCampaignsResume,
+  execCampaignsUpdateBudget,
+  execAdGroupsSetStatus,
+  execBidModifiersUpdate,
+} from "./tools-write.ts";
+import {
+  getEnrichedConversions,
+  getRoiSnapshot,
+  getRecentAutomationActions,
+} from "./tools-read-enriched.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -57,16 +69,26 @@ function hasPermission(tokenPerms: string[], required: string[]): boolean {
 
 // ── MCP Tools registry ──────────────────────────────────────────────
 const MCP_TOOLS = [
+  // Read
   { name: "analytics.get_events", description: "Retorna eventos recentes do workspace", permissions: ["read"] },
   { name: "analytics.get_conversions", description: "Retorna conversões e receita", permissions: ["read"] },
+  { name: "analytics.get_enriched_conversions", description: "Conversões com gclid/fbclid/utm cruzados", permissions: ["read"] },
+  { name: "analytics.get_roi_snapshot", description: "ROI 7d por canal + atribuição híbrida", permissions: ["read"] },
   { name: "tracking.get_sessions", description: "Retorna sessões ativas", permissions: ["read"] },
   { name: "tracking.get_pixels", description: "Retorna pixels configurados", permissions: ["read"] },
   { name: "system.get_logs", description: "Retorna logs do sistema", permissions: ["read"] },
   { name: "system.get_errors", description: "Retorna erros e falhas recentes", permissions: ["read"] },
   { name: "system.get_performance", description: "Retorna métricas de performance", permissions: ["read", "analyze"] },
+  { name: "system.get_automation_actions", description: "Histórico de ações dos agentes", permissions: ["read"] },
   { name: "workspace.get_settings", description: "Retorna configurações do workspace", permissions: ["read"] },
   { name: "queue.get_status", description: "Retorna status da fila de eventos", permissions: ["read"] },
   { name: "deliveries.get_failed", description: "Retorna entregas com falha", permissions: ["read"] },
+  // Write (require 'write' permission — log every action in automation_actions)
+  { name: "campaigns.pause", description: "Pausa uma campanha do Google Ads", permissions: ["write"] },
+  { name: "campaigns.resume", description: "Reativa uma campanha do Google Ads", permissions: ["write"] },
+  { name: "campaigns.update_budget", description: "Atualiza o orçamento diário (BRL) de uma campanha", permissions: ["write"] },
+  { name: "ad_groups.set_status", description: "Pausa/reativa um ad group (dry-run hoje)", permissions: ["write"] },
+  { name: "bid_modifiers.update", description: "Ajusta bid modifier por critério (dry-run hoje)", permissions: ["write"] },
 ];
 
 // ── Tool executors ───────────────────────────────────────────────────
@@ -185,8 +207,37 @@ async function executeTool(
         .limit(limit);
       return { dead_letters: data || [], count: (data || []).length };
     }
+    case "analytics.get_enriched_conversions":
+      return await getEnrichedConversions(supabase, workspaceId, Number(params.limit) || 50);
+    case "analytics.get_roi_snapshot":
+      return await getRoiSnapshot(supabase, workspaceId);
+    case "system.get_automation_actions":
+      return await getRecentAutomationActions(supabase, workspaceId, Number(params.limit) || 20);
     default:
       return { error: "Tool not found" };
+  }
+}
+
+// Write tools dispatcher — separate from executeTool because they need ctx (token id)
+// and they record into automation_actions for audit/UI.
+async function executeWriteTool(
+  ctx: { supabase: ReturnType<typeof createClient>; workspaceId: string; tokenId: string },
+  toolName: string,
+  params: Record<string, any>,
+) {
+  switch (toolName) {
+    case "campaigns.pause":
+      return await execCampaignsPause(ctx, params as any);
+    case "campaigns.resume":
+      return await execCampaignsResume(ctx, params as any);
+    case "campaigns.update_budget":
+      return await execCampaignsUpdateBudget(ctx, params as any);
+    case "ad_groups.set_status":
+      return await execAdGroupsSetStatus(ctx, params as any);
+    case "bid_modifiers.update":
+      return await execBidModifiersUpdate(ctx, params as any);
+    default:
+      return { ok: false, error: "Unknown write tool" };
   }
 }
 
@@ -313,7 +364,14 @@ Deno.serve(async (req) => {
         return json({ error: "Insufficient permissions" }, 403);
 
       const startTime = Date.now();
-      const result = await executeTool(supabase, toolName, validated.workspace_id, body.params || {});
+      const isWrite = toolDef.permissions.includes("write");
+      const result = isWrite
+        ? await executeWriteTool(
+            { supabase, workspaceId: validated.workspace_id, tokenId: validated.id },
+            toolName,
+            body.params || {},
+          )
+        : await executeTool(supabase, toolName, validated.workspace_id, body.params || {});
       const duration = Date.now() - startTime;
 
       // Log the call

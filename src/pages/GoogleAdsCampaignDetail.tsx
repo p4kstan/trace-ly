@@ -15,6 +15,7 @@ import { CampaignHeader } from "@/components/google-ads/CampaignHeader";
 import { MetricsOverview } from "@/components/google-ads/MetricsOverview";
 import { ConversionDistribution } from "@/components/google-ads/ConversionDistribution";
 import { CampaignSettings } from "@/components/google-ads/CampaignSettings";
+import { AutomationCommandCenter } from "@/components/automation/AutomationCommandCenter";
 
 const fmtNumber = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
 const fmtMoney = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -53,6 +54,8 @@ export default function GoogleAdsCampaignDetail() {
           <p className="break-all">{m.errMsg}</p>
         </div>
       )}
+
+      <AutomationCommandCenter workspaceId={workspace?.id} targetId={campaignId} limit={6} />
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex flex-wrap h-auto justify-start">
