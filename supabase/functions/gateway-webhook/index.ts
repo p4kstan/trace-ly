@@ -187,6 +187,69 @@ async function reconcile(
 }
 
 // ════════════════════════════════════════════════════════════
+// Retro lookup — recupera click-ids (gclid/fbp/ttclid/utms) já persistidos
+// em `orders` quando o reconciler não achou sessão ativa. Isso "salva" os
+// eventos InitiateCheckout/Purchase que chegariam ao Google Ads sem identifier
+// só porque o webhook do gateway disparou antes do SDK fechar a sessão.
+// ════════════════════════════════════════════════════════════
+
+async function lookupClickIdsByOrder(
+  workspaceId: string,
+  externalOrderId: string | null | undefined,
+  customer: NormalizedCustomer,
+): Promise<any | null> {
+  if (!externalOrderId && !customer.email && !customer.phone) return null;
+
+  // Tier 1 — direct match by external order_id (mais confiável)
+  if (externalOrderId) {
+    const { data } = await supabase
+      .from("orders")
+      .select("gclid, fbclid, ttclid, fbp, fbc, utm_source, utm_medium, utm_campaign, utm_term, utm_content, landing_page, user_agent, ip_address")
+      .eq("workspace_id", workspaceId)
+      .eq("gateway_order_id", externalOrderId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (data && (data.gclid || data.fbp || data.fbc || data.ttclid)) {
+      return {
+        gclid: data.gclid, fbclid: data.fbclid, ttclid: data.ttclid,
+        fbp: data.fbp, fbc: data.fbc,
+        utm_source: data.utm_source, utm_medium: data.utm_medium,
+        utm_campaign: data.utm_campaign, utm_term: data.utm_term, utm_content: data.utm_content,
+        landing_page: data.landing_page, user_agent: data.user_agent,
+        ip_hash: data.ip_address,
+        _retro_source: "orders.external_id",
+      };
+    }
+  }
+
+  // Tier 2 — match by customer email/phone in last 24h orders
+  if (customer.email || customer.phone) {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    let q = supabase
+      .from("orders")
+      .select("gclid, fbclid, ttclid, fbp, fbc, utm_source, utm_medium, utm_campaign, utm_term, utm_content, landing_page, user_agent")
+      .eq("workspace_id", workspaceId)
+      .gte("created_at", since);
+    if (customer.email) q = q.eq("customer_email", customer.email);
+    else q = q.eq("customer_phone", customer.phone!);
+    const { data } = await q.order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (data && (data.gclid || data.fbp || data.fbc || data.ttclid)) {
+      return {
+        gclid: data.gclid, fbclid: data.fbclid, ttclid: data.ttclid,
+        fbp: data.fbp, fbc: data.fbc,
+        utm_source: data.utm_source, utm_medium: data.utm_medium,
+        utm_campaign: data.utm_campaign, utm_term: data.utm_term, utm_content: data.utm_content,
+        landing_page: data.landing_page, user_agent: data.user_agent,
+        _retro_source: "orders.customer_24h",
+      };
+    }
+  }
+
+  return null;
+}
+
+// ════════════════════════════════════════════════════════════
 // PII enrichment — cross-reference identities + gateway_customers
 // to fill in missing fields (email/phone/document) before enqueueing.
 // Strategy: identity_id first (richest data), then email/phone fallback.
