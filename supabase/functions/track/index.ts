@@ -304,7 +304,22 @@ Deno.serve(async (req) => {
         .single();
       sessionId = newSession?.id || null;
     }
-...
+
+    const enrichedUserData = {
+      ...(body.user_data || {}),
+      ...(emailHash ? { em: emailHash } : {}),
+      ...(phoneHash ? { ph: phoneHash } : {}),
+      ...(ipHash ? { client_ip_hash: ipHash } : {}),
+      ...(userAgent ? { client_user_agent: userAgent } : {}),
+      ...(body.fbp ? { fbp: body.fbp } : {}),
+      ...(body.fbc ? { fbc: body.fbc } : {}),
+      ...(body.external_id ? { external_id: body.external_id } : {}),
+    };
+
+    const deduplicationKey = body.event_id
+      ? `${workspaceId}:${body.event_id}`
+      : `${workspaceId}:${body.event_name}:${sessionId || "no-session"}:${Date.now()}`;
+
     const enrichedCustomData = {
       ...(body.custom_data || {}),
       ...(body.value != null ? { value: body.value } : {}),
