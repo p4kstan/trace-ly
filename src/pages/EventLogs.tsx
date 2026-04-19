@@ -1,26 +1,80 @@
-import { useState } from "react";
-import { ChevronLeft, ChevronRight, Search, Filter, Download, Inbox } from "lucide-react";
+import { useState, useMemo } from "react";
+import { ChevronLeft, ChevronRight, Search, Filter, Download, Inbox, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { useWorkspace, useEvents } from "@/hooks/use-tracking-data";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ROWS_PER_PAGE } from "@/lib/constants";
 
+type StatusFilter = "all" | "delivered" | "pending" | "failed" | "skipped";
+type SourceFilter = string;
+type EventFilter = string;
+
 export default function EventLogs() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const [eventFilter, setEventFilter] = useState<EventFilter>("all");
+  const [dedupOnly, setDedupOnly] = useState<"all" | "yes" | "no">("all");
+
   const { data: workspace } = useWorkspace();
   const { data: events, isLoading } = useEvents(workspace?.id, 500);
 
-  const filtered = (events || []).filter(
-    (e) =>
-      e.event_name.toLowerCase().includes(search.toLowerCase()) ||
-      (e.source || "").toLowerCase().includes(search.toLowerCase())
-  );
+  // Distinct values for selects
+  const { sources, eventNames } = useMemo(() => {
+    const s = new Set<string>();
+    const n = new Set<string>();
+    (events || []).forEach((e) => {
+      if (e.source) s.add(e.source);
+      if (e.event_name) n.add(e.event_name);
+    });
+    return { sources: Array.from(s).sort(), eventNames: Array.from(n).sort() };
+  }, [events]);
+
+  const filtered = useMemo(() => {
+    return (events || []).filter((e) => {
+      // search
+      const term = search.toLowerCase();
+      if (
+        term &&
+        !e.event_name.toLowerCase().includes(term) &&
+        !(e.source || "").toLowerCase().includes(term) &&
+        !e.id.toLowerCase().includes(term)
+      ) {
+        return false;
+      }
+      if (statusFilter !== "all" && e.processing_status !== statusFilter) return false;
+      if (sourceFilter !== "all" && (e.source || "") !== sourceFilter) return false;
+      if (eventFilter !== "all" && e.event_name !== eventFilter) return false;
+      if (dedupOnly === "yes" && !e.deduplication_key) return false;
+      if (dedupOnly === "no" && e.deduplication_key) return false;
+      return true;
+    });
+  }, [events, search, statusFilter, sourceFilter, eventFilter, dedupOnly]);
 
   const totalPages = Math.ceil(filtered.length / ROWS_PER_PAGE);
   const paginatedEvents = filtered.slice(page * ROWS_PER_PAGE, (page + 1) * ROWS_PER_PAGE);
+
+  const activeFilters = [
+    statusFilter !== "all" && { key: "status", label: `Status: ${statusFilter}`, clear: () => setStatusFilter("all") },
+    sourceFilter !== "all" && { key: "source", label: `Source: ${sourceFilter}`, clear: () => setSourceFilter("all") },
+    eventFilter !== "all" && { key: "event", label: `Evento: ${eventFilter}`, clear: () => setEventFilter("all") },
+    dedupOnly !== "all" && { key: "dedup", label: `Dedup: ${dedupOnly === "yes" ? "sim" : "não"}`, clear: () => setDedupOnly("all") },
+  ].filter(Boolean) as { key: string; label: string; clear: () => void }[];
+
+  const clearAll = () => {
+    setStatusFilter("all");
+    setSourceFilter("all");
+    setEventFilter("all");
+    setDedupOnly("all");
+    setPage(0);
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -39,18 +93,101 @@ export default function EventLogs() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
           <Input
-            placeholder="Buscar eventos..."
+            placeholder="Buscar por evento, source ou ID..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(0); }}
             className="pl-10 bg-card border-border text-foreground placeholder:text-muted-foreground"
             aria-label="Buscar eventos"
           />
         </div>
-        <Button variant="outline" className="border-border text-muted-foreground" aria-label="Filtros">
-          <Filter className="w-4 h-4 mr-2" />
-          Filtros
-        </Button>
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="border-border text-muted-foreground" aria-label="Filtros">
+              <Filter className="w-4 h-4 mr-2" />
+              Filtros
+              {activeFilters.length > 0 && (
+                <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-[10px]">{activeFilters.length}</Badge>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-80 p-4" align="end">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium text-sm text-foreground">Filtrar eventos</h4>
+                {activeFilters.length > 0 && (
+                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={clearAll}>Limpar</Button>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Status</Label>
+                <Select value={statusFilter} onValueChange={(v: StatusFilter) => { setStatusFilter(v); setPage(0); }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="delivered">Delivered</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="failed">Failed</SelectItem>
+                    <SelectItem value="skipped">Skipped</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Source</Label>
+                <Select value={sourceFilter} onValueChange={(v) => { setSourceFilter(v); setPage(0); }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas</SelectItem>
+                    {sources.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Nome do evento</Label>
+                <Select value={eventFilter} onValueChange={(v) => { setEventFilter(v); setPage(0); }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent className="max-h-64">
+                    <SelectItem value="all">Todos</SelectItem>
+                    {eventNames.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Deduplicação</Label>
+                <Select value={dedupOnly} onValueChange={(v: "all" | "yes" | "no") => { setDedupOnly(v); setPage(0); }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="yes">Apenas com dedup</SelectItem>
+                    <SelectItem value="no">Sem dedup</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
+
+      {activeFilters.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {activeFilters.map((f) => (
+            <Badge key={f.key} variant="secondary" className="gap-1.5 pl-2 pr-1 py-1">
+              {f.label}
+              <button
+                onClick={f.clear}
+                className="rounded-sm hover:bg-muted-foreground/20 p-0.5"
+                aria-label={`Remover filtro ${f.label}`}
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
 
       <div className="surface-elevated overflow-hidden">
         {isLoading ? (
@@ -60,8 +197,8 @@ export default function EventLogs() {
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={Inbox}
-            title={search ? "Nenhum evento encontrado" : "Nenhum evento registrado"}
-            description={search ? "Tente buscar com outro termo." : "Instale o SDK no seu site e os eventos aparecerão aqui."}
+            title={search || activeFilters.length > 0 ? "Nenhum evento encontrado" : "Nenhum evento registrado"}
+            description={search || activeFilters.length > 0 ? "Tente ajustar os filtros ou termo de busca." : "Instale o SDK no seu site e os eventos aparecerão aqui."}
           />
         ) : (
           <div className="overflow-x-auto">
