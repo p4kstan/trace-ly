@@ -30,18 +30,22 @@ async function logAction(
 
 async function callGoogleAdsMutate(body: Record<string, unknown>) {
   const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/google-ads-mutate`;
-  // Service-role token grants the function the right to bypass jwt verification flow.
+  // Internal automation header — google-ads-mutate accepts service-role bearer
+  // when x-internal-source is set, bypassing the per-user JWT check.
   const r = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+      "x-internal-source": "mcp",
     },
     body: JSON.stringify(body),
   });
   const j = await r.json().catch(() => ({}));
   return { ok: r.ok, status: r.status, data: j };
 }
+
+// ─────────── Campaign-level ───────────
 
 export async function execCampaignsPause(
   ctx: ExecCtx,
@@ -57,8 +61,7 @@ export async function execCampaignsPause(
   await logAction(ctx, "campaigns.pause", res.ok ? "success" : "failed", {
     target_type: "campaign",
     target_id: params.campaign_id,
-    customer_id: params.customer_id,
-    after_value: { status: "PAUSED" },
+    after_value: { status: "PAUSED", customer_id: params.customer_id },
     error_message: res.ok ? null : JSON.stringify(res.data).slice(0, 500),
   });
   return res;
@@ -78,8 +81,7 @@ export async function execCampaignsResume(
   await logAction(ctx, "campaigns.resume", res.ok ? "success" : "failed", {
     target_type: "campaign",
     target_id: params.campaign_id,
-    customer_id: params.customer_id,
-    after_value: { status: "ENABLED" },
+    after_value: { status: "ENABLED", customer_id: params.customer_id },
     error_message: res.ok ? null : JSON.stringify(res.data).slice(0, 500),
   });
   return res;
@@ -89,7 +91,6 @@ export async function execCampaignsUpdateBudget(
   ctx: ExecCtx,
   params: { customer_id: string; campaign_id: string; daily_amount: number },
 ) {
-  // Two-step: get budget resource, then update.
   const lookup = await callGoogleAdsMutate({
     workspace_id: ctx.workspaceId,
     customer_id: params.customer_id,
@@ -100,7 +101,6 @@ export async function execCampaignsUpdateBudget(
     await logAction(ctx, "campaigns.update_budget", "failed", {
       target_type: "campaign",
       target_id: params.campaign_id,
-      customer_id: params.customer_id,
       error_message: "budget_resource lookup failed",
     });
     return lookup;
@@ -117,31 +117,155 @@ export async function execCampaignsUpdateBudget(
   await logAction(ctx, "campaigns.update_budget", res.ok ? "success" : "failed", {
     target_type: "campaign",
     target_id: params.campaign_id,
-    customer_id: params.customer_id,
     before_value: { daily_amount: before },
-    after_value: { daily_amount: params.daily_amount },
+    after_value: { daily_amount: params.daily_amount, customer_id: params.customer_id },
     error_message: res.ok ? null : JSON.stringify(res.data).slice(0, 500),
   });
   return res;
 }
 
-// Bid modifier + ad-group status are exposed as dry_run today (the underlying
-// google-ads-mutate function only implements campaign status + budget). We log
-// the intent so agents can see exactly what they tried, and we can wire it up
-// in google-ads-mutate without touching the MCP contract.
+// ─────────── Keyword-level (granular) ───────────
+
+export async function execKeywordsUpdateBid(
+  ctx: ExecCtx,
+  params: {
+    customer_id: string;
+    ad_group_id: string;
+    ad_group_criterion_id: string;
+    cpc_bid: number; // in account currency (e.g. BRL)
+    reason?: string;
+  },
+) {
+  const cpc_bid_micros = Math.round(params.cpc_bid * 1_000_000);
+  const res = await callGoogleAdsMutate({
+    workspace_id: ctx.workspaceId,
+    customer_id: params.customer_id,
+    action: "update_keyword_bid",
+    ad_group_id: params.ad_group_id,
+    ad_group_criterion_id: params.ad_group_criterion_id,
+    cpc_bid_micros,
+  });
+  await logAction(ctx, "keywords.update_bid", res.ok ? "success" : "failed", {
+    target_type: "keyword",
+    target_id: `${params.ad_group_id}~${params.ad_group_criterion_id}`,
+    after_value: { cpc_bid: params.cpc_bid, customer_id: params.customer_id },
+    metadata_json: { reason: params.reason || null },
+    error_message: res.ok ? null : JSON.stringify(res.data).slice(0, 500),
+  });
+  return res;
+}
+
+export async function execKeywordsSetStatus(
+  ctx: ExecCtx,
+  params: {
+    customer_id: string;
+    ad_group_id: string;
+    ad_group_criterion_id: string;
+    status: "ENABLED" | "PAUSED";
+    reason?: string;
+  },
+) {
+  const res = await callGoogleAdsMutate({
+    workspace_id: ctx.workspaceId,
+    customer_id: params.customer_id,
+    action: "update_keyword_status",
+    ad_group_id: params.ad_group_id,
+    ad_group_criterion_id: params.ad_group_criterion_id,
+    status: params.status,
+  });
+  await logAction(ctx, "keywords.set_status", res.ok ? "success" : "failed", {
+    target_type: "keyword",
+    target_id: `${params.ad_group_id}~${params.ad_group_criterion_id}`,
+    after_value: { status: params.status, customer_id: params.customer_id },
+    metadata_json: { reason: params.reason || null },
+    error_message: res.ok ? null : JSON.stringify(res.data).slice(0, 500),
+  });
+  return res;
+}
+
+// ─────────── Ad-group-level ───────────
+
+export async function execAdGroupsUpdateBid(
+  ctx: ExecCtx,
+  params: {
+    customer_id: string;
+    ad_group_id: string;
+    cpc_bid: number;
+    reason?: string;
+  },
+) {
+  const cpc_bid_micros = Math.round(params.cpc_bid * 1_000_000);
+  const res = await callGoogleAdsMutate({
+    workspace_id: ctx.workspaceId,
+    customer_id: params.customer_id,
+    action: "update_ad_group_bid",
+    ad_group_id: params.ad_group_id,
+    cpc_bid_micros,
+  });
+  await logAction(ctx, "ad_groups.update_bid", res.ok ? "success" : "failed", {
+    target_type: "ad_group",
+    target_id: params.ad_group_id,
+    after_value: { cpc_bid: params.cpc_bid, customer_id: params.customer_id },
+    metadata_json: { reason: params.reason || null },
+    error_message: res.ok ? null : JSON.stringify(res.data).slice(0, 500),
+  });
+  return res;
+}
+
 export async function execAdGroupsSetStatus(
   ctx: ExecCtx,
   params: { customer_id: string; ad_group_id: string; status: "ENABLED" | "PAUSED" },
 ) {
+  // Reuses google-ads-mutate update_keyword_status path for ad_groups would be wrong;
+  // we still treat ad-group status as dry_run until a dedicated action is wired.
   await logAction(ctx, "ad_groups.set_status", "dry_run", {
     target_type: "ad_group",
     target_id: params.ad_group_id,
-    customer_id: params.customer_id,
-    after_value: { status: params.status },
-    metadata_json: { note: "queued — google-ads-mutate ad_group action not wired yet" },
+    after_value: { status: params.status, customer_id: params.customer_id },
+    metadata_json: { note: "queued — google-ads-mutate ad_group status not wired yet" },
   });
   return { ok: true, status: 202, data: { queued: true, dry_run: true } };
 }
+
+// ─────────── Negative keywords ───────────
+
+export async function execNegativeKeywordsAdd(
+  ctx: ExecCtx,
+  params: {
+    customer_id: string;
+    keyword_text: string;
+    match_type: "EXACT" | "PHRASE" | "BROAD";
+    level?: "campaign" | "ad_group";
+    campaign_id?: string;
+    ad_group_id?: string;
+    reason?: string;
+  },
+) {
+  const res = await callGoogleAdsMutate({
+    workspace_id: ctx.workspaceId,
+    customer_id: params.customer_id,
+    action: "add_negative_keyword",
+    level: params.level,
+    campaign_id: params.campaign_id,
+    ad_group_id: params.ad_group_id,
+    keyword_text: params.keyword_text,
+    match_type: params.match_type,
+  });
+  await logAction(ctx, "negative_keywords.add", res.ok ? "success" : "failed", {
+    target_type: params.level === "ad_group" ? "ad_group" : "campaign",
+    target_id: params.ad_group_id || params.campaign_id || null,
+    after_value: {
+      keyword_text: params.keyword_text,
+      match_type: params.match_type,
+      customer_id: params.customer_id,
+    },
+    metadata_json: { reason: params.reason || null },
+    error_message: res.ok ? null : JSON.stringify(res.data).slice(0, 500),
+  });
+  return res;
+}
+
+// ─────────── Bid modifiers (still dry_run in mutate function) ───────────
 
 export async function execBidModifiersUpdate(
   ctx: ExecCtx,
@@ -155,8 +279,11 @@ export async function execBidModifiersUpdate(
   await logAction(ctx, "bid_modifiers.update", "dry_run", {
     target_type: "campaign",
     target_id: params.campaign_id,
-    customer_id: params.customer_id,
-    after_value: { criterion: params.criterion, modifier: params.modifier },
+    after_value: {
+      criterion: params.criterion,
+      modifier: params.modifier,
+      customer_id: params.customer_id,
+    },
     metadata_json: { note: "queued — google-ads-mutate bid_modifier action not wired yet" },
   });
   return { ok: true, status: 202, data: { queued: true, dry_run: true } };
