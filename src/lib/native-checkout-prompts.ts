@@ -388,17 +388,29 @@ ${purchaseBlock(cfg)}
 ## Particularidades por método
 ${cfg.methods.map(m => `- **${PAYMENT_META[m].label}**: ${PAYMENT_META[m].hint}`).join("\n")}
 
+## ⚠️ Regras críticas (Módulo de Deduplicação de Elite — 04/2026)
+1. **\`external_id\` obrigatório**: SEMPRE envie no payload do CapiTrack o ID da transação do gateway. É a chave de dedupe.
+2. **\`event_id\` padronizado**: \`\${external_id}:Purchase\` — mesmo formato no client e no webhook.
+3. **Janela de 48h**: o backend bloqueia automaticamente disparos duplicados do mesmo \`external_id:event_name\` em 48h.
+4. **Click IDs case-sensitive**: \`gclid\`, \`gbraid\`, \`wbraid\`, \`fbclid\`, \`ttclid\` NUNCA podem passar por \`.toLowerCase()\`. Apenas \`.trim()\`.
+5. **Trava de status pago**: Purchase só dispara quando o status do gateway estiver em \`{paid, approved, confirmed, succeeded, captured, pix_paid}\`. Pendente/aguardando = NÃO disparar.
+6. **\`session_id\` no payload**: permite que o backend faça fallback de atribuição buscando o clique original na tabela \`sessions\` se o webhook chegar "seco".
+7. **Roteamento Last-Click**: o CapiTrack envia o Purchase pra plataforma do último clique (gclid→Google Ads, fbclid→Meta, ttclid→TikTok). Você não precisa decidir — só envie todos os IDs disponíveis.
+
 ## Validação
-1. Abra o site com \`?gclid=TESTE123&utm_source=google\` na URL.
+1. Abra o site com \`?gclid=TESTE-CaseSensitive_123&utm_source=google&utm_term=palavra-chave\` na URL.
 2. Faça uma compra de teste em cada método ativo (${methods}).
-3. Cheque cookie \`ct_gclid\` (DevTools → Application → Cookies).
-4. Confirme que o body para ${g.label} tem o bloco com gclid + customer.
-5. Confirme que a request POST para ${cfg.endpoint} retorna status 200.
-6. Verifique no painel CapiTrack (/event-logs) que Purchase aparece com event_id = order.id.
+3. Cheque cookie \`ct_gclid\` — o valor deve estar EXATAMENTE como veio na URL (case preservado).
+4. Confirme que o body para ${g.label} tem o bloco com gclid + customer + session_id.
+5. Confirme que a request POST para ${cfg.endpoint} retorna status 200 e contém \`external_id\`.
+6. Verifique em /event-logs que Purchase aparece com event_id = \`<order.id>:Purchase\`.
+7. Faça uma 2ª compra com o mesmo \`order.id\` em <48h: o segundo disparo deve aparecer como \`skipped: dedup_window\`.
 
 ## Não faça
 - Não remova nenhuma chamada ao ${g.label} existente.
 - Não troque o gateway.
 - Não altere o fluxo visual do checkout.
+- Não use \`.toLowerCase()\` em click IDs.
+- Não dispare Purchase em status pendente/checkout_created/boleto_printed.
 - Apenas adicione as 4 camadas acima.`;
 }
