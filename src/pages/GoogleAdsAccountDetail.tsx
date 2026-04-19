@@ -283,41 +283,6 @@ export default function GoogleAdsAccountDetail() {
         </CardContent>
       </Card>
 
-      <Card className="glass-card">
-        <CardHeader>
-          <CardTitle className="text-base">Campanhas recentes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {campaigns.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Nenhuma campanha sincronizada ainda. Clique em "Sincronizar" acima.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead className="text-muted-foreground border-b border-border/50">
-                  <tr>
-                    <th className="text-left py-2 pr-3">Campanha</th>
-                    <th className="text-left py-2 pr-3">Data</th>
-                    <th className="text-right py-2 pr-3">Cliques</th>
-                    <th className="text-right py-2 pr-3">Conv.</th>
-                    <th className="text-right py-2">Custo</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {campaigns.map((c, i) => (
-                    <tr key={i} className="border-b border-border/30">
-                      <td className="py-1.5 pr-3 text-foreground/90 truncate max-w-[200px]">{c.campaign_name || c.campaign_id}</td>
-                      <td className="py-1.5 pr-3 text-muted-foreground">{c.date}</td>
-                      <td className="py-1.5 pr-3 text-right font-mono">{c.clicks ?? 0}</td>
-                      <td className="py-1.5 pr-3 text-right font-mono">{Number(c.conversions ?? 0).toFixed(1)}</td>
-                      <td className="py-1.5 text-right font-mono">R$ {(Number(c.cost_micros ?? 0) / 1_000_000).toFixed(2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
