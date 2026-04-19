@@ -302,9 +302,19 @@ ${cfg.hasMetaAds ? "   - Meta Pixel ID e Access Token configurados?\n" : ""}${cf
    - Eventos enviam email/phone/nome? Estão sendo hasheados (SHA-256) antes do envio?
    - fbp/fbc, gclid, ttclid sendo capturados e persistidos?
 
-7) DEDUPLICAÇÃO
-   - event_id consistente entre client e webhook?
-   - Formato usado: \`{transaction_id}:{event_name}\`?
+7) DEDUPLICAÇÃO E SANITIZAÇÃO (CRÍTICO — atualizado 04/2026)
+   - O Purchase client-side e o webhook server-side usam o MESMO \`external_id\` (ID da transação no gateway)?
+   - O event_id segue o formato \`{external_id}:{event_name}\` (ex: \`ord_abc123:Purchase\`)?
+   - Os click IDs (gclid, gbraid, wbraid, fbclid, ttclid) são tratados como TEXT puro
+     (apenas .trim(), NUNCA .toLowerCase()/.normalize/replace)?
+   - O sistema verifica em event_deliveries se já existe disparo nas últimas 48h antes de re-enviar?
+   - O Purchase só é disparado quando status ∈ {paid, approved, confirmed, succeeded, pix_paid, order_paid}?
+     (status pending, checkout_created, boleto_printed NÃO devem disparar Purchase)
+   - O session_id é enviado no payload pra permitir fallback de atribuição via tabela sessions?
+
+8) ROTEAMENTO LAST-CLICK
+   - Quando uma venda chega, qual identificador "ganha"? (esperado: gclid > fbclid/fbc > ttclid)
+   - Plataformas que NÃO são donas do clique recebem só sinais auxiliares (não Purchase principal)?
 
 ═══════════════════════════════════════════════
 FORMATO DA RESPOSTA
