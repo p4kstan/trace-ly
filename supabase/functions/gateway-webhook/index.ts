@@ -368,11 +368,65 @@ async function enqueueForMeta(
   }
 }
 
+// ════════════════════════════════════════════════════════════
+// Elite Deduplication Module
+// ────────────────────────────────────────────────────────────
+// 1. Canonical dedup key: `${external_id}:${event_name}` (DNA do evento).
+// 2. 48h window check against `event_deliveries` to block re-fires.
+// 3. Smart routing by Last-Click: pick the freshest click identifier
+//    captured in the session and route the *primary* conversion to
+//    that platform; secondary platforms only get supporting signals.
+// 4. Paid-status gate: only `paid|approved|confirmed` events go out
+//    as Purchase conversions.
+// ════════════════════════════════════════════════════════════
+
+const PAID_STATUSES = new Set([
+  "order_paid", "order_approved", "payment_paid",
+  "pix_paid", "boleto_paid", "subscription_renewed", "subscription_started",
+]);
+
+function buildDedupKey(externalId: string, eventName: string): string {
+  return `${externalId}:${eventName}`.toLowerCase();
+}
+
+/** Pick the platform that owns the conversion based on Last-Click attribution.
+ *  Returns the provider that should receive the *primary* Purchase event.
+ *  Other providers in the workspace still get supporting signals. */
+function pickPrimaryProvider(session: any, tracking: any): string | null {
+  const s = session || {};
+  const t = tracking || {};
+  // Order matters: gclid wins over fbclid wins over ttclid (Google→Meta→TikTok).
+  // For true last-click we'd compare timestamps, but session is already the
+  // most recent one — so presence of ID = it was the last channel.
+  if (s.gclid || s.gbraid || s.wbraid || t.gclid || t.gbraid || t.wbraid) return "google_ads";
+  if (s.fbclid || s.fbc || t.fbclid || t.fbc) return "meta";
+  if (s.ttclid || t.ttclid) return "tiktok";
+  return null;
+}
+
+async function alreadyDelivered(
+  workspaceId: string, dedupKey: string, provider: string,
+): Promise<boolean> {
+  const since = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  const { data } = await supabase
+    .from("event_deliveries")
+    .select("id")
+    .eq("workspace_id", workspaceId)
+    .eq("provider", provider)
+    .eq("status", "delivered")
+    .contains("request_json", { dedup_key: dedupKey })
+    .gte("created_at", since)
+    .limit(1)
+    .maybeSingle();
+  return !!data;
+}
+
 async function enqueueForOtherProviders(
   workspaceId: string, eventId: string, orderId: string | null,
   order: NormalizedOrder, marketingEvent: string,
   sessionData: any, identityId: string | null,
   enrichedCustomer: any,
+  internalEvent: string,
 ) {
   const { data: destinations } = await supabase.from("integration_destinations")
     .select("id, provider, destination_id")
@@ -380,12 +434,42 @@ async function enqueueForOtherProviders(
     .in("provider", ["google_ads", "tiktok", "ga4"]);
   if (!destinations?.length) return;
 
+  // Paid-status gate for Purchase conversions
+  const isPurchase = marketingEvent === "Purchase";
+  const isPaidStatus = PAID_STATUSES.has(internalEvent);
+  if (isPurchase && !isPaidStatus) {
+    console.log(`[dedup-elite] BLOCK Purchase dispatch — status=${internalEvent} not in paid-set, order=${order.external_order_id}`);
+    return;
+  }
+
+  const externalId = order.external_order_id || order.external_payment_id || eventId;
+  const dedupKey = buildDedupKey(externalId, marketingEvent);
+  const primaryProvider = pickPrimaryProvider(sessionData, order.tracking);
+
   for (const dest of destinations) {
+    // 48h window dedup check (only enforced for Purchase to allow retries on funnel events)
+    if (isPurchase && await alreadyDelivered(workspaceId, dedupKey, dest.provider)) {
+      console.log(`[dedup-elite] SKIP duplicate provider=${dest.provider} dedup_key=${dedupKey}`);
+      continue;
+    }
+
+    // Last-Click routing: only block ad-platforms that aren't the primary owner.
+    // GA4 always receives (it's analytics, not ad attribution).
+    const isAdPlatform = dest.provider === "google_ads" || dest.provider === "tiktok";
+    const isPrimary = primaryProvider === dest.provider;
+    if (isPurchase && isAdPlatform && primaryProvider && !isPrimary) {
+      console.log(`[dedup-elite] SKIP non-primary ad-platform provider=${dest.provider} primary=${primaryProvider} dedup_key=${dedupKey}`);
+      continue;
+    }
+
     await supabase.from("event_queue").upsert({
       workspace_id: workspaceId, event_id: eventId, order_id: orderId,
       provider: dest.provider, destination: dest.destination_id, status: "queued",
       payload_json: {
         marketing_event: marketingEvent,
+        dedup_key: dedupKey,
+        external_transaction_id: externalId,
+        primary_provider: primaryProvider,
         order: { total_value: order.total_value, currency: order.currency, external_order_id: order.external_order_id, payment_method: order.payment_method, items: order.items },
         customer: enrichedCustomer,
         session: sessionData ? { fbp: sessionData.fbp, fbc: sessionData.fbc, ip_hash: sessionData.ip_hash, user_agent: sessionData.user_agent, landing_page: sessionData.landing_page, gclid: sessionData.gclid, ttclid: sessionData.ttclid, ttp: sessionData.ttp, gbraid: sessionData.gbraid, wbraid: sessionData.wbraid, referrer: sessionData.referrer, utm_source: sessionData.utm_source, utm_medium: sessionData.utm_medium, utm_campaign: sessionData.utm_campaign, client_id: sessionData.ga_client_id } : null,
