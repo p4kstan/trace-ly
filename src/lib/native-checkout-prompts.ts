@@ -277,11 +277,14 @@ async function pollPix(chargeId) {
 }
 
 function firePurchase(order, payment_type) {
+  const externalId = order.id; // mesmo ID que o gateway envia no webhook → dedupe
+  const eventId = \`\${externalId}:Purchase\`;
+
   window.dataLayer = window.dataLayer || [];
   window.dataLayer.push({
     event: "purchase",
     ecommerce: {
-      transaction_id: order.id,
+      transaction_id: externalId,
       value: order.total, currency: "BRL", payment_type,
       items: order.items,
     },
@@ -290,16 +293,23 @@ function firePurchase(order, payment_type) {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-api-key": "${cfg.publicKey}" },
     body: JSON.stringify({
-      event_name: "Purchase", event_id: order.id,
-      value: order.total, currency: "BRL", order_id: order.id, payment_type,
+      event_name: "Purchase",
+      event_id: eventId,
+      external_id: externalId,        // CRÍTICO pra dedupe de 48h no backend
+      order_id: externalId,
+      value: order.total, currency: "BRL", payment_type,
+      payment_status: "paid",
       email: order.customer.email, phone: order.customer.phone,
-      external_id: order.customer.document,
-      ...readTracking(),
+      customer_document: order.customer.document,
+      ...readTracking(),               // session_id incluso
       action_source: "website", url: location.href,
     }),
   });
 }
-\`\`\``);
+\`\`\`
+
+> ℹ️ Se o webhook server-side do gateway também disparar Purchase, o backend do CapiTrack
+> deduplica automaticamente pela chave \`external_id:Purchase\` em janela de 48h. Pode coexistir.`);
   }
 
   if (hasBoleto) {
