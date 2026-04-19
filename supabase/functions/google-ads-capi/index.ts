@@ -199,12 +199,18 @@ Deno.serve(async (req) => {
     // ── Resolve credentials: prefer fresh credentials from google_ads_credentials ──
     const config = destination.config_json || {};
     const customerId = String(config.customer_id || "").replace(/\D/g, "");
-    // Google Ads expects the conversion action's NUMERIC ID, not the label string.
-    // Prefer config.conversion_action_id, fall back to destination.destination_id (which is numeric in our setup).
-    const conversionActionId = String(
-      config.conversion_action_id || destination.destination_id || ""
-    ).replace(/\D/g, "");
-    const conversionLabel = conversionActionId; // keep var name used downstream
+    // Google Ads aceita TANTO o ID numérico quanto o LABEL alfanumérico em
+    // `customers/{cid}/conversionActions/{X}`. Priorizamos o que o usuário
+    // efetivamente cadastrou (`conversion_label` na UI). Só caímos para
+    // `conversion_action_id` / `destination_id` (legado) como fallback.
+    // Mantemos caracteres alfanuméricos + underscores/hífens (labels podem ter).
+    const rawConversionRef = String(
+      config.conversion_label ||
+      config.conversion_action_id ||
+      destination.destination_id ||
+      ""
+    ).trim();
+    const conversionLabel = rawConversionRef.replace(/[^A-Za-z0-9_-]/g, "");
 
     const { data: creds, error: credsErr } = await supabase
       .from("google_ads_credentials")
