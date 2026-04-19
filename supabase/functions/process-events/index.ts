@@ -95,18 +95,40 @@ async function buildMetaEvent(item: any) {
   const order = p.order || {};
 
   const userData: Record<string, unknown> = {};
-  if (customer.email) userData.em = [await sha256(customer.email.toLowerCase().trim())];
-  if (customer.phone) userData.ph = [await sha256(customer.phone.replace(/\D/g, ""))];
-  if (customer.name) {
-    const parts = customer.name.trim().split(/\s+/);
+
+  // Prefer pre-hashed PII (computed at webhook time, normalized BR phone, etc).
+  // Fall back to on-the-fly hashing if hashes weren't pre-computed.
+  if (customer.email_hash) userData.em = [customer.email_hash];
+  else if (customer.email) userData.em = [await sha256(String(customer.email).toLowerCase().trim())];
+
+  if (customer.phone_hash) userData.ph = [customer.phone_hash];
+  else if (customer.phone) userData.ph = [await sha256(String(customer.phone).replace(/\D/g, ""))];
+
+  // Names — prefer split first/last hashes when available
+  if (customer.first_name_hash) userData.fn = [customer.first_name_hash];
+  if (customer.last_name_hash) userData.ln = [customer.last_name_hash];
+  if (!customer.first_name_hash && !customer.last_name_hash && customer.name) {
+    const parts = String(customer.name).trim().split(/\s+/);
     userData.fn = [await sha256(parts[0].toLowerCase())];
     if (parts.length > 1) userData.ln = [await sha256(parts[parts.length - 1].toLowerCase())];
   }
+
+  // Address — Enhanced Conversions match-rate booster
+  if (customer.city_hash) userData.ct = [customer.city_hash];
+  if (customer.state_hash) userData.st = [customer.state_hash];
+  if (customer.zip_hash) userData.zp = [customer.zip_hash];
+  if (customer.country_hash) userData.country = [customer.country_hash];
+
   if (p.identity_id) userData.external_id = [p.identity_id];
   if (session.fbp) userData.fbp = session.fbp;
   if (session.fbc) userData.fbc = session.fbc;
+
+  // Priority: session.ip_hash → webhook-provided IP from gateway
   if (session.ip_hash) userData.client_ip_address = session.ip_hash;
+  else if (p.webhook_client_ip) userData.client_ip_address = p.webhook_client_ip;
+
   if (session.user_agent) userData.client_user_agent = session.user_agent;
+  else if (p.webhook_user_agent) userData.client_user_agent = p.webhook_user_agent;
 
   return {
     event_name: p.marketing_event,
