@@ -78,7 +78,7 @@ export default function ApiKeys() {
   const toggleReveal = (id: string) => setRevealed((r) => ({ ...r, [id]: !r[id] }));
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const activeKey = keys?.find((k: any) => k.status === "active")?.public_key || "pk_xxxxx";
+  const activeKey = activeKeyRecord?.public_key || "pk_xxxxx";
 
   const snippet = `<script>
   (function(){
