@@ -197,12 +197,14 @@
 
     CLICK_IDS.forEach(function(key) {
       var val = params.get(key);
+      if (val != null) val = String(val).trim();
       if (val) {
         utms[key] = val;
         setCookie('ct_' + key, val, 90);
         setLS('ct_' + key, val);
       } else {
         var stored = getLS('ct_' + key) || getCookie('ct_' + key);
+        if (stored != null) stored = String(stored).trim();
         if (stored) utms[key] = stored;
       }
     });
