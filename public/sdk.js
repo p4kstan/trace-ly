@@ -694,6 +694,262 @@
     log('Checkout link decorator active (' + CHECKOUT_DOMAINS.length + ' gateways)');
   }
 
+  // ---- Behavioral tracking (SDK v4.2.0) ----
+  // Captures deep behavior signals BEFORE purchase to feed Smart Bidding /
+  // Advantage+ with rich training data. All signals are throttled and
+  // dispatched as standard CAPI events (ViewContent / AddToCart) reusing
+  // the journey event_id so dedup with the eventual Purchase still holds.
+  var __behaviorState = {
+    sessionStart: Date.now(),
+    maxScrollPct: 0,
+    dwellMilestones: {}, // 10/30/60/120s
+    scrollMilestones: {}, // 25/50/75/100%
+    viewContentFired: false,
+    addToCartFired: false,
+    mouseSamples: 0,
+    lastMouseSample: 0,
+    formInteractions: {},
+    videoPlays: {},
+    hoverTimers: {},
+  };
+
+  function fireBehaviorEvent(name, data) {
+    if (!canTrackAds() && !canTrackAnalytics()) return;
+    enqueueEvent(buildEvent(name, data));
+  }
+
+  function setupScrollDepthTracking() {
+    var milestones = [25, 50, 75, 100];
+    function onScroll() {
+      try {
+        var doc = document.documentElement;
+        var scrollTop = window.pageYOffset || doc.scrollTop;
+        var scrollHeight = Math.max(doc.scrollHeight, doc.offsetHeight) - window.innerHeight;
+        if (scrollHeight <= 0) return;
+        var pct = Math.min(100, Math.round((scrollTop / scrollHeight) * 100));
+        if (pct > __behaviorState.maxScrollPct) __behaviorState.maxScrollPct = pct;
+        for (var i = 0; i < milestones.length; i++) {
+          var m = milestones[i];
+          if (pct >= m && !__behaviorState.scrollMilestones[m]) {
+            __behaviorState.scrollMilestones[m] = true;
+            fireBehaviorEvent('ScrollDepth', { depth_percent: m, page_path: window.location.pathname });
+            // Auto-fire ViewContent at 50% scroll if not yet fired
+            if (m === 50 && !__behaviorState.viewContentFired) {
+              __behaviorState.viewContentFired = true;
+              fireBehaviorEvent('ViewContent', { trigger: 'scroll_50', engagement_time: Date.now() - __behaviorState.sessionStart });
+            }
+          }
+        }
+      } catch(e) {}
+    }
+    var ticking = false;
+    window.addEventListener('scroll', function() {
+      if (!ticking) {
+        window.requestAnimationFrame(function() { onScroll(); ticking = false; });
+        ticking = true;
+      }
+    }, { passive: true });
+  }
+
+  function setupDwellTimeTracking() {
+    var stages = [
+      { sec: 10, name: 'Engaged10s' },
+      { sec: 30, name: 'Engaged30s' },
+      { sec: 60, name: 'Engaged60s' },
+      { sec: 120, name: 'Engaged120s' }
+    ];
+    stages.forEach(function(stage) {
+      setTimeout(function() {
+        // Only fire if user is still on the page (visibility check)
+        if (document.visibilityState === 'hidden' || __behaviorState.dwellMilestones[stage.sec]) return;
+        __behaviorState.dwellMilestones[stage.sec] = true;
+        fireBehaviorEvent(stage.name, { dwell_seconds: stage.sec, scroll_pct: __behaviorState.maxScrollPct });
+        // Auto ViewContent after 10s on page
+        if (stage.sec === 10 && !__behaviorState.viewContentFired) {
+          __behaviorState.viewContentFired = true;
+          fireBehaviorEvent('ViewContent', { trigger: 'dwell_10s', engagement_time: 10000 });
+        }
+      }, stage.sec * 1000);
+    });
+  }
+
+  // Heuristic: button/link looks like an "add to cart" / "buy" CTA
+  function isCtaElement(el) {
+    if (!el) return false;
+    var text = (el.textContent || '').trim().toLowerCase();
+    var classes = (el.className || '').toString().toLowerCase();
+    var id = (el.id || '').toLowerCase();
+    var attrs = (el.getAttribute('data-action') || '') + ' ' + (el.getAttribute('data-track') || '');
+    var combined = text + ' ' + classes + ' ' + id + ' ' + attrs.toLowerCase();
+    return /\b(comprar|comprar agora|buy|buy now|add to cart|adicionar|carrinho|checkout|finalizar|pagar|assinar|subscribe|quero|garantir|reservar)\b/.test(combined);
+  }
+
+  function setupClickTracking() {
+    document.addEventListener('click', function(ev) {
+      try {
+        var el = ev.target;
+        // Climb to nearest button/a/[data-track]
+        var depth = 0;
+        while (el && el !== document.body && depth < 6) {
+          if (el.tagName === 'BUTTON' || el.tagName === 'A' || el.hasAttribute('data-track')) break;
+          el = el.parentNode; depth++;
+        }
+        if (!el || el === document.body) return;
+        var data = {
+          element_tag: el.tagName,
+          element_text: (el.textContent || '').trim().slice(0, 80),
+          element_id: el.id || undefined,
+          element_class: (el.className || '').toString().slice(0, 80) || undefined,
+          element_href: el.href || undefined,
+          page_path: window.location.pathname,
+        };
+        // Custom track key
+        if (el.hasAttribute('data-track')) {
+          fireBehaviorEvent(el.getAttribute('data-track') || 'CustomClick', data);
+          return;
+        }
+        // CTA → AddToCart (auto, only once per session unless explicit)
+        if (isCtaElement(el)) {
+          if (!__behaviorState.addToCartFired) {
+            __behaviorState.addToCartFired = true;
+            fireBehaviorEvent('AddToCart', Object.assign({ trigger: 'cta_click' }, data));
+          } else {
+            fireBehaviorEvent('CtaClick', data);
+          }
+        } else {
+          fireBehaviorEvent('Click', data);
+        }
+      } catch(e) {}
+    }, true);
+  }
+
+  function setupMouseHeatmapSampling() {
+    // Lightweight: 1 sample / second max, aggregate every 30s
+    var samples = [];
+    document.addEventListener('mousemove', function(ev) {
+      var now = Date.now();
+      if (now - __behaviorState.lastMouseSample < 1000) return;
+      __behaviorState.lastMouseSample = now;
+      __behaviorState.mouseSamples++;
+      try {
+        samples.push({
+          x: Math.round(ev.clientX / window.innerWidth * 100),
+          y: Math.round(ev.clientY / window.innerHeight * 100),
+          t: now - __behaviorState.sessionStart,
+        });
+      } catch(e) {}
+    }, { passive: true });
+    setInterval(function() {
+      if (samples.length === 0) return;
+      var batch = samples.splice(0, samples.length);
+      fireBehaviorEvent('MouseActivity', {
+        sample_count: batch.length,
+        first_t: batch[0].t,
+        last_t: batch[batch.length - 1].t,
+        page_path: window.location.pathname,
+      });
+    }, 30000);
+  }
+
+  function setupFormInteractionTracking() {
+    document.addEventListener('focusin', function(ev) {
+      try {
+        var el = ev.target;
+        if (!el || (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA' && el.tagName !== 'SELECT')) return;
+        var key = (el.name || el.id || el.type || 'field');
+        if (__behaviorState.formInteractions[key]) return;
+        __behaviorState.formInteractions[key] = true;
+        fireBehaviorEvent('FormInteraction', {
+          field_name: key,
+          field_type: el.type || el.tagName.toLowerCase(),
+          page_path: window.location.pathname,
+        });
+        // First form field focus → fire InitiateCheckout warm signal if checkout-like form
+        var formId = (el.form && (el.form.id || el.form.name) || '').toLowerCase();
+        if (/checkout|payment|order|buy|compra/.test(formId) && !__behaviorState.checkoutWarmFired) {
+          __behaviorState.checkoutWarmFired = true;
+          fireBehaviorEvent('InitiateCheckout', { trigger: 'form_focus', form: formId });
+        }
+      } catch(e) {}
+    }, true);
+  }
+
+  function setupVideoTracking() {
+    function attach(video) {
+      if (video.__ctTracked) return;
+      video.__ctTracked = true;
+      var src = video.currentSrc || video.src || 'unknown';
+      video.addEventListener('play', function() {
+        if (__behaviorState.videoPlays[src]) return;
+        __behaviorState.videoPlays[src] = true;
+        fireBehaviorEvent('VideoPlay', { video_src: src.slice(0, 200), duration: video.duration || 0 });
+      }, { passive: true });
+      video.addEventListener('ended', function() {
+        fireBehaviorEvent('VideoComplete', { video_src: src.slice(0, 200) });
+      }, { passive: true });
+    }
+    function scan() { document.querySelectorAll('video').forEach(attach); }
+    scan();
+    // Re-scan on DOM mutations (SPA-friendly)
+    if (window.MutationObserver) {
+      new MutationObserver(scan).observe(document.body, { childList: true, subtree: true });
+    }
+  }
+
+  function setupHoverTracking() {
+    // Hover ≥ 1.5s on product-like cards = intent signal
+    document.addEventListener('mouseover', function(ev) {
+      try {
+        var el = ev.target;
+        var depth = 0;
+        while (el && el !== document.body && depth < 4) {
+          if (el.hasAttribute && (el.hasAttribute('data-product-id') || /product|produto|item-card/i.test(el.className || ''))) break;
+          el = el.parentNode; depth++;
+        }
+        if (!el || el === document.body || !el.getAttribute) return;
+        var key = el.getAttribute('data-product-id') || el.id || (el.className || '').toString().slice(0, 40);
+        if (!key || __behaviorState.hoverTimers[key]) return;
+        __behaviorState.hoverTimers[key] = setTimeout(function() {
+          fireBehaviorEvent('ProductHover', {
+            product_key: key,
+            product_id: el.getAttribute('data-product-id') || undefined,
+            product_name: el.getAttribute('data-product-name') || (el.textContent || '').trim().slice(0, 80),
+          });
+        }, 1500);
+      } catch(e) {}
+    }, true);
+    document.addEventListener('mouseout', function(ev) {
+      try {
+        var el = ev.target;
+        var depth = 0;
+        while (el && el !== document.body && depth < 4) {
+          if (el.hasAttribute && (el.hasAttribute('data-product-id') || /product|produto|item-card/i.test(el.className || ''))) break;
+          el = el.parentNode; depth++;
+        }
+        if (!el || !el.getAttribute) return;
+        var key = el.getAttribute('data-product-id') || el.id || (el.className || '').toString().slice(0, 40);
+        if (key && __behaviorState.hoverTimers[key]) {
+          clearTimeout(__behaviorState.hoverTimers[key]);
+          delete __behaviorState.hoverTimers[key];
+        }
+      } catch(e) {}
+    }, true);
+  }
+
+  function setupBehavioralTracking() {
+    if (!config.behavioralTracking) return;
+    if (window.__capitrackBehaviorInstalled) return;
+    window.__capitrackBehaviorInstalled = true;
+    setupScrollDepthTracking();
+    setupDwellTimeTracking();
+    setupClickTracking();
+    setupMouseHeatmapSampling();
+    setupFormInteractionTracking();
+    setupVideoTracking();
+    setupHoverTracking();
+    log('Behavioral tracking active (scroll, dwell, clicks, mouse, forms, video, hover)');
+  }
+
   // ---- Auto-tracking ----
   function setupAutoTracking() {
     window.addEventListener('beforeunload', function() {
@@ -701,6 +957,19 @@
         eventQueue.forEach(function(event) {
           navigator.sendBeacon(config.endpoint + '?key=' + config.apiKey, JSON.stringify(event));
         });
+      }
+      // Final dwell signal (helps SmartBidding learn bounces vs engaged sessions)
+      if (config.behavioralTracking && navigator.sendBeacon) {
+        try {
+          var dwellMs = Date.now() - __behaviorState.sessionStart;
+          buildEvent('SessionEnd', {
+            dwell_ms: dwellMs,
+            max_scroll_pct: __behaviorState.maxScrollPct,
+            mouse_samples: __behaviorState.mouseSamples,
+          }).then(function(evt) {
+            navigator.sendBeacon(config.endpoint + '?key=' + config.apiKey, JSON.stringify(evt));
+          });
+        } catch(e) {}
       }
     });
   }
