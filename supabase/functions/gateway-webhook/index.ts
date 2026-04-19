@@ -603,7 +603,10 @@ Deno.serve(async (req) => {
         if (marketingEvent === "Purchase" || isPaid) {
           const wsId = workspaceId;
           const evtId = eventId;
-          const triggerAutoFeedback = async () => {
+          const orderId = savedOrder?.id || null;
+          const orderValue = order.total_value;
+
+          const callOptimizationEngine = async () => {
             try {
               await supabase.from("automation_actions").insert({
                 workspace_id: wsId,
@@ -612,7 +615,7 @@ Deno.serve(async (req) => {
                 action: "recompute_roi",
                 target_type: "workspace",
                 status: "pending",
-                metadata_json: { provider, order_id: savedOrder?.id, value: order.total_value },
+                metadata_json: { provider, order_id: orderId, value: orderValue },
               });
               const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/optimization-engine`, {
                 method: "POST",
@@ -634,7 +637,7 @@ Deno.serve(async (req) => {
                 error_message: r.ok ? null : `optimization-engine ${r.status}`,
               });
             } catch (e) {
-              console.error("auto-feedback error", e);
+              console.error("auto-feedback:optimization-engine error", e);
               await supabase.from("automation_actions").insert({
                 workspace_id: wsId,
                 trigger: "auto_feedback",
@@ -646,6 +649,61 @@ Deno.serve(async (req) => {
               });
             }
           };
+
+          // Notify MCP server so external agents can react to the conversion in real time.
+          const notifyMcp = async () => {
+            try {
+              const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/mcp`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Accept: "application/json, text/event-stream",
+                  Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                  "x-internal-source": "gateway-webhook",
+                },
+                body: JSON.stringify({
+                  jsonrpc: "2.0",
+                  id: crypto.randomUUID(),
+                  method: "notifications/conversion",
+                  params: {
+                    workspace_id: wsId,
+                    event_id: evtId,
+                    order_id: orderId,
+                    provider,
+                    value: orderValue,
+                    currency: order.currency,
+                    marketing_event: marketingEvent,
+                    occurred_at: new Date().toISOString(),
+                  },
+                }),
+              });
+              const body = await r.json().catch(() => ({}));
+              await supabase.from("automation_actions").insert({
+                workspace_id: wsId,
+                trigger: "auto_feedback",
+                source_event_id: evtId,
+                action: "notify_mcp",
+                target_type: "mcp",
+                status: r.ok ? "success" : "failed",
+                after_value: body,
+                metadata_json: { provider, order_id: orderId, value: orderValue },
+                error_message: r.ok ? null : `mcp ${r.status}`,
+              });
+            } catch (e) {
+              console.error("auto-feedback:mcp error", e);
+              await supabase.from("automation_actions").insert({
+                workspace_id: wsId,
+                trigger: "auto_feedback",
+                source_event_id: evtId,
+                action: "notify_mcp",
+                target_type: "mcp",
+                status: "failed",
+                error_message: String(e instanceof Error ? e.message : e).slice(0, 500),
+              });
+            }
+          };
+
+          const triggerAutoFeedback = () => Promise.allSettled([callOptimizationEngine(), notifyMcp()]);
           // @ts-ignore — Deno Edge Runtime global
           if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
             // @ts-ignore
