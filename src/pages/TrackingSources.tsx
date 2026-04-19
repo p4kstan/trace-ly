@@ -254,11 +254,20 @@ export default function TrackingSources() {
                       </Button>
                     </div>
                   )}
-                  <div className="flex justify-end">
+                  <div className="flex justify-end gap-1">
+                    <Button
+                      size="icon" variant="ghost" className="h-7 w-7"
+                      onClick={() => openEdit(source)}
+                      title="Configurações"
+                    >
+                      <Settings className="w-3.5 h-3.5" />
+                    </Button>
                     <Button
                       size="icon" variant="ghost"
                       className="h-7 w-7 text-destructive hover:text-destructive"
-                      onClick={() => deleteMutation.mutate(source.id)}
+                      onClick={() => {
+                        if (confirm(`Remover a source "${source.name}"?`)) deleteMutation.mutate(source.id);
+                      }}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </Button>
