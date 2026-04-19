@@ -302,12 +302,19 @@ Deno.serve(async (req) => {
     }
 
     // Enriquece user_data com cookies de tracking (fbp/fbc/ga_client_id) que vêm na raiz
+    // P0: persistir email_hash/phone_hash/ip_hash explicitamente para garantir match rate
+    // máximo nos dispatchers downstream (Meta CAPI, Google Ads CAPI, TikTok Events).
     const enrichedUserData = {
       ...(body.user_data || {}),
       ...(body.user_data_hashed || {}),
       ...(body.fbp ? { fbp: body.fbp } : {}),
       ...(body.fbc ? { fbc: body.fbc } : {}),
       ...(body.ga_client_id ? { ga_client_id: body.ga_client_id } : {}),
+      ...(emailHash ? { email_hash: emailHash } : {}),
+      ...(phoneHash ? { phone_hash: phoneHash } : {}),
+      ...(rawEmail ? { email: String(rawEmail).toLowerCase() } : {}),
+      ...(rawPhone ? { phone: String(rawPhone) } : {}),
+      ip_hash: ipHash,
       client_user_agent: userAgent,
       client_ip_address: ip,
     };
