@@ -306,7 +306,7 @@ Deno.serve(async (req) => {
     const conversions: GoogleConversionPayload[] = [];
     const skipped: string[] = [];
     for (const item of items) {
-      const conv = await buildGoogleConversion(item, finalCustomerId, conversionLabel);
+      const conv = await buildGoogleConversion(item, finalCustomerId, conversionLabel, wsId);
       if (conv) conversions.push(conv);
       else skipped.push(item.id || item.event_id || "unknown");
     }
