@@ -192,8 +192,10 @@ Deno.serve(async (req) => {
       .from("allowed_domains")
       .select("id, domain");
 
+    const domainCount = (domains ?? []).length;
     results.security = {
-      domain_validation: (domains ?? []).length > 0 ? "configured" : "not_configured",
+      status: domainCount > 0 ? "configured" : "not_configured",
+      domain_validation: domainCount > 0 ? "configured" : "not_configured",
       allowed_domains: (domains ?? []).map((d) => d.domain),
       rls_enabled: true,
       checked_at: new Date().toISOString(),
@@ -202,9 +204,22 @@ Deno.serve(async (req) => {
     results.security = { status: "error", error: String(e) };
   }
 
-  // 9. Integrations placeholder
+  // 9. Integrations
+  const metaStatus = results.meta_api ? (results.meta_api as Record<string, unknown>).status as string : "unknown";
+  let gatewaysActive = 0;
+  try {
+    const { count } = await supabase
+      .from("gateway_integrations")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "active");
+    gatewaysActive = count ?? 0;
+  } catch { /* ignore */ }
+
+  const anyConfigured = metaStatus === "configured" || gatewaysActive > 0;
   results.integrations = {
-    meta: results.meta_api ? (results.meta_api as Record<string, unknown>).status : "unknown",
+    status: anyConfigured ? "configured" : "not_configured",
+    meta: metaStatus,
+    gateways_active: gatewaysActive,
     google_ads: "not_configured",
     tiktok: "not_configured",
     shopify: "not_configured",
