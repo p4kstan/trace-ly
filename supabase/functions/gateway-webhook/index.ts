@@ -756,7 +756,7 @@ Deno.serve(async (req) => {
         if (META_EVENTS.has(marketingEvent)) {
           await enqueueForMeta(workspaceId, eventId, savedOrder?.id || null, order, marketingEvent, finalSessionData, identityId, enrichedHashed);
         }
-        await enqueueForOtherProviders(workspaceId, eventId, savedOrder?.id || null, order, marketingEvent, finalSessionData, identityId, enrichedHashed);
+        await enqueueForOtherProviders(workspaceId, eventId, savedOrder?.id || null, order, marketingEvent, finalSessionData, identityId, enrichedHashed, internalEvent);
 
         // ── Auto-feedback (fire-and-forget): on Purchase, recompute ROI + log automation event.
         // Uses EdgeRuntime.waitUntil so the webhook responds immediately to the gateway.
