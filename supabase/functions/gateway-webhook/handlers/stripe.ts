@@ -26,13 +26,23 @@ export const stripeHandler: GatewayHandler = {
   normalize: (p) => {
     const obj = dig(p, "data", "object") || {};
     const cust = obj.customer_details || obj.customer || {};
+    const addr = cust.address || obj.shipping?.address || obj.billing_details?.address || {};
+    const fullName = str(cust.name || obj.shipping?.name);
     return {
       gateway: "stripe",
       external_order_id: str(obj.id || obj.payment_intent),
       external_payment_id: str(obj.payment_intent || obj.id),
       customer: {
         email: str(cust.email || obj.receipt_email),
-        name: str(cust.name),
+        name: fullName,
+        phone: str(cust.phone || obj.shipping?.phone),
+        first_name: fullName ? fullName.split(" ")[0] : "",
+        last_name: fullName ? fullName.split(" ").slice(1).join(" ") : "",
+        address: str(addr.line1),
+        city: str(addr.city),
+        state: str(addr.state),
+        zip: str(addr.postal_code),
+        country: str(addr.country),
       },
       status: str(obj.status || obj.payment_status),
       total_value: num(obj.amount_total || obj.amount) / 100,
