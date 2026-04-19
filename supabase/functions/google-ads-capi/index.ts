@@ -336,7 +336,15 @@ Deno.serve(async (req) => {
 
     const result = await sendToGoogleAds(finalCustomerId, loginCustomerId, accessToken, developerToken, conversions);
 
-    // Log delivery
+    // Enriched delivery log: external_transaction_id + dedup_key allow auditing
+    // whether the same gateway sale was sent twice to the same provider.
+    const firstPayload = items[0]?.payload_json || {};
+    const externalTxId = firstPayload.external_transaction_id
+      || firstPayload.order?.external_order_id
+      || items[0]?.order_id
+      || null;
+    const dedupKey = firstPayload.dedup_key || null;
+
     await supabase.from("event_deliveries").insert({
       event_id: items[0]?.event_id || crypto.randomUUID(),
       workspace_id: wsId,
@@ -345,7 +353,13 @@ Deno.serve(async (req) => {
       status: result.ok ? "delivered" : "failed",
       attempt_count: 1,
       last_attempt_at: new Date().toISOString(),
-      request_json: { customer_id: finalCustomerId, batch_size: conversions.length, conversion_label: conversionLabel },
+      request_json: {
+        customer_id: finalCustomerId,
+        batch_size: conversions.length,
+        conversion_label: conversionLabel,
+        external_transaction_id: externalTxId,
+        dedup_key: dedupKey,
+      },
       response_json: result.response,
       error_message: result.ok ? null : JSON.stringify(result.response).slice(0, 1000),
     });
