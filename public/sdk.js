@@ -11,7 +11,7 @@
 (function(window, document) {
   'use strict';
 
-  var SDK_VERSION = '4.0.0';
+  var SDK_VERSION = '4.1.0';
   var BATCH_INTERVAL = 2000;
   var MAX_BATCH_SIZE = 20;
   var COOKIE_DAYS = 390;
@@ -19,8 +19,36 @@
   var ANON_KEY = 'ct_anonymous_id';
   var IDENTITY_KEY = 'ct_identity';
   var CONSENT_KEY = 'ct_consent';
+  // Journey event_id — persisted across page reloads so the SAME id reaches
+  // both the browser Pixel and the gateway webhook (perfect dedup).
+  var JOURNEY_EVENT_KEY = 'ct_journey_event_id';
+  var JOURNEY_EVENT_TTL_MS = 24 * 60 * 60 * 1000; // 24h rolling window
   var UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
   var CLICK_IDS = ['fbclid', 'gclid', 'gbraid', 'wbraid', 'ttclid', 'msclkid', 'twclid', 'li_fat_id'];
+
+  // Domains we auto-decorate with metadata[event_id] when the user clicks
+  // an outbound checkout link (covers the major BR/INTL gateways).
+  var CHECKOUT_DOMAINS = [
+    'pay.hotmart.com', 'hotmart.com',
+    'pay.kiwify.com', 'pay.kiwify.com.br', 'kiwify.com.br', 'kiwify.app',
+    'checkout.stripe.com', 'buy.stripe.com',
+    'sun.eduzz.com', 'pay.eduzz.com', 'eduzz.com',
+    'seguro.yampi.com.br', 'app.yampi.com.br',
+    'pay.cakto.com.br', 'cakto.com.br',
+    'app.monetizze.com.br', 'monetizze.com.br',
+    'pagar.me', 'checkout.pagar.me',
+    'mpago.la', 'mercadopago.com', 'mercadopago.com.br',
+    'pagseguro.uol.com.br', 'pag.ae',
+    'sandbox.asaas.com', 'asaas.com',
+    'app.appmax.com.br', 'appmax.com.br',
+    'pay.kirvano.com', 'kirvano.com',
+    'pay.ticto.app', 'ticto.com.br',
+    'pay.perfectpay.com.br', 'perfectpay.com.br',
+    'lastlink.com', 'pay.lastlink.com',
+    'ev.braip.com', 'braip.com',
+    'paggue.io', 'pay.paggue.io',
+    'quantumpay.com.br', 'pay.quantumpay.com.br'
+  ];
 
   var config = {
     apiKey: '', endpoint: '', debug: false, autoPageView: true,
@@ -96,6 +124,34 @@
     if (!id) { id = generateId(); setSS(SESSION_KEY, id); }
     return id;
   }
+
+  // ---- Journey Event ID (cross-page-reload, cross-domain via URL) ----
+  // The same event_id is reused for the entire purchase journey so that
+  // both the Pixel (browser) and the gateway webhook (server) report the
+  // same event_id → Meta CAPI / Google Ads dedup as a single conversion.
+  function getJourneyEventId() {
+    try {
+      var raw = getLS(JOURNEY_EVENT_KEY);
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        if (parsed && parsed.id && parsed.exp && parsed.exp > Date.now()) {
+          return parsed.id;
+        }
+      }
+    } catch(e) {}
+    var fresh = generateId();
+    try {
+      setLS(JOURNEY_EVENT_KEY, JSON.stringify({ id: fresh, exp: Date.now() + JOURNEY_EVENT_TTL_MS }));
+    } catch(e) {}
+    return fresh;
+  }
+
+  function refreshJourneyEventId() {
+    // Called after a confirmed Purchase → start a new id for the next journey.
+    try { localStorage.removeItem(JOURNEY_EVENT_KEY); } catch(e) {}
+    return getJourneyEventId();
+  }
+
 
   // ---- GA4 Client ID sync ----
   function getGa4ClientId() {
@@ -282,9 +338,13 @@
   async function buildEvent(eventName, data) {
     var utms = captureAndPersistUTMs();
     var ga4ClientId = getGa4ClientId();
+    // For checkout-related events, reuse the persistent journey id so it
+    // matches what we inject into outbound checkout URLs (and the gateway
+    // webhook will re-emit it back via metadata).
+    var isCheckoutEvent = /^(InitiateCheckout|AddPaymentInfo|Purchase|Lead|Subscribe|StartTrial)$/i.test(eventName);
     var event = {
       event_name: eventName,
-      event_id: generateId(),
+      event_id: isCheckoutEvent ? getJourneyEventId() : generateId(),
       url: window.location.href,
       page_path: window.location.pathname,
       referrer: document.referrer || undefined,
@@ -516,6 +576,123 @@
     log('dataLayer bridge active');
   }
 
+  // ---- Checkout Link Auto-Decorator ----
+  // Detects clicks/forms targeting known checkout domains (Hotmart, Kiwify,
+  // Stripe, Eduzz, Yampi, etc.) and appends:
+  //   - metadata[event_id] / metadata[ct_event_id]  → for gateways that
+  //     forward custom metadata into the webhook (Hotmart, Kiwify, Stripe,
+  //     Pagar.me, Eduzz, Yampi, Cakto, Monetizze, Asaas, Pagseguro …)
+  //   - src       → fallback for gateways that only echo `?src=` back
+  //   - xcod / sck → Hotmart-specific tracking aliases (echoed in webhook)
+  // Also forwards gclid / fbclid / utm_* so attribution survives the redirect.
+  function isCheckoutHost(host) {
+    if (!host) return false;
+    host = String(host).toLowerCase();
+    for (var i = 0; i < CHECKOUT_DOMAINS.length; i++) {
+      var d = CHECKOUT_DOMAINS[i];
+      if (host === d || host.endsWith('.' + d)) return true;
+    }
+    return false;
+  }
+
+  function decorateCheckoutUrl(rawUrl) {
+    if (!rawUrl) return rawUrl;
+    try {
+      var url = new URL(rawUrl, window.location.href);
+      if (!isCheckoutHost(url.hostname)) return rawUrl;
+
+      var eventId = getJourneyEventId();
+      var utms = (function(){ try { return JSON.parse(getLS('ct_last_touch') || '{}'); } catch(e){ return {}; } })();
+
+      // Primary: metadata[event_id] (most flexible — survives in webhook payload)
+      if (!url.searchParams.has('metadata[event_id]'))      url.searchParams.set('metadata[event_id]', eventId);
+      if (!url.searchParams.has('metadata[ct_event_id]'))   url.searchParams.set('metadata[ct_event_id]', eventId);
+      if (!url.searchParams.has('metadata[anonymous_id]'))  url.searchParams.set('metadata[anonymous_id]', getAnonymousId());
+      if (!url.searchParams.has('metadata[session_id]'))    url.searchParams.set('metadata[session_id]', getSessionId());
+
+      // Cookies de tracking → metadata (vital pra Meta CAPI dedup)
+      var fbp = getFbp(); var fbc = getFbc();
+      if (fbp && !url.searchParams.has('metadata[fbp]')) url.searchParams.set('metadata[fbp]', fbp);
+      if (fbc && !url.searchParams.has('metadata[fbc]')) url.searchParams.set('metadata[fbc]', fbc);
+      var gaCid = getGa4ClientId();
+      if (gaCid && !url.searchParams.has('metadata[ga_client_id]')) url.searchParams.set('metadata[ga_client_id]', gaCid);
+
+      // Click IDs persistidos
+      CLICK_IDS.forEach(function(k){
+        var v = getLS('ct_' + k) || getCookie('ct_' + k);
+        if (v && !url.searchParams.has('metadata[' + k + ']')) url.searchParams.set('metadata[' + k + ']', v);
+      });
+
+      // UTMs persistidas
+      UTM_KEYS.forEach(function(k){
+        if (utms[k] && !url.searchParams.has('metadata[' + k + ']')) url.searchParams.set('metadata[' + k + ']', utms[k]);
+      });
+
+      // Hotmart-specific aliases (echoed back in webhook as `xcod`/`sck`)
+      if (url.hostname.indexOf('hotmart') !== -1) {
+        if (!url.searchParams.has('xcod')) url.searchParams.set('xcod', eventId);
+        if (!url.searchParams.has('sck'))  url.searchParams.set('sck', getAnonymousId());
+      }
+      // Generic ?src= fallback (echoed by Kiwify, Eduzz, Cakto, …)
+      if (!url.searchParams.has('src')) url.searchParams.set('src', eventId);
+
+      return url.toString();
+    } catch(e) {
+      log('decorateCheckoutUrl error: ' + e.message);
+      return rawUrl;
+    }
+  }
+
+  function setupCheckoutLinkDecorator() {
+    // 1. Click-time decoration (covers <a>, buttons inside <a>, dynamic links)
+    document.addEventListener('click', function(ev) {
+      try {
+        var el = ev.target;
+        while (el && el !== document.body && el.tagName !== 'A') el = el.parentNode;
+        if (!el || el.tagName !== 'A' || !el.href) return;
+        var decorated = decorateCheckoutUrl(el.href);
+        if (decorated !== el.href) {
+          el.href = decorated;
+          log('🔗 Checkout link decorated: ' + el.hostname);
+        }
+      } catch(e) {}
+    }, true); // capture phase → runs before navigation
+
+    // 2. Form submissions (some gateways use POST forms)
+    document.addEventListener('submit', function(ev) {
+      try {
+        var form = ev.target;
+        if (!form || !form.action) return;
+        var decorated = decorateCheckoutUrl(form.action);
+        if (decorated !== form.action) {
+          form.action = decorated;
+          log('📝 Checkout form decorated: ' + form.action);
+        }
+      } catch(e) {}
+    }, true);
+
+    // 3. Pre-decorate existing links on page (helps with right-click "copy link")
+    function decorateExisting() {
+      try {
+        var links = document.querySelectorAll('a[href]');
+        for (var i = 0; i < links.length; i++) {
+          var a = links[i];
+          if (!a.href) continue;
+          try {
+            var u = new URL(a.href, window.location.href);
+            if (isCheckoutHost(u.hostname)) a.href = decorateCheckoutUrl(a.href);
+          } catch(e) {}
+        }
+      } catch(e) {}
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', decorateExisting);
+    } else {
+      decorateExisting();
+    }
+    log('Checkout link decorator active (' + CHECKOUT_DOMAINS.length + ' gateways)');
+  }
+
   // ---- Auto-tracking ----
   function setupAutoTracking() {
     window.addEventListener('beforeunload', function() {
@@ -560,6 +737,7 @@
           log('Auto PageView: ' + window.location.pathname);
         }
         setupSPATracking();
+        setupCheckoutLinkDecorator();
         setupDataLayerBridge();
         if (document.readyState === 'loading') {
           document.addEventListener('DOMContentLoaded', autoCaptureFromForms);
@@ -594,7 +772,12 @@
         }
         break;
 
-      case 'purchase': enqueueEvent(buildEvent('Purchase', args[0])); log('Purchase'); break;
+      case 'purchase':
+        enqueueEvent(buildEvent('Purchase', args[0]));
+        // Confirmed conversion → start a fresh journey id for the next funnel.
+        refreshJourneyEventId();
+        log('Purchase');
+        break;
       case 'lead': enqueueEvent(buildEvent('Lead', args[0])); log('Lead'); break;
       case 'addToCart': enqueueEvent(buildEvent('AddToCart', args[0])); log('AddToCart'); break;
       case 'initiateCheckout': enqueueEvent(buildEvent('InitiateCheckout', args[0])); log('InitiateCheckout'); break;
@@ -605,6 +788,8 @@
       case 'getAttribution': return { firstTouch: getFirstTouch(), lastTouch: getLastTouch() };
       case 'getGa4ClientId': return getGa4ClientId();
       case 'getSessionId': return getSessionId();
+      case 'getJourneyEventId': return getJourneyEventId();
+      case 'decorateCheckoutUrl': return decorateCheckoutUrl(args[0]);
       case 'getAnonymousId': return getAnonymousId();
       case 'getConsent': return Object.assign({}, consentGranted);
 
