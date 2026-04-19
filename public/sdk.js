@@ -11,7 +11,7 @@
 (function(window, document) {
   'use strict';
 
-  var SDK_VERSION = '4.1.0';
+  var SDK_VERSION = '4.2.0';
   var BATCH_INTERVAL = 2000;
   var MAX_BATCH_SIZE = 20;
   var COOKIE_DAYS = 390;
@@ -52,7 +52,8 @@
 
   var config = {
     apiKey: '', endpoint: '', debug: false, autoPageView: true,
-    trackSPA: false, autoIdentify: true, dataLayerBridge: true, consentMode: false
+    trackSPA: false, autoIdentify: true, dataLayerBridge: true, consentMode: false,
+    behavioralTracking: true
   };
   var eventQueue = [];
   var batchTimer = null;
