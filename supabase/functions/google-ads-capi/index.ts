@@ -255,9 +255,25 @@ Deno.serve(async (req) => {
     }
 
     if (conversions.length === 0) {
+      // Não-erro: simplesmente não há identifier suficiente (gclid/email/phone/address).
+      // Sinalizamos `skipped: true` + status 200 para o worker NÃO retentar nem mover
+      // para dead_letter. Esses eventos ficam visíveis em event_deliveries com
+      // status="skipped_no_identity" para análise.
+      await supabase.from("event_deliveries").insert({
+        event_id: items[0]?.event_id || crypto.randomUUID(),
+        workspace_id: wsId,
+        provider: "google_ads",
+        destination: `customers/${finalCustomerId}/conversionActions/${conversionLabel}`,
+        status: "skipped_no_identity",
+        attempt_count: 1,
+        last_attempt_at: new Date().toISOString(),
+        request_json: { batch_size: items.length, reason: "no_gclid_or_pii" },
+        response_json: { skipped_ids: skipped },
+        error_message: null,
+      });
       return new Response(JSON.stringify({
-        status: "ok", delivered: 0, skipped: skipped.length,
-        message: "No conversions with valid identifiers (gclid/gbraid/wbraid/email/phone)",
+        status: "ok", skipped: true, delivered: 0, skipped_count: skipped.length,
+        message: "No conversions with valid identifiers (gclid/gbraid/wbraid/email/phone). Marked as skipped_no_identity (no retry).",
       }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
