@@ -340,9 +340,16 @@ Deno.serve(async (req) => {
     await Promise.all(routePromises);
 
     if (queueRows.length > 0) {
-      const { error: qErr } = await supabase.from("event_queue").insert(queueRows);
+      // P0: upsert com ignoreDuplicates evita inserir 2x quando webhook é reentregue
+      // pelo gateway. Unique index parcial em (workspace_id, event_id, provider) garante a dedup.
+      const { error: qErr } = await supabase
+        .from("event_queue")
+        .upsert(queueRows, {
+          onConflict: "workspace_id,event_id,provider",
+          ignoreDuplicates: true,
+        });
       if (qErr) {
-        console.error("[event-router] event_queue insert error, falling back to direct dispatch:", qErr);
+        console.error("[event-router] event_queue upsert error, falling back to direct dispatch:", qErr);
         for (const dest of destinations) {
           await dispatchToProvider(dest.provider, event, dest, workspace_id).catch((e) =>
             console.error("fallback dispatch error", e)

@@ -798,7 +798,8 @@ async function enqueueForMeta(
   if (!pixels?.length) return;
 
   for (const pixel of pixels) {
-    await supabase.from("event_queue").insert({
+    // P0: upsert ignoreDuplicates → evita conversão Meta duplicada se webhook reentrega
+    await supabase.from("event_queue").upsert({
       workspace_id: workspaceId,
       event_id: eventId,
       order_id: orderId,
@@ -841,7 +842,8 @@ async function enqueueForOtherProviders(
   const enrichedCustomer = { ...c, email_hash: emailHash, phone_hash: phoneHash, document_hash: documentHash };
 
   for (const dest of destinations) {
-    await supabase.from("event_queue").insert({
+    // P0: upsert ignoreDuplicates → evita conversão Google Ads/TikTok/GA4 duplicada
+    await supabase.from("event_queue").upsert({
       workspace_id: workspaceId,
       event_id: eventId,
       order_id: orderId,
