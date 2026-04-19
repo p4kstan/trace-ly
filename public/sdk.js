@@ -125,6 +125,34 @@
     return id;
   }
 
+  // ---- Journey Event ID (cross-page-reload, cross-domain via URL) ----
+  // The same event_id is reused for the entire purchase journey so that
+  // both the Pixel (browser) and the gateway webhook (server) report the
+  // same event_id → Meta CAPI / Google Ads dedup as a single conversion.
+  function getJourneyEventId() {
+    try {
+      var raw = getLS(JOURNEY_EVENT_KEY);
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        if (parsed && parsed.id && parsed.exp && parsed.exp > Date.now()) {
+          return parsed.id;
+        }
+      }
+    } catch(e) {}
+    var fresh = generateId();
+    try {
+      setLS(JOURNEY_EVENT_KEY, JSON.stringify({ id: fresh, exp: Date.now() + JOURNEY_EVENT_TTL_MS }));
+    } catch(e) {}
+    return fresh;
+  }
+
+  function refreshJourneyEventId() {
+    // Called after a confirmed Purchase → start a new id for the next journey.
+    try { localStorage.removeItem(JOURNEY_EVENT_KEY); } catch(e) {}
+    return getJourneyEventId();
+  }
+
+
   // ---- GA4 Client ID sync ----
   function getGa4ClientId() {
     var ga = getCookie('_ga');
