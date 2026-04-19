@@ -4440,6 +4440,7 @@ export type Database = {
       }
     }
     Functions: {
+      cleanup_expired_ga4_cache: { Args: never; Returns: number }
       compute_attribution: {
         Args: {
           _conversion_id: string
