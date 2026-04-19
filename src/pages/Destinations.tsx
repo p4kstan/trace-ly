@@ -88,7 +88,14 @@ export default function Destinations() {
           </CardContent>
         </Card>
       ) : (() => {
-        const activeDestinations = destinations.filter((d: any) => d.status === "active");
+        const isConfigured = (d: any) => {
+          const s = d.settings_json || {};
+          const p = d.public_config_json || {};
+          return Object.keys(s).length > 0 || Object.keys(p).length > 0;
+        };
+        const activeDestinations = destinations.filter(
+          (d: any) => d.status === "active" && (isConfigured(d) || providerStats[d.provider])
+        );
         return activeDestinations.length === 0 ? (
           <Card className="glass-card">
             <CardContent className="flex flex-col items-center justify-center py-12 text-center">
