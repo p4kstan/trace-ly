@@ -994,6 +994,7 @@
         config.autoIdentify = options.autoIdentify !== false;
         config.dataLayerBridge = options.dataLayerBridge !== false;
         config.consentMode = !!options.consentMode;
+        config.behavioralTracking = options.behavioralTracking !== false;
         initialized = true;
         loadConsent();
         captureAndPersistUTMs();
@@ -1010,9 +1011,13 @@
         setupCheckoutLinkDecorator();
         setupDataLayerBridge();
         if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', autoCaptureFromForms);
+          document.addEventListener('DOMContentLoaded', function() {
+            autoCaptureFromForms();
+            setupBehavioralTracking();
+          });
         } else {
           autoCaptureFromForms();
+          setupBehavioralTracking();
         }
         break;
 
