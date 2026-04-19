@@ -21,6 +21,29 @@ const PROVIDER_FUNCTIONS: Record<string, string> = {
   tiktok: "tiktok-events",
 };
 
+// Whitelist: only conversion events should reach ad-platform CAPIs.
+// Behavioral signals (MouseActivity/Scroll/Dwell/PageView) MUST NOT be dispatched
+// to google_ads/meta — they pollute the queue and trigger "no identifier" rejections
+// that show up in Google's diagnostics as failed imports.
+const CONVERSION_EVENT_NAMES = new Set([
+  "Purchase", "purchase",
+  "Subscribe", "subscribe",
+  "StartTrial", "start_trial",
+  "CompleteRegistration", "complete_registration",
+  "Lead", "lead",
+  "order_paid", "order_approved",
+  "payment_paid", "payment_authorized",
+  "pix_paid", "boleto_paid",
+  "subscription_started", "subscription_renewed",
+]);
+const CAPI_PROVIDERS = new Set(["google_ads", "meta", "meta_capi", "tiktok"]);
+function isConversionOnlyProvider(provider: string): boolean {
+  return CAPI_PROVIDERS.has(provider);
+}
+function isConversionEvent(eventName: string): boolean {
+  return CONVERSION_EVENT_NAMES.has(eventName);
+}
+
 interface RouteResult {
   provider: string;
   status: "delivered" | "failed" | "skipped";
@@ -293,6 +316,13 @@ Deno.serve(async (req) => {
     const normalizedPayload = normalizeEventToQueuePayload(event);
 
     const routePromises = destinations.map(async (dest) => {
+      // P0 Filter: behavioral events MUST NOT reach ad-platform CAPIs.
+      if (isConversionOnlyProvider(dest.provider) && !isConversionEvent(event.event_name)) {
+        console.log(`[event-router] skip provider=${dest.provider} reason=non_conversion_event event=${event.event_name}`);
+        results.push({ provider: dest.provider, status: "skipped", latency_ms: 0 });
+        return;
+      }
+
       const providerRules = rules.filter(
         r => r.external_platform === dest.provider || r.provider === dest.provider
       );
