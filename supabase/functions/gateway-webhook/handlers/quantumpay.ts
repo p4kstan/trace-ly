@@ -5,8 +5,7 @@
 // HMAC: `Quantum-Pay-Signature: t=<ts>,v1=<hex>` over `${ts}.${rawBody}` with SHA-256.
 
 import type { GatewayHandler, InternalEvent } from "./_types.ts";
-import { dig, hmacSHA256Hex, num, str } from "./_helpers.ts";
-import { extractTrackingFromMetadata } from "./_helpers.ts";
+import { dig, extractTrackingFromMetadata, hmacSHA256Hex, num, str } from "./_helpers.ts";
 
 const EVENT_MAP: Record<string, InternalEvent> = {
   "transaction_created": "checkout_created",
