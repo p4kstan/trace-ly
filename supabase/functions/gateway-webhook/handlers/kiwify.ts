@@ -28,15 +28,24 @@ export const kiwifyHandler: GatewayHandler = {
 
   normalize: (p) => {
     const c = p.Customer || p.customer || {};
+    const fullName = str(c.full_name || c.name);
     return {
       gateway: "kiwify",
       external_order_id: str(p.order_id || p.subscription_id),
       external_payment_id: str(p.order_id),
       customer: {
         email: str(c.email),
-        name: str(c.full_name || c.name),
+        name: fullName,
         phone: str(c.mobile),
         document: str(c.CPF || c.cpf),
+        first_name: str(c.first_name || (fullName ? fullName.split(" ")[0] : "")),
+        last_name: str(c.last_name || (fullName ? fullName.split(" ").slice(1).join(" ") : "")),
+        address: str(c.address || c.street),
+        city: str(c.city),
+        state: str(c.state),
+        zip: str(c.zipcode || c.zip),
+        country: str(c.country || "BR"),
+        ip: str(c.ip),
       },
       status: str(p.order_status || p.webhook_event_type),
       total_value: num(

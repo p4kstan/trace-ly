@@ -17,6 +17,19 @@ export interface NormalizedCustomer {
   email?: string;
   phone?: string;
   document?: string;
+  // Address fields — used for Enhanced Conversions (Meta + Google Ads).
+  // Capturing as much as possible improves match-rate dramatically.
+  first_name?: string;
+  last_name?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  country?: string;
+  /** Client IP at the moment of purchase (gateway-provided). */
+  ip?: string;
+  /** Client User-Agent at the moment of purchase (gateway-provided). */
+  user_agent?: string;
 }
 
 export interface NormalizedTracking {

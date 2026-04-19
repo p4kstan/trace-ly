@@ -15,6 +15,22 @@ const GOOGLE_OAUTH_CLIENT_ID = Deno.env.get("GOOGLE_OAUTH_CLIENT_ID")!;
 const GOOGLE_OAUTH_CLIENT_SECRET = Deno.env.get("GOOGLE_OAUTH_CLIENT_SECRET")!;
 const GOOGLE_ADS_DEVELOPER_TOKEN = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN")!;
 
+interface GoogleUserAddressInfo {
+  hashed_first_name?: string;
+  hashed_last_name?: string;
+  hashed_street_address?: string;
+  city?: string;
+  region?: string;
+  postal_code?: string;
+  country_code?: string;
+}
+
+interface GoogleUserIdentifier {
+  hashed_email?: string;
+  hashed_phone_number?: string;
+  address_info?: GoogleUserAddressInfo;
+}
+
 interface GoogleConversionPayload {
   gclid?: string;
   gbraid?: string;
@@ -24,10 +40,8 @@ interface GoogleConversionPayload {
   conversion_value?: number;
   currency_code?: string;
   order_id?: string;
-  user_identifiers?: Array<{
-    hashed_email?: string;
-    hashed_phone_number?: string;
-  }>;
+  user_identifiers?: GoogleUserIdentifier[];
+  user_agent?: string;
 }
 
 async function sha256Hex(value: string): Promise<string> {
@@ -57,7 +71,8 @@ async function refreshAccessToken(refreshToken: string): Promise<string | null> 
   return data.access_token || null;
 }
 
-/** Build Google Ads offline conversion from queue item (normalized payload) */
+/** Build Google Ads offline conversion from queue item (normalized payload).
+ * Enhanced Conversions: combines email + phone + full address_info for max match-rate. */
 async function buildGoogleConversion(
   item: any,
   customerId: string,
@@ -72,12 +87,37 @@ async function buildGoogleConversion(
   const gbraid = session.gbraid;
   const wbraid = session.wbraid;
 
-  const userIdentifiers: Array<{ hashed_email?: string; hashed_phone_number?: string }> = [];
-  // Prefer pre-hashed; fallback to raw
-  if (customer.email_hash) userIdentifiers.push({ hashed_email: customer.email_hash });
-  else if (customer.email) userIdentifiers.push({ hashed_email: await sha256Hex(String(customer.email)) });
-  if (customer.phone_hash) userIdentifiers.push({ hashed_phone_number: customer.phone_hash });
-  else if (customer.phone) userIdentifiers.push({ hashed_phone_number: await sha256Hex(String(customer.phone).replace(/[^\d+]/g, "")) });
+  // Prefer pre-hashed PII; fallback to raw with on-the-fly hashing
+  const emailHash: string | undefined =
+    customer.email_hash
+    || (customer.email ? await sha256Hex(String(customer.email)) : undefined);
+  const phoneHash: string | undefined =
+    customer.phone_hash
+    || (customer.phone ? await sha256Hex(String(customer.phone).replace(/[^\d+]/g, "")) : undefined);
+  const firstNameHash: string | undefined =
+    customer.first_name_hash
+    || (customer.first_name ? await sha256Hex(String(customer.first_name)) : undefined);
+  const lastNameHash: string | undefined =
+    customer.last_name_hash
+    || (customer.last_name ? await sha256Hex(String(customer.last_name)) : undefined);
+  const streetHash: string | undefined =
+    customer.address ? await sha256Hex(String(customer.address)) : undefined;
+
+  // Build address_info block — Google requires either hashed_first_name+hashed_last_name
+  // OR hashed_street_address along with city/region/postal/country to count as a match.
+  const addressInfo: GoogleUserAddressInfo = {};
+  if (firstNameHash) addressInfo.hashed_first_name = firstNameHash;
+  if (lastNameHash) addressInfo.hashed_last_name = lastNameHash;
+  if (streetHash) addressInfo.hashed_street_address = streetHash;
+  if (customer.city) addressInfo.city = String(customer.city).toLowerCase().trim();
+  if (customer.state) addressInfo.region = String(customer.state).toLowerCase().trim();
+  if (customer.zip) addressInfo.postal_code = String(customer.zip).replace(/\s+/g, "").toLowerCase();
+  if (customer.country) addressInfo.country_code = String(customer.country).toUpperCase().slice(0, 2);
+
+  const userIdentifiers: GoogleUserIdentifier[] = [];
+  if (emailHash) userIdentifiers.push({ hashed_email: emailHash });
+  if (phoneHash) userIdentifiers.push({ hashed_phone_number: phoneHash });
+  if (Object.keys(addressInfo).length > 0) userIdentifiers.push({ address_info: addressInfo });
 
   if (!gclid && !gbraid && !wbraid && userIdentifiers.length === 0) {
     return null;
@@ -96,6 +136,8 @@ async function buildGoogleConversion(
     currency_code: order.currency || "BRL",
     order_id: order.external_order_id,
     user_identifiers: userIdentifiers.length > 0 ? userIdentifiers : undefined,
+    // Webhook-provided UA helps Enhanced Conversions for Web fingerprinting
+    user_agent: session.user_agent || p.webhook_user_agent || undefined,
   };
 }
 
