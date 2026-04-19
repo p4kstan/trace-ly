@@ -20,8 +20,48 @@ interface AutomationAction {
   status: string;
   before_value: Record<string, unknown> | null;
   after_value: Record<string, unknown> | null;
+  metadata_json: Record<string, unknown> | null;
   error_message: string | null;
   created_at: string;
+}
+
+/** Human-readable one-liner per action. Returns null when generic JSON is enough. */
+function describeAction(a: AutomationAction): string | null {
+  const after = (a.after_value ?? {}) as Record<string, any>;
+  const before = (a.before_value ?? {}) as Record<string, any>;
+  const meta = (a.metadata_json ?? {}) as Record<string, any>;
+  const reason = meta?.reason ? ` — ${meta.reason}` : "";
+
+  switch (a.action) {
+    case "keywords.update_bid": {
+      const newBid = after?.cpc_bid;
+      const pct = before?.cpc_bid && newBid
+        ? Math.round(((newBid - before.cpc_bid) / before.cpc_bid) * 100)
+        : null;
+      return `CPC da keyword [${a.target_id}] → R$ ${typeof newBid === "number" ? newBid.toFixed(2) : newBid}${pct !== null ? ` (${pct >= 0 ? "+" : ""}${pct}%)` : ""}${reason}`;
+    }
+    case "keywords.set_status":
+      return `Keyword [${a.target_id}] → ${after?.status}${reason}`;
+    case "ad_groups.update_bid":
+      return `CPC default do ad group [${a.target_id}] → R$ ${typeof after?.cpc_bid === "number" ? after.cpc_bid.toFixed(2) : after?.cpc_bid}${reason}`;
+    case "negative_keywords.add":
+      return `Negativada "${after?.keyword_text}" (${after?.match_type})${reason}`;
+    case "campaigns.pause":
+      return `Campanha [${a.target_id}] pausada${reason}`;
+    case "campaigns.resume":
+      return `Campanha [${a.target_id}] reativada${reason}`;
+    case "campaigns.update_budget": {
+      const beforeAmt = before?.daily_amount;
+      const afterAmt = after?.daily_amount;
+      const pct = beforeAmt && afterAmt ? Math.round(((afterAmt - beforeAmt) / beforeAmt) * 100) : null;
+      return `Orçamento da campanha [${a.target_id}] → R$ ${afterAmt}${pct !== null ? ` (${pct >= 0 ? "+" : ""}${pct}%)` : ""}${reason}`;
+    }
+    case "notify_mcp":
+      if (meta?.keyword) return `MCP notificado: venda → keyword "${meta.keyword}" (${meta.keyword_source})`;
+      return null;
+    default:
+      return null;
+  }
 }
 
 interface Props {
@@ -55,7 +95,7 @@ export function AutomationCommandCenter({ workspaceId, targetId, limit = 10, cla
     const load = async () => {
       let q = supabase
         .from("automation_actions")
-        .select("id, action, trigger, target_type, target_id, status, before_value, after_value, error_message, created_at")
+        .select("id, action, trigger, target_type, target_id, status, before_value, after_value, metadata_json, error_message, created_at")
         .eq("workspace_id", workspaceId)
         .order("created_at", { ascending: false })
         .limit(limit);
