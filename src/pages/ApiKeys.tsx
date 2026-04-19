@@ -158,31 +158,79 @@ export default function ApiKeys() {
         </div>
       ) : (
         <div className="grid gap-3">
-          {keys.map((key) => (
-            <div key={key.id} className="glass-card p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Key className="w-5 h-5 text-primary" />
-                <div>
-                  <p className="font-medium text-foreground text-sm">{key.name}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <code className="text-xs text-muted-foreground">{key.public_key.substring(0, 12)}...{key.public_key.substring(key.public_key.length - 4)}</code>
-                    <button onClick={() => copyKey(key.public_key)}><Copy className="w-3 h-3 text-muted-foreground hover:text-foreground" /></button>
+          {keys.map((key) => {
+            const isRevealed = revealed[key.id];
+            const isInUse = key.id === activeKeyId;
+            return (
+              <div key={key.id} className="glass-card p-4 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <Key className="w-5 h-5 text-primary shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-foreground text-sm truncate">{key.name}</p>
+                      {isInUse && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-primary/10 text-primary">
+                          <CheckCircle2 className="w-3 h-3" /> em uso
+                        </span>
+                      )}
+                      <button onClick={() => setEditing({ id: key.id, name: key.name })} className="text-muted-foreground hover:text-foreground" title="Editar nome">
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5 min-w-0">
+                      <code className="text-xs text-muted-foreground truncate font-mono">
+                        {isRevealed ? key.public_key : `${key.public_key.substring(0, 12)}${"•".repeat(8)}${key.public_key.substring(key.public_key.length - 4)}`}
+                      </code>
+                      <button onClick={() => toggleReveal(key.id)} title={isRevealed ? "Ocultar" : "Mostrar"}>
+                        {isRevealed ? <EyeOff className="w-3 h-3 text-muted-foreground hover:text-foreground" /> : <Eye className="w-3 h-3 text-muted-foreground hover:text-foreground" />}
+                      </button>
+                      <button onClick={() => copyKey(key.public_key)} title="Copiar"><Copy className="w-3 h-3 text-muted-foreground hover:text-foreground" /></button>
+                    </div>
                   </div>
                 </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  {key.last_used_at && <span className="text-xs text-muted-foreground hidden md:inline">Usado: {new Date(key.last_used_at).toLocaleDateString()}</span>}
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${key.status === "active" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>
+                    {key.status}
+                  </span>
+                  {key.status === "active" && (
+                    <button onClick={() => handleRevoke(key.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="w-4 h-4" /></button>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                {key.last_used_at && <span className="text-xs text-muted-foreground">Usado: {new Date(key.last_used_at).toLocaleDateString()}</span>}
-                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${key.status === "active" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>
-                  {key.status}
-                </span>
-                {key.status === "active" && (
-                  <button onClick={() => handleRevoke(key.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="w-4 h-4" /></button>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
+
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent className="bg-card border-border">
+          <DialogHeader><DialogTitle className="text-foreground">Editar API Key</DialogTitle></DialogHeader>
+          {editing && (
+            <div className="space-y-4">
+              <div>
+                <Label className="text-foreground">Nome</Label>
+                <Input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
+              </div>
+              <div>
+                <Label className="text-foreground text-xs">Chave pública (somente leitura)</Label>
+                <div className="bg-muted p-3 rounded-lg font-mono text-xs text-foreground break-all flex items-center gap-2">
+                  <span className="flex-1">{keys?.find((k: any) => k.id === editing.id)?.public_key}</span>
+                  <button onClick={() => copyKey(keys?.find((k: any) => k.id === editing.id)?.public_key || "")}>
+                    <Copy className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setEditing(null)} className="flex-1">Cancelar</Button>
+                <Button onClick={handleSaveEdit} disabled={savingEdit || !editing.name.trim()} className="flex-1 bg-primary text-primary-foreground">
+                  {savingEdit ? "Salvando..." : "Salvar"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
