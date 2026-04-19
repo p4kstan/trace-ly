@@ -86,15 +86,38 @@ async function buildGoogleConversion(
   item: any,
   customerId: string,
   conversionLabel: string,
+  workspaceId: string,
 ): Promise<GoogleConversionPayload | null> {
   const p = item.payload_json || {};
   const customer = p.customer || {};
   const session = p.session || {};
   const order = p.order || {};
 
-  const gclid = sanitizeClickId(session.gclid || p.gclid);
-  const gbraid = sanitizeClickId(session.gbraid);
-  const wbraid = sanitizeClickId(session.wbraid);
+  let gclid = sanitizeClickId(session.gclid || p.gclid);
+  let gbraid = sanitizeClickId(session.gbraid || p.gbraid);
+  let wbraid = sanitizeClickId(session.wbraid || p.wbraid);
+
+  // P0 Fallback: when the gateway payload arrives "dry" (no click identifier),
+  // recover it from the original click stored in `sessions` via session_id.
+  // This is what restores keyword-level attribution for purchases where the
+  // checkout did not propagate the gclid in metadata.
+  const sessionId = session.session_id || p.session_id || order.session_id;
+  if (!gclid && !gbraid && !wbraid && sessionId) {
+    const { data: sess } = await supabase
+      .from("sessions")
+      .select("gclid, gbraid, wbraid")
+      .eq("session_id", sessionId)
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    if (sess) {
+      gclid = sanitizeClickId(sess.gclid);
+      gbraid = sanitizeClickId(sess.gbraid);
+      wbraid = sanitizeClickId(sess.wbraid);
+      if (gclid || gbraid || wbraid) {
+        console.log(`[google-ads-capi] fallback session lookup hit session_id=${sessionId} gclid=${gclid || "-"} gbraid=${gbraid || "-"} wbraid=${wbraid || "-"}`);
+      }
+    }
+  }
 
   if (gclid && isMalformedGoogleClickId(gclid)) {
     console.warn(`[google-ads-capi] Malformed GCLID detected for order=${order.external_order_id || item.id || "unknown"}: ${gclid}`);
@@ -134,7 +157,15 @@ async function buildGoogleConversion(
     return null;
   }
 
-  const eventTime = new Date(p.event_time || item.created_at || Date.now());
+  // Time clamping: Google rejects `CONVERSION_PRECEDES_CLICK` and any future-dated
+  // events. Cap event_time at (now - 60s) to absorb minor clock skew between
+  // gateway servers and our infra.
+  let eventTime = new Date(p.event_time || item.created_at || Date.now());
+  const maxAllowed = new Date(Date.now() - 60_000);
+  if (isNaN(eventTime.getTime()) || eventTime > maxAllowed) {
+    console.warn(`[google-ads-capi] event_time clamped from ${eventTime.toISOString?.() || "invalid"} to ${maxAllowed.toISOString()}`);
+    eventTime = maxAllowed;
+  }
   const formattedDate = eventTime.toISOString().replace("T", " ").replace("Z", "+00:00");
   console.log(`[google-ads-capi] gclid_sent=${gclid || "none"} order_id=${order.external_order_id || "unknown"}`);
 
