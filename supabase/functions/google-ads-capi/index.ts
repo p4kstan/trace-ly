@@ -41,7 +41,6 @@ interface GoogleConversionPayload {
   currency_code?: string;
   order_id?: string;
   user_identifiers?: GoogleUserIdentifier[];
-  user_agent?: string;
 }
 
 async function sha256Hex(value: string): Promise<string> {
@@ -136,8 +135,6 @@ async function buildGoogleConversion(
     currency_code: order.currency || "BRL",
     order_id: order.external_order_id,
     user_identifiers: userIdentifiers.length > 0 ? userIdentifiers : undefined,
-    // Webhook-provided UA helps Enhanced Conversions for Web fingerprinting
-    user_agent: session.user_agent || p.webhook_user_agent || undefined,
   };
 }
 
