@@ -218,12 +218,19 @@ function purchaseBlock(cfg: NativeCheckoutConfig): string {
 \`\`\`ts
 import { readTracking } from "@/lib/tracking";
 
-// Logo após receber response approved da API:
+// ⚠️ DISPARE APENAS quando a API retornar status ∈ {approved, paid, succeeded, captured}.
+// Status como "pending"/"requires_action" NÃO devem disparar Purchase.
+const PAID_STATUSES = ["approved", "paid", "succeeded", "captured", "confirmed"];
+if (!PAID_STATUSES.includes(String(response.status).toLowerCase())) return;
+
+const externalId = order.id; // ID da transação no gateway — usado pra dedupe (48h)
+const eventId = \`\${externalId}:Purchase\`; // mesmo formato usado pelo webhook server-side
+
 window.dataLayer = window.dataLayer || [];
 window.dataLayer.push({
   event: "purchase",
   ecommerce: {
-    transaction_id: order.id,
+    transaction_id: externalId,
     value: order.total,
     currency: "BRL",
     payment_type: "card",
@@ -238,12 +245,15 @@ await fetch("${cfg.endpoint}", {
   headers: { "Content-Type": "application/json", "x-api-key": "${cfg.publicKey}" },
   body: JSON.stringify({
     event_name: "Purchase",
-    event_id: order.id,
-    value: order.total, currency: "BRL", order_id: order.id,
+    event_id: eventId,
+    external_id: externalId,        // CRÍTICO pra dedupe de 48h no backend
+    order_id: externalId,
+    value: order.total, currency: "BRL",
     payment_type: "card",
+    payment_status: response.status, // backend valida o gate de status
     email: order.customer.email, phone: order.customer.phone,
-    external_id: order.customer.document,
-    ...readTracking(),
+    customer_document: order.customer.document,
+    ...readTracking(),               // inclui session_id pro fallback de atribuição
     action_source: "website", url: location.href,
   }),
 });
