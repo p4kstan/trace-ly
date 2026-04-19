@@ -178,11 +178,18 @@ export function AutomationCommandCenter({ workspaceId, targetId, limit = 10, cla
                 {a.error_message && (
                   <p className="text-[11px] text-destructive mt-0.5 truncate">{a.error_message}</p>
                 )}
-                {a.after_value && Object.keys(a.after_value).length > 0 && (
-                  <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                    → {JSON.stringify(a.after_value)}
-                  </p>
-                )}
+                {(() => {
+                  const desc = describeAction(a);
+                  if (desc) return <p className="text-[11px] text-foreground/80 mt-0.5 line-clamp-2">→ {desc}</p>;
+                  if (a.after_value && Object.keys(a.after_value).length > 0) {
+                    return (
+                      <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                        → {JSON.stringify(a.after_value)}
+                      </p>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
               <span className="text-[10px] text-muted-foreground shrink-0">
                 {formatDistanceToNow(new Date(a.created_at), { addSuffix: true, locale: ptBR })}
