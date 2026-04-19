@@ -27,6 +27,9 @@ export interface NormalizedTracking {
   landing_page?: string; referrer?: string;
   user_agent?: string; ip?: string;
   ga_client_id?: string;
+  /** Browser-side event_id propagated through checkout metadata.
+   *  Critical for browser↔CAPI dedup (Meta/Google Ads). */
+  event_id?: string;
 }
 
 export interface NormalizedOrder {
