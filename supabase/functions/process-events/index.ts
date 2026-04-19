@@ -246,7 +246,8 @@ async function dispatchToProvider(
     if (res.ok && (result.status === "ok" || result.status === "partial")) {
       const deliveredCount = result.delivered || 0;
       const failedCount = result.failed || 0;
-      const skippedCount = result.skipped || 0;
+      const skippedFlag = result.skipped === true; // dispatcher signaled "no identifier" — never retry
+      const skippedCount = typeof result.skipped === "number" ? result.skipped : 0;
 
       if (deliveredCount > 0) await markDelivered(items.slice(0, deliveredCount), stats);
       if (failedCount > 0) {
@@ -254,18 +255,27 @@ async function dispatchToProvider(
           await handleFailure(item, `${provider} dispatch failed`, stats);
         }
       }
-      // Items that were neither delivered nor failed are "skipped" by the provider
-      // (e.g. Google Ads: no gclid/email/phone identifiers to match). Don't leave
-      // them stuck in `processing` forever — mark as dead_letter with clear reason.
+      // Items neither delivered nor failed: distinguish between
+      //   (a) provider explicitly skipped (no identifier) — mark as `skipped`, no retry
+      //   (b) accounting mismatch — fall through to dead_letter as before
       const accountedFor = deliveredCount + failedCount;
       if (accountedFor < items.length) {
-        const skippedItems = items.slice(deliveredCount, items.length - failedCount);
-        const reason = skippedCount > 0
-          ? `${provider} skipped: ${result.message || "no matching identifiers (gclid/email/phone)"}`
-          : `${provider} returned no delivered/failed counts`;
-        for (const item of skippedItems) {
-          // Force max attempts so handleFailure dead-letters immediately
-          await handleFailure({ ...item, attempt_count: item.max_attempts - 1 }, reason, stats);
+        const remaining = items.slice(deliveredCount, items.length - failedCount);
+        if (skippedFlag) {
+          const reason = result.message || `${provider} skipped: no matching identifiers`;
+          await supabase.from("event_queue").update({
+            status: "skipped",
+            last_error: reason,
+            updated_at: new Date().toISOString(),
+          }).in("id", remaining.map((i) => i.id));
+          stats.skipped = (stats.skipped || 0) + remaining.length;
+        } else {
+          const reason = skippedCount > 0
+            ? `${provider} skipped: ${result.message || "no matching identifiers (gclid/email/phone)"}`
+            : `${provider} returned no delivered/failed counts`;
+          for (const item of remaining) {
+            await handleFailure({ ...item, attempt_count: item.max_attempts - 1 }, reason, stats);
+          }
         }
       }
     } else {
