@@ -71,6 +71,8 @@ export default function TrackingSources() {
   const [open, setOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState(0);
   const [form, setForm] = useState({ name: "", type: "website", primary_domain: "" });
+  const [editing, setEditing] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", primary_domain: "", status: "active", api_key_id: "" });
 
   const { data: sources = [], isLoading } = useQuery({
     queryKey: ["tracking-sources", workspace?.id],
