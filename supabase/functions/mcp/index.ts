@@ -1,4 +1,16 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import {
+  execCampaignsPause,
+  execCampaignsResume,
+  execCampaignsUpdateBudget,
+  execAdGroupsSetStatus,
+  execBidModifiersUpdate,
+} from "./tools-write.ts";
+import {
+  getEnrichedConversions,
+  getRoiSnapshot,
+  getRecentAutomationActions,
+} from "./tools-read-enriched.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
