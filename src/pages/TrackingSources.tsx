@@ -357,6 +357,111 @@ export default function TrackingSources() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ═══════ EDIT DIALOG ═══════ */}
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent className="glass-card max-w-lg">
+          {editing && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Settings className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-foreground">Configurações da Source</h3>
+                  <p className="text-xs text-muted-foreground capitalize">
+                    {editing.type?.replace("_", " ")} • criada em{" "}
+                    {new Date(editing.created_at).toLocaleDateString("pt-BR")}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-[11px]">
+                <div className="rounded border border-border/40 bg-muted/20 p-2.5">
+                  <p className="text-muted-foreground uppercase tracking-wide text-[10px]">ID</p>
+                  <p className="font-mono text-foreground/80 truncate">{editing.id}</p>
+                </div>
+                <div className="rounded border border-border/40 bg-muted/20 p-2.5">
+                  <p className="text-muted-foreground uppercase tracking-wide text-[10px]">Tipo</p>
+                  <p className="text-foreground/80 capitalize">{editing.type?.replace("_", " ")}</p>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Nome</Label>
+                <Input
+                  value={editForm.name}
+                  onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Domínio principal</Label>
+                <Input
+                  placeholder="ex: meusite.com.br"
+                  value={editForm.primary_domain}
+                  onChange={(e) => setEditForm((p) => ({ ...p, primary_domain: e.target.value }))}
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Usado para validar a origem dos eventos. Deixe em branco para aceitar qualquer origem.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Status</Label>
+                  <Select
+                    value={editForm.status}
+                    onValueChange={(v) => setEditForm((p) => ({ ...p, status: v }))}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Ativo</SelectItem>
+                      <SelectItem value="paused">Pausado</SelectItem>
+                      <SelectItem value="disabled">Desativado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">API Key vinculada</Label>
+                  <Select
+                    value={editForm.api_key_id || "none"}
+                    onValueChange={(v) => setEditForm((p) => ({ ...p, api_key_id: v === "none" ? "" : v }))}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhuma</SelectItem>
+                      {apiKeys.map((k: any) => (
+                        <SelectItem key={k.id} value={k.id}>{k.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-border/20">
+                <Button variant="ghost" size="sm" onClick={() => setEditing(null)}>
+                  Cancelar
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => updateMutation.mutate()}
+                  disabled={updateMutation.isPending || !editForm.name.trim()}
+                  className="gap-2"
+                >
+                  {updateMutation.isPending ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Save className="w-3.5 h-3.5" />
+                  )}
+                  Salvar
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
