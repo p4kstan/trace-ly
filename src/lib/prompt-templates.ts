@@ -441,6 +441,25 @@ Use APENAS UM webhook (não duplique). O CapiTrack distribui para todos os desti
 CRÍTICO para dedup: o transaction_id enviado no purchase client-side deve ser EXATAMENTE o mesmo que o webhook do gateway envia.` : "Sem gateway — pular esta etapa."}
 
 ═══════════════════════════════════════════════
+4.1) PAYLOAD DO PURCHASE — REGRAS CRÍTICAS (atualizado 04/2026)
+═══════════════════════════════════════════════
+Quando disparar o Purchase (client-side OU server-side), o payload PRECISA conter:
+
+- **external_id**: ID da transação no gateway (ex: \`ord_abc123\`). Usado pra dedupe.
+- **event_id**: SEMPRE no formato \`\${external_id}:Purchase\` (mesmo entre client e webhook).
+- **event_name**: "Purchase" (ou "Subscribe" pra assinatura).
+- **session_id**: lido do cookie/sessionStorage do CapiTrack (\`ct_session\`). Permite fallback de atribuição.
+- **gclid / gbraid / wbraid / fbclid / ttclid**: lidos dos cookies \`ct_*\` ou da URL.
+  ⚠️ NUNCA aplique .toLowerCase(), .normalize() ou regex destrutivo nesses valores. Apenas .trim().
+- **utm_source / utm_medium / utm_campaign / utm_term / utm_content**: dos cookies \`ct_utm_*\`.
+- **status do pagamento**: só dispare Purchase quando status ∈ \`{paid, approved, confirmed, succeeded, pix_paid, order_paid}\`.
+  Para status \`pending\`, \`checkout_created\`, \`boleto_printed\` use \`InitiateCheckout\` ou \`generate_lead\` — NÃO Purchase.
+
+A janela de dedupe do CapiTrack é de **48h**: o mesmo \`external_id:Purchase\` enviado 2x dentro
+desse período é automaticamente bloqueado pelo backend, então é seguro disparar tanto client-side
+quanto webhook (o segundo será ignorado).
+
+═══════════════════════════════════════════════
 5) ALTERNATIVA — IMPORTAR CONTAINER GTM (opcional)
 ═══════════════════════════════════════════════
 Se o usuário usa Google Tag Manager, há um container PRONTO gerado pelo CapiTrack
