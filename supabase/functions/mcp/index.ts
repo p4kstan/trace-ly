@@ -364,7 +364,14 @@ Deno.serve(async (req) => {
         return json({ error: "Insufficient permissions" }, 403);
 
       const startTime = Date.now();
-      const result = await executeTool(supabase, toolName, validated.workspace_id, body.params || {});
+      const isWrite = toolDef.permissions.includes("write");
+      const result = isWrite
+        ? await executeWriteTool(
+            { supabase, workspaceId: validated.workspace_id, tokenId: validated.id },
+            toolName,
+            body.params || {},
+          )
+        : await executeTool(supabase, toolName, validated.workspace_id, body.params || {});
       const duration = Date.now() - startTime;
 
       // Log the call
