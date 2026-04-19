@@ -813,7 +813,7 @@ async function enqueueForMeta(
         session: sessionData ? { fbp: sessionData.fbp, fbc: sessionData.fbc, ip_hash: sessionData.ip_hash, user_agent: sessionData.user_agent, landing_page: sessionData.landing_page, gclid: sessionData.gclid, ttclid: sessionData.ttclid, ttp: sessionData.ttp, referrer: sessionData.referrer, utm_source: sessionData.utm_source, utm_medium: sessionData.utm_medium, utm_campaign: sessionData.utm_campaign } : null,
         identity_id: identityId,
       },
-    });
+    }, { onConflict: "workspace_id,event_id,provider", ignoreDuplicates: true });
   }
 }
 
@@ -857,7 +857,7 @@ async function enqueueForOtherProviders(
         session: sessionData ? { fbp: sessionData.fbp, fbc: sessionData.fbc, ip_hash: sessionData.ip_hash, user_agent: sessionData.user_agent, landing_page: sessionData.landing_page, gclid: sessionData.gclid, ttclid: sessionData.ttclid, ttp: sessionData.ttp, gbraid: sessionData.gbraid, wbraid: sessionData.wbraid, referrer: sessionData.referrer, utm_source: sessionData.utm_source, utm_medium: sessionData.utm_medium, utm_campaign: sessionData.utm_campaign, client_id: sessionData.ga_client_id } : null,
         identity_id: identityId,
       },
-    });
+    }, { onConflict: "workspace_id,event_id,provider", ignoreDuplicates: true });
   }
 }
 
