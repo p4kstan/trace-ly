@@ -3639,6 +3639,7 @@ export type Database = {
           gateway: string
           gateway_integration_id: string | null
           gateway_order_id: string | null
+          gbraid: string | null
           gclid: string | null
           id: string
           identity_id: string | null
@@ -3662,6 +3663,7 @@ export type Database = {
           utm_medium: string | null
           utm_source: string | null
           utm_term: string | null
+          wbraid: string | null
           workspace_id: string
         }
         Insert: {
@@ -3686,6 +3688,7 @@ export type Database = {
           gateway: string
           gateway_integration_id?: string | null
           gateway_order_id?: string | null
+          gbraid?: string | null
           gclid?: string | null
           id?: string
           identity_id?: string | null
@@ -3709,6 +3712,7 @@ export type Database = {
           utm_medium?: string | null
           utm_source?: string | null
           utm_term?: string | null
+          wbraid?: string | null
           workspace_id: string
         }
         Update: {
@@ -3733,6 +3737,7 @@ export type Database = {
           gateway?: string
           gateway_integration_id?: string | null
           gateway_order_id?: string | null
+          gbraid?: string | null
           gclid?: string | null
           id?: string
           identity_id?: string | null
@@ -3756,6 +3761,7 @@ export type Database = {
           utm_medium?: string | null
           utm_source?: string | null
           utm_term?: string | null
+          wbraid?: string | null
           workspace_id?: string
         }
         Relationships: [

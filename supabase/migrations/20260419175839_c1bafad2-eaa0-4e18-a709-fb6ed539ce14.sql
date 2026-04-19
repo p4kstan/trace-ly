@@ -1,0 +1,14 @@
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS gclid TEXT,
+  ADD COLUMN IF NOT EXISTS gbraid TEXT,
+  ADD COLUMN IF NOT EXISTS wbraid TEXT,
+  ADD COLUMN IF NOT EXISTS fbclid TEXT,
+  ADD COLUMN IF NOT EXISTS session_id TEXT,
+  ADD COLUMN IF NOT EXISTS utm_source TEXT,
+  ADD COLUMN IF NOT EXISTS utm_medium TEXT,
+  ADD COLUMN IF NOT EXISTS utm_campaign TEXT,
+  ADD COLUMN IF NOT EXISTS utm_term TEXT,
+  ADD COLUMN IF NOT EXISTS utm_content TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_orders_gclid ON public.orders(gclid) WHERE gclid IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_orders_session_id ON public.orders(session_id) WHERE session_id IS NOT NULL;
