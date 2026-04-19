@@ -48,14 +48,38 @@ export default function Destinations() {
     },
   });
 
-  // Stats per provider
-  const providerStats = recentLogs.reduce((acc: Record<string, { delivered: number; failed: number; total: number }>, log: any) => {
-    if (!acc[log.provider]) acc[log.provider] = { delivered: 0, failed: 0, total: 0 };
-    acc[log.provider].total++;
-    if (log.status === "delivered") acc[log.provider].delivered++;
-    else acc[log.provider].failed++;
-    return acc;
-  }, {});
+  // Webhook events received per provider (source = 'webhook_<provider>')
+  const { data: webhookCounts = [] } = useQuery({
+    queryKey: ["webhook-counts", workspace?.id],
+    enabled: !!workspace?.id,
+    refetchInterval: 30000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("events")
+        .select("source, processing_status")
+        .eq("workspace_id", workspace!.id)
+        .like("source", "webhook_%")
+        .limit(2000);
+      return data || [];
+    },
+  });
+
+  // Stats per provider — merge integration_logs + webhook events
+  const providerStats: Record<string, { delivered: number; failed: number; total: number }> = {};
+  for (const log of recentLogs as any[]) {
+    if (!providerStats[log.provider]) providerStats[log.provider] = { delivered: 0, failed: 0, total: 0 };
+    providerStats[log.provider].total++;
+    if (log.status === "delivered") providerStats[log.provider].delivered++;
+    else providerStats[log.provider].failed++;
+  }
+  for (const evt of webhookCounts as any[]) {
+    const provider = (evt.source || "").replace(/^webhook_/, "");
+    if (!provider) continue;
+    if (!providerStats[provider]) providerStats[provider] = { delivered: 0, failed: 0, total: 0 };
+    providerStats[provider].total++;
+    if (evt.processing_status === "failed") providerStats[provider].failed++;
+    else providerStats[provider].delivered++;
+  }
 
   return (
     <div className="space-y-6">
