@@ -776,15 +776,21 @@ Deno.serve(async (req) => {
       query = query.replace("CUSTOMER_ID", customerId);
     }
 
+    const headers: Record<string, string> = {
+      "Authorization": `Bearer ${accessToken}`,
+      "developer-token": developerToken,
+      "Content-Type": "application/json",
+    };
+    const loginCustomerId = (cred.login_customer_id as string | null)?.replace(/-/g, "");
+    if (loginCustomerId && loginCustomerId !== customerId) {
+      headers["login-customer-id"] = loginCustomerId;
+    }
+
     const adsRes = await fetch(
       `https://googleads.googleapis.com/v21/customers/${customerId}/googleAds:search`,
       {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "developer-token": developerToken,
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify({ query }),
       }
     );
