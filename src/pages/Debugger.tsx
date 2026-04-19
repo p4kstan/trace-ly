@@ -48,8 +48,8 @@ export default function Debugger() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="space-y-2">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+          <div className="space-y-2 lg:max-h-[calc(100vh-16rem)] lg:overflow-y-auto lg:pr-2">
             {deliveries.map((d) => (
               <button
                 key={d.id}
