@@ -11,7 +11,7 @@
 (function(window, document) {
   'use strict';
 
-  var SDK_VERSION = '4.0.0';
+  var SDK_VERSION = '4.1.0';
   var BATCH_INTERVAL = 2000;
   var MAX_BATCH_SIZE = 20;
   var COOKIE_DAYS = 390;
@@ -19,8 +19,36 @@
   var ANON_KEY = 'ct_anonymous_id';
   var IDENTITY_KEY = 'ct_identity';
   var CONSENT_KEY = 'ct_consent';
+  // Journey event_id — persisted across page reloads so the SAME id reaches
+  // both the browser Pixel and the gateway webhook (perfect dedup).
+  var JOURNEY_EVENT_KEY = 'ct_journey_event_id';
+  var JOURNEY_EVENT_TTL_MS = 24 * 60 * 60 * 1000; // 24h rolling window
   var UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
   var CLICK_IDS = ['fbclid', 'gclid', 'gbraid', 'wbraid', 'ttclid', 'msclkid', 'twclid', 'li_fat_id'];
+
+  // Domains we auto-decorate with metadata[event_id] when the user clicks
+  // an outbound checkout link (covers the major BR/INTL gateways).
+  var CHECKOUT_DOMAINS = [
+    'pay.hotmart.com', 'hotmart.com',
+    'pay.kiwify.com', 'pay.kiwify.com.br', 'kiwify.com.br', 'kiwify.app',
+    'checkout.stripe.com', 'buy.stripe.com',
+    'sun.eduzz.com', 'pay.eduzz.com', 'eduzz.com',
+    'seguro.yampi.com.br', 'app.yampi.com.br',
+    'pay.cakto.com.br', 'cakto.com.br',
+    'app.monetizze.com.br', 'monetizze.com.br',
+    'pagar.me', 'checkout.pagar.me',
+    'mpago.la', 'mercadopago.com', 'mercadopago.com.br',
+    'pagseguro.uol.com.br', 'pag.ae',
+    'sandbox.asaas.com', 'asaas.com',
+    'app.appmax.com.br', 'appmax.com.br',
+    'pay.kirvano.com', 'kirvano.com',
+    'pay.ticto.app', 'ticto.com.br',
+    'pay.perfectpay.com.br', 'perfectpay.com.br',
+    'lastlink.com', 'pay.lastlink.com',
+    'ev.braip.com', 'braip.com',
+    'paggue.io', 'pay.paggue.io',
+    'quantumpay.com.br', 'pay.quantumpay.com.br'
+  ];
 
   var config = {
     apiKey: '', endpoint: '', debug: false, autoPageView: true,
