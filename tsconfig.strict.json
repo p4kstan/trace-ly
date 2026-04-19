@@ -19,7 +19,8 @@
     "src/hooks/api/**/*.tsx",
     "src/components/dashboard/**/*.ts",
     "src/components/dashboard/**/*.tsx",
-    "src/lib/ga4-cache.ts"
+    "src/lib/ga4-cache.ts",
+    "supabase/functions/gateway-webhook/handlers/**/*.ts"
   ],
   "exclude": ["node_modules", "dist", "build"]
 }
