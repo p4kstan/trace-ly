@@ -48,8 +48,8 @@ export default function Debugger() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-          <div className="space-y-2 lg:max-h-[calc(100vh-16rem)] lg:overflow-y-auto lg:pr-2">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)] items-start">
+          <div className="space-y-2 max-h-[calc(100vh-14rem)] overflow-y-auto pr-1 min-w-0">
             {deliveries.map((d) => (
               <button
                 key={d.id}
@@ -58,41 +58,44 @@ export default function Debugger() {
                   selected?.id === d.id ? "ring-1 ring-primary glow-primary" : "hover:bg-muted/30"
                 }`}
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-foreground text-sm">{d.provider}</span>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-medium text-foreground text-sm break-words">{d.provider}</span>
                   {d.status === "delivered" ? (
-                    <CheckCircle className="w-4 h-4 text-success" />
+                    <CheckCircle className="w-4 h-4 text-success shrink-0" />
                   ) : (
-                    <XCircle className="w-4 h-4 text-destructive" />
+                    <XCircle className="w-4 h-4 text-destructive shrink-0" />
                   )}
                 </div>
-                <div className="flex items-center gap-2 mt-1.5 text-xs text-muted-foreground">
-                  <span>{d.destination || "—"}</span>
-                  <span>•</span>
-                  <span>{new Date(d.created_at).toLocaleTimeString()}</span>
-                  <span>•</span>
-                  <Clock className="w-3 h-3" />
-                  <span>tentativa {d.attempt_count}</span>
+                <div className="mt-1.5 space-y-1 text-xs text-muted-foreground">
+                  <p className="break-all">{d.destination || "—"}</p>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span>{new Date(d.created_at).toLocaleTimeString()}</span>
+                    <span>•</span>
+                    <div className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      <span>tentativa {d.attempt_count}</span>
+                    </div>
+                  </div>
                 </div>
               </button>
             ))}
           </div>
 
           {selected && (
-            <div className="lg:col-span-2 space-y-4 lg:sticky lg:top-4">
-              <div className="glass-card p-4">
-                <div className="flex items-center gap-3 mb-3">
+            <div className="space-y-4 min-w-0">
+              <div className="glass-card p-4 min-w-0">
+                <div className="flex flex-wrap items-center gap-3 mb-3">
                   <span className="text-xs font-medium text-muted-foreground uppercase">Requisição</span>
                   <ArrowRight className="w-3 h-3 text-muted-foreground" />
-                  <span className="text-xs font-medium text-primary">{selected.provider} — {selected.destination}</span>
+                  <span className="text-xs font-medium text-primary break-all">{selected.provider} — {selected.destination}</span>
                 </div>
-                <pre className="bg-muted/50 rounded-lg p-4 text-xs font-mono text-foreground overflow-auto max-h-64">
+                <pre className="bg-muted/50 rounded-lg p-4 text-xs font-mono text-foreground overflow-auto max-h-[28rem] whitespace-pre-wrap break-words">
                   {JSON.stringify(selected.request_json as Json, null, 2)}
                 </pre>
               </div>
 
-              <div className="glass-card p-4">
-                <div className="flex items-center gap-3 mb-3">
+              <div className="glass-card p-4 min-w-0">
+                <div className="flex flex-wrap items-center gap-3 mb-3">
                   <span className="text-xs font-medium text-muted-foreground uppercase">Resposta</span>
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                     selected.status === "delivered" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
@@ -100,11 +103,11 @@ export default function Debugger() {
                     {selected.status}
                   </span>
                 </div>
-                <pre className="bg-muted/50 rounded-lg p-4 text-xs font-mono text-foreground overflow-auto max-h-64">
+                <pre className="bg-muted/50 rounded-lg p-4 text-xs font-mono text-foreground overflow-auto max-h-[28rem] whitespace-pre-wrap break-words">
                   {JSON.stringify(selected.response_json as Json, null, 2)}
                 </pre>
                 {selected.error_message && (
-                  <p className="mt-2 text-xs text-destructive">{selected.error_message}</p>
+                  <p className="mt-2 text-xs text-destructive break-words">{selected.error_message}</p>
                 )}
               </div>
             </div>
