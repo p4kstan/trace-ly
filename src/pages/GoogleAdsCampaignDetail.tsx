@@ -33,6 +33,7 @@ export default function GoogleAdsCampaignDetail() {
   const [newBudget, setNewBudget] = useState("");
 
   const m = useCampaignMetrics({ workspaceId: workspace?.id, customerId, campaignId });
+  const edits = useCampaignEdits({ workspaceId: workspace?.id, customerId, campaignId });
   const { reports } = m;
   const budget = (reports.camp.data?.rows?.[0]?.budget as number) || 0;
 
