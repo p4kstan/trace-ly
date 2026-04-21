@@ -6,6 +6,8 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Loader2, Pause, Play, Edit3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { CampaignStatusBadge as StatusBadge } from "@/components/dashboard/CampaignStatusBadge";
 import { PERIOD_LABELS, type Period } from "@/hooks/api/use-campaign-metrics";
 import { RenameButton } from "./RowActions";
@@ -29,6 +31,8 @@ interface CampaignHeaderProps {
   toggleStatusPending: boolean;
   onOpenBudget: () => void;
   edits: CampaignEdits;
+  compareEnabled: boolean;
+  onCompareToggle: (v: boolean) => void;
 }
 
 export function CampaignHeader({
@@ -43,6 +47,8 @@ export function CampaignHeader({
   toggleStatusPending,
   onOpenBudget,
   edits,
+  compareEnabled,
+  onCompareToggle,
 }: CampaignHeaderProps) {
   const navigate = useNavigate();
   const status = campaign?.status ?? null;
@@ -69,6 +75,10 @@ export function CampaignHeader({
         </div>
       </div>
       <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-muted/30 border border-border/40">
+          <Label htmlFor="cmp-toggle" className="text-[11px] cursor-pointer select-none">vs período anterior</Label>
+          <Switch id="cmp-toggle" checked={compareEnabled} onCheckedChange={onCompareToggle} />
+        </div>
         <Select value={period} onValueChange={(v) => onPeriodChange(v as Period)}>
           <SelectTrigger className="w-[160px] h-9"><SelectValue /></SelectTrigger>
           <SelectContent>

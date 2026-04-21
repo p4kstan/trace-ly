@@ -134,6 +134,10 @@ export function useCampaignMetrics({ workspaceId, customerId, campaignId }: UseC
   return {
     period,
     setPeriod,
+    compareEnabled,
+    setCompareEnabled,
+    comparePrev: (compare.data ?? null) as Awaited<ReturnType<typeof usePeriodComparison>["data"]> | null,
+    compareLoading: compare.isLoading,
     campaign,
     totals,
     chartData,
