@@ -315,11 +315,60 @@ Deno.serve(async (req) => {
     const queueRows: any[] = [];
     const normalizedPayload = normalizeEventToQueuePayload(event);
 
+    // ── DEDUP RULE (Purchase/Lead): same order_id + event_name within 24h
+    // is recorded in `duplicate_detections`. If the SAME source already sent
+    // it (e.g. webhook reentregue), we skip the dispatch entirely. If a
+    // DIFFERENT source already sent it (pixel + CAPI), we still dispatch
+    // (Google/Meta will dedupe on their side via order_id) but log as
+    // detected — visible in the /duplicates page.
+    const cd = (event.custom_data_json as any) || {};
+    const dedupOrderId = String(
+      cd.transaction_id || cd.order_id ||
+      normalizedPayload.order?.external_order_id || ""
+    ).trim();
+    const dedupValue = Number(cd.value || normalizedPayload.order?.total_value || 0);
+    const dedupCurrency = String(cd.currency || normalizedPayload.order?.currency || "BRL");
+    const sourceLabel = `capi_dispatch:${event.source || "track"}`;
+
+    let duplicateInfo: { is_duplicate: boolean; previous_sources?: string[] } = { is_duplicate: false };
+    if (isConversion && dedupOrderId) {
+      const { data: dupRes, error: dupErr } = await supabase.rpc("detect_duplicate_conversion", {
+        _workspace_id: workspace_id,
+        _order_id: dedupOrderId,
+        _event_name: event.event_name,
+        _source: sourceLabel,
+        _event_id: event.event_id || event.id,
+        _value: dedupValue,
+        _currency: dedupCurrency,
+        _window_hours: 24,
+      });
+      if (dupErr) {
+        console.warn("[event-router] dedup rpc error:", dupErr.message);
+      } else if (dupRes && (dupRes as any).is_duplicate) {
+        duplicateInfo = dupRes as any;
+        console.warn(`[event-router] DUPLICATE detected order_id=${dedupOrderId} event=${event.event_name} prev_sources=${JSON.stringify((dupRes as any).previous_sources)}`);
+      }
+    }
+
     const routePromises = destinations.map(async (dest) => {
       // P0 Filter: behavioral events MUST NOT reach ad-platform CAPIs.
       if (isConversionOnlyProvider(dest.provider) && !isConversionEvent(event.event_name)) {
         console.log(`[event-router] skip provider=${dest.provider} reason=non_conversion_event event=${event.event_name}`);
         results.push({ provider: dest.provider, status: "skipped", latency_ms: 0 });
+        return;
+      }
+
+      // Block re-dispatch if the SAME source (webhook re-delivery) tried
+      // to re-send the exact same order_id+event_name in the last 24h.
+      // Different sources (pixel + capi) are allowed through — Google/Meta
+      // dedupe via order_id on their side.
+      if (
+        duplicateInfo.is_duplicate &&
+        Array.isArray(duplicateInfo.previous_sources) &&
+        duplicateInfo.previous_sources.includes(sourceLabel)
+      ) {
+        console.warn(`[event-router] BLOCKED duplicate dispatch provider=${dest.provider} order_id=${dedupOrderId}`);
+        results.push({ provider: dest.provider, status: "skipped", latency_ms: 0, error: "duplicate_same_source_24h" });
         return;
       }
 

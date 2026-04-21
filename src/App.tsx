@@ -54,6 +54,7 @@ const TikTokAdsCampaigns = lazy(() => import("@/pages/TikTokAdsCampaigns"));
 const PromptGenerator = lazy(() => import("@/pages/PromptGenerator"));
 const GA4Analytics = lazy(() => import("@/pages/GA4Analytics"));
 const NativeCheckoutGuide = lazy(() => import("@/pages/NativeCheckoutGuide"));
+const Duplicates = lazy(() => import("@/pages/Duplicates"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -109,6 +110,7 @@ function ProtectedRoutes() {
           <Route path="/api-keys" element={<ApiKeys />} />
           <Route path="/credentials" element={<Credentials />} />
           <Route path="/ga4-analytics" element={<GA4Analytics />} />
+          <Route path="/duplicates" element={<Duplicates />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
