@@ -116,9 +116,31 @@ export default function GoogleAdsCampaignDetail() {
           />
 
           <Card className="glass-card">
-            <CardHeader className="py-3"><CardTitle className="text-sm">Grupos de anúncios</CardTitle></CardHeader>
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Grupos de anúncios</CardTitle>
+              <p className="text-[11px] text-muted-foreground mt-1">Renomeie ou ajuste o CPC máx. padrão de cada grupo.</p>
+            </CardHeader>
             <CardContent className="p-0">
-              <SimpleTable loading={reports.adGroups.isLoading} rows={reports.adGroups.data?.rows} columns={["name", "status", "impressions", "clicks", "ctr", "cost", "conversions", "cpa"]} />
+              <SimpleTable
+                loading={reports.adGroups.isLoading}
+                rows={reports.adGroups.data?.rows}
+                columns={["name", "status", "impressions", "clicks", "ctr", "cost", "conversions", "cpa"]}
+                actionsLabel="Ações"
+                rowActions={(row) => (
+                  <>
+                    <BidEditor
+                      pending={edits.updateAdGroupBid.isPending}
+                      label="CPC máx. padrão do grupo (R$)"
+                      onSave={(cpc) => edits.updateAdGroupBid.mutate({ ad_group_id: row.id, cpc_brl: cpc })}
+                    />
+                    <RenameButton
+                      pending={edits.renameAdGroup.isPending}
+                      currentName={row.name}
+                      onSave={(new_name) => edits.renameAdGroup.mutate({ ad_group_id: row.id, new_name })}
+                    />
+                  </>
+                )}
+              />
             </CardContent>
           </Card>
 
