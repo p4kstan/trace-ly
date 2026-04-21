@@ -534,6 +534,13 @@ export default function GoogleAdsCampaignDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <EditAdDialog
+        open={!!editingAd}
+        onOpenChange={(o) => { if (!o) setEditingAd(null); }}
+        ad={editingAd}
+        edits={edits}
+      />
     </div>
   );
 }
