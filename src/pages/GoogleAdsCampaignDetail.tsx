@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useWorkspace } from "@/hooks/use-tracking-data";
 import { useCampaignMetrics } from "@/hooks/api/use-campaign-metrics";
@@ -17,8 +17,9 @@ import { ConversionDistribution } from "@/components/google-ads/ConversionDistri
 import { CampaignSettings } from "@/components/google-ads/CampaignSettings";
 import { AutomationCommandCenter } from "@/components/automation/AutomationCommandCenter";
 import { useCampaignEdits } from "@/hooks/api/use-campaign-edits";
-import { StatusToggle, BidEditor, QuickNegativeButton } from "@/components/google-ads/RowActions";
+import { StatusToggle, BidEditor, QuickNegativeButton, RenameButton } from "@/components/google-ads/RowActions";
 import { AddNegativeKeywordForm } from "@/components/google-ads/AddNegativeKeywordForm";
+import { BulkActionBar } from "@/components/google-ads/BulkActionBar";
 
 const fmtNumber = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
 const fmtMoney = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
