@@ -42,6 +42,7 @@ export default function GoogleAdsCampaignDetail() {
   const [newBudget, setNewBudget] = useState("");
   const [selectedKw, setSelectedKw] = useState<Set<string>>(new Set());
   const [selectedTerms, setSelectedTerms] = useState<Set<string>>(new Set());
+  const [editingAd, setEditingAd] = useState<any | null>(null);
 
   const m = useCampaignMetrics({ workspaceId: workspace?.id, customerId, campaignId });
   const edits = useCampaignEdits({ workspaceId: workspace?.id, customerId, campaignId });
