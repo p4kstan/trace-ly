@@ -708,6 +708,66 @@ export type Database = {
         }
         Relationships: []
       }
+      duplicate_detections: {
+        Row: {
+          action_taken: string
+          created_at: string
+          currency: string | null
+          event_ids: Json
+          event_name: string
+          first_seen_at: string
+          first_seen_day: string | null
+          id: string
+          last_seen_at: string
+          notes: string | null
+          occurrences: number
+          order_id: string
+          resolution: string | null
+          sources: Json
+          total_value: number | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          action_taken?: string
+          created_at?: string
+          currency?: string | null
+          event_ids?: Json
+          event_name: string
+          first_seen_at?: string
+          first_seen_day?: string | null
+          id?: string
+          last_seen_at?: string
+          notes?: string | null
+          occurrences?: number
+          order_id: string
+          resolution?: string | null
+          sources?: Json
+          total_value?: number | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          action_taken?: string
+          created_at?: string
+          currency?: string | null
+          event_ids?: Json
+          event_name?: string
+          first_seen_at?: string
+          first_seen_day?: string | null
+          id?: string
+          last_seen_at?: string
+          notes?: string | null
+          occurrences?: number
+          order_id?: string
+          resolution?: string | null
+          sources?: Json
+          total_value?: number | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       event_deliveries: {
         Row: {
           attempt_count: number
@@ -4637,6 +4697,17 @@ export type Database = {
         }
         Relationships: []
       }
+      v_duplicate_summary: {
+        Row: {
+          dupes_24h: number | null
+          dupes_7d: number | null
+          dupes_total: number | null
+          unique_orders_affected: number | null
+          value_at_risk_24h: number | null
+          workspace_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       cleanup_expired_ga4_cache: { Args: never; Returns: number }
@@ -4649,6 +4720,19 @@ export type Database = {
           _workspace_id: string
         }
         Returns: undefined
+      }
+      detect_duplicate_conversion: {
+        Args: {
+          _currency?: string
+          _event_id: string
+          _event_name: string
+          _order_id: string
+          _source: string
+          _value?: number
+          _window_hours?: number
+          _workspace_id: string
+        }
+        Returns: Json
       }
       get_integration_metadata: {
         Args: { _workspace_id: string }
