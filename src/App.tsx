@@ -47,6 +47,7 @@ const SetupGoogle = lazy(() => import("@/pages/SetupGoogle"));
 const ConnectedAccounts = lazy(() => import("@/pages/ConnectedAccounts"));
 const GoogleAdsAccountDetail = lazy(() => import("@/pages/GoogleAdsAccountDetail"));
 const GoogleAdsCampaigns = lazy(() => import("@/pages/GoogleAdsCampaigns"));
+const GoogleAdsOverview = lazy(() => import("@/pages/GoogleAdsOverview"));
 const GoogleAdsCampaignDetail = lazy(() => import("@/pages/GoogleAdsCampaignDetail"));
 const FacebookAdsCampaigns = lazy(() => import("@/pages/FacebookAdsCampaigns"));
 const TikTokAdsCampaigns = lazy(() => import("@/pages/TikTokAdsCampaigns"));
@@ -97,6 +98,7 @@ function ProtectedRoutes() {
           <Route path="/contas-conectadas" element={<ConnectedAccounts />} />
           <Route path="/contas-conectadas/google/:customerId" element={<GoogleAdsAccountDetail />} />
           <Route path="/google-ads-campaigns" element={<GoogleAdsCampaigns />} />
+          <Route path="/google-ads-overview" element={<GoogleAdsOverview />} />
           <Route path="/google-ads-campaigns/:customerId/:campaignId" element={<GoogleAdsCampaignDetail />} />
           <Route path="/facebook-ads-campaigns" element={<FacebookAdsCampaigns />} />
           <Route path="/tiktok-ads-campaigns" element={<TikTokAdsCampaigns />} />
