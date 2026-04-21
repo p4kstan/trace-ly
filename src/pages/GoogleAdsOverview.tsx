@@ -171,7 +171,7 @@ export default function GoogleAdsOverview() {
                       <td className="p-2 text-right">{fmtFloat(c.roas, 2)}x</td>
                       <td className="p-2">
                         <Button size="icon" variant="ghost" className="h-6 w-6"
-                          onClick={() => navigate(`/google-ads/${c.customer_id}/campaigns/${c.campaign_id}`)}>
+                          onClick={() => navigate(`/google-ads-campaigns/${c.customer_id}/${c.campaign_id}`)}>
                           <ExternalLink className="w-3 h-3" />
                         </Button>
                       </td>
