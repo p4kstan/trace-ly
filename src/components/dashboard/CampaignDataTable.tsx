@@ -88,13 +88,24 @@ interface Props {
   /** Optional renderer for an actions column appended to the right of every row */
   rowActions?: (row: any) => React.ReactNode;
   actionsLabel?: string;
+  /** Selection support: when provided, a leftmost checkbox column is rendered. */
+  selectable?: {
+    selectedIds: Set<string>;
+    onToggle: (id: string) => void;
+    onToggleAll: (allIds: string[]) => void;
+    /** Returns the unique id used for selection on each row (defaults to row.id). */
+    getId?: (row: any) => string;
+  };
 }
 
-export function CampaignDataTable({ loading, rows, columns, labels, rowActions, actionsLabel = "" }: Props) {
+export function CampaignDataTable({ loading, rows, columns, labels, rowActions, actionsLabel = "", selectable }: Props) {
   if (loading) return <div className="p-8 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>;
   if (!rows?.length) return <div className="p-8 text-center text-sm text-muted-foreground">Sem dados</div>;
 
   const colLabel = (c: string) => labels?.[c] || DEFAULT_LABELS[c] || c;
+  const getId = selectable?.getId || ((r: any) => r.id);
+  const allIds = selectable ? rows.map(getId).filter(Boolean) : [];
+  const allSelected = selectable && allIds.length > 0 && allIds.every((id) => selectable.selectedIds.has(id));
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -102,6 +113,17 @@ export function CampaignDataTable({ loading, rows, columns, labels, rowActions, 
         <table className="w-full text-xs">
           <thead className="text-muted-foreground border-b border-border/50 bg-muted/20">
             <tr>
+              {selectable && (
+                <th className="py-2.5 px-2 w-[32px]">
+                  <input
+                    type="checkbox"
+                    checked={!!allSelected}
+                    onChange={() => selectable.onToggleAll(allIds)}
+                    className="cursor-pointer"
+                    aria-label="Selecionar todos"
+                  />
+                </th>
+              )}
               {columns.map((c) => {
                 const help = COL_HELP[c];
                 const isLeft = c === "name" || c === "matched_keyword";
@@ -127,20 +149,35 @@ export function CampaignDataTable({ loading, rows, columns, labels, rowActions, 
             </tr>
           </thead>
           <tbody>
-            {rows.map((r, i) => (
-              <tr key={r.id || i} className="border-b border-border/30 hover:bg-muted/20">
-                {columns.map((c) => (
-                  <td key={c} className={cn("py-2 px-2 tabular-nums", c === "name" || c === "matched_keyword" ? "text-left" : "text-right")}>
-                    {formatCell(c, r[c])}
-                  </td>
-                ))}
-                {rowActions && (
-                  <td className="py-1 px-2 text-right">
-                    <div className="inline-flex items-center justify-end gap-0.5">{rowActions(r)}</div>
-                  </td>
-                )}
-              </tr>
-            ))}
+            {rows.map((r, i) => {
+              const id = getId(r);
+              const checked = selectable?.selectedIds.has(id);
+              return (
+                <tr key={id || i} className="border-b border-border/30 hover:bg-muted/20">
+                  {selectable && (
+                    <td className="py-2 px-2 text-center">
+                      <input
+                        type="checkbox"
+                        checked={!!checked}
+                        onChange={() => selectable.onToggle(id)}
+                        className="cursor-pointer"
+                        aria-label="Selecionar linha"
+                      />
+                    </td>
+                  )}
+                  {columns.map((c) => (
+                    <td key={c} className={cn("py-2 px-2 tabular-nums", c === "name" || c === "matched_keyword" ? "text-left" : "text-right")}>
+                      {formatCell(c, r[c])}
+                    </td>
+                  ))}
+                  {rowActions && (
+                    <td className="py-1 px-2 text-right">
+                      <div className="inline-flex items-center justify-end gap-0.5">{rowActions(r)}</div>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

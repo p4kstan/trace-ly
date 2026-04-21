@@ -1,14 +1,15 @@
 /**
  * Small inline action controls for table rows:
  * - StatusToggle: pause/enable an ad or keyword
- * - BidEditor: popover to edit a keyword's CPC bid
- * - QuickNegative: button to immediately exclude a search term
+ * - BidEditor: popover to edit a CPC bid (keyword OR ad group)
+ * - QuickNegativeButton: button to immediately exclude a search term
+ * - RenameButton: popover to rename campaign / ad group
  */
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, Pause, Play, Pencil, Ban } from "lucide-react";
+import { Loader2, Pause, Play, Pencil, Ban, Type } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { CampaignEdits } from "@/hooks/api/use-campaign-edits";
 
@@ -40,8 +41,8 @@ export function StatusToggle({
 }
 
 export function BidEditor({
-  pending, onSave,
-}: { pending: boolean; onSave: (cpc: number) => void }) {
+  pending, onSave, label = "CPC máximo (R$)",
+}: { pending: boolean; onSave: (cpc: number) => void; label?: string }) {
   const [open, setOpen] = useState(false);
   const [val, setVal] = useState("");
   return (
@@ -52,7 +53,7 @@ export function BidEditor({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-64 p-3" align="end">
-        <p className="text-xs font-semibold mb-2">CPC máximo (R$)</p>
+        <p className="text-xs font-semibold mb-2">{label}</p>
         <div className="flex gap-2">
           <Input
             type="number" step="0.01" min="0"
@@ -75,7 +76,48 @@ export function BidEditor({
             {pending && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}OK
           </Button>
         </div>
-        <p className="text-[10px] text-muted-foreground mt-2">Define o lance máximo por clique para esta palavra-chave.</p>
+        <p className="text-[10px] text-muted-foreground mt-2">Define o lance máximo por clique.</p>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+export function RenameButton({
+  pending, currentName, onSave,
+}: { pending: boolean; currentName?: string | null; onSave: (name: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [val, setVal] = useState(currentName ?? "");
+  return (
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (o) setVal(currentName ?? ""); }}>
+      <PopoverTrigger asChild>
+        <TooltipProvider delayDuration={200}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="icon" variant="ghost" className="h-7 w-7">
+                <Type className="w-3.5 h-3.5 text-muted-foreground" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Renomear</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-3" align="end">
+        <p className="text-xs font-semibold mb-2">Novo nome</p>
+        <div className="flex gap-2">
+          <Input
+            value={val}
+            onChange={(e) => setVal(e.target.value)}
+            className="h-8 text-xs"
+            autoFocus
+          />
+          <Button
+            size="sm" className="h-8"
+            disabled={pending || !val.trim() || val.trim() === currentName}
+            onClick={() => { onSave(val.trim()); setOpen(false); }}
+          >
+            {pending && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}OK
+          </Button>
+        </div>
       </PopoverContent>
     </Popover>
   );

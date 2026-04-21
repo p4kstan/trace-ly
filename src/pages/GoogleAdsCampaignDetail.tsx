@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useWorkspace } from "@/hooks/use-tracking-data";
 import { useCampaignMetrics } from "@/hooks/api/use-campaign-metrics";
@@ -17,8 +17,9 @@ import { ConversionDistribution } from "@/components/google-ads/ConversionDistri
 import { CampaignSettings } from "@/components/google-ads/CampaignSettings";
 import { AutomationCommandCenter } from "@/components/automation/AutomationCommandCenter";
 import { useCampaignEdits } from "@/hooks/api/use-campaign-edits";
-import { StatusToggle, BidEditor, QuickNegativeButton } from "@/components/google-ads/RowActions";
+import { StatusToggle, BidEditor, QuickNegativeButton, RenameButton } from "@/components/google-ads/RowActions";
 import { AddNegativeKeywordForm } from "@/components/google-ads/AddNegativeKeywordForm";
+import { BulkActionBar } from "@/components/google-ads/BulkActionBar";
 
 const fmtNumber = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
 const fmtMoney = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -31,11 +32,40 @@ export default function GoogleAdsCampaignDetail() {
   const [tab, setTab] = useState("overview");
   const [budgetOpen, setBudgetOpen] = useState(false);
   const [newBudget, setNewBudget] = useState("");
+  const [selectedKw, setSelectedKw] = useState<Set<string>>(new Set());
+  const [selectedTerms, setSelectedTerms] = useState<Set<string>>(new Set());
 
   const m = useCampaignMetrics({ workspaceId: workspace?.id, customerId, campaignId });
   const edits = useCampaignEdits({ workspaceId: workspace?.id, customerId, campaignId });
   const { reports } = m;
   const budget = (reports.camp.data?.rows?.[0]?.budget as number) || 0;
+
+  const adGroupOptions = useMemo(
+    () => (reports.adGroups.data?.rows || []).map((g: any) => ({ id: g.id, name: g.name })),
+    [reports.adGroups.data],
+  );
+
+  const toggleSet = (set: Set<string>, setSet: (s: Set<string>) => void, id: string) => {
+    const next = new Set(set);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSet(next);
+  };
+  const toggleAllSet = (set: Set<string>, setSet: (s: Set<string>) => void, ids: string[]) => {
+    setSet(ids.every((id) => set.has(id)) ? new Set() : new Set(ids));
+  };
+
+  // Build the items list for the bulk-keyword mutation: needs id + ad_group_id pairs.
+  const selectedKwItems = useMemo(() => {
+    const rows = (reports.keywords.data?.rows || []) as any[];
+    return rows
+      .filter((r) => selectedKw.has(r.id))
+      .map((r) => ({ ad_group_criterion_id: r.id, ad_group_id: r.ad_group_id }));
+  }, [reports.keywords.data, selectedKw]);
+
+  const selectedTermTexts = useMemo(() => {
+    const rows = (reports.searchTerms.data?.rows || []) as any[];
+    return rows.filter((r) => selectedTerms.has(r.name)).map((r) => String(r.name));
+  }, [reports.searchTerms.data, selectedTerms]);
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-5">
@@ -50,6 +80,7 @@ export default function GoogleAdsCampaignDetail() {
         onToggleResume={() => m.toggleStatus.mutate("ENABLED")}
         toggleStatusPending={m.toggleStatus.isPending}
         onOpenBudget={() => { setNewBudget(budget.toString()); setBudgetOpen(true); }}
+        edits={edits}
       />
 
       {m.errMsg && (
@@ -85,9 +116,31 @@ export default function GoogleAdsCampaignDetail() {
           />
 
           <Card className="glass-card">
-            <CardHeader className="py-3"><CardTitle className="text-sm">Grupos de anúncios</CardTitle></CardHeader>
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Grupos de anúncios</CardTitle>
+              <p className="text-[11px] text-muted-foreground mt-1">Renomeie ou ajuste o CPC máx. padrão de cada grupo.</p>
+            </CardHeader>
             <CardContent className="p-0">
-              <SimpleTable loading={reports.adGroups.isLoading} rows={reports.adGroups.data?.rows} columns={["name", "status", "impressions", "clicks", "ctr", "cost", "conversions", "cpa"]} />
+              <SimpleTable
+                loading={reports.adGroups.isLoading}
+                rows={reports.adGroups.data?.rows}
+                columns={["name", "status", "impressions", "clicks", "ctr", "cost", "conversions", "cpa"]}
+                actionsLabel="Ações"
+                rowActions={(row) => (
+                  <>
+                    <BidEditor
+                      pending={edits.updateAdGroupBid.isPending}
+                      label="CPC máx. padrão do grupo (R$)"
+                      onSave={(cpc) => edits.updateAdGroupBid.mutate({ ad_group_id: row.id, cpc_brl: cpc })}
+                    />
+                    <RenameButton
+                      pending={edits.renameAdGroup.isPending}
+                      currentName={row.name}
+                      onSave={(new_name) => edits.renameAdGroup.mutate({ ad_group_id: row.id, new_name })}
+                    />
+                  </>
+                )}
+              />
             </CardContent>
           </Card>
 
@@ -123,15 +176,33 @@ export default function GoogleAdsCampaignDetail() {
           <Card className="glass-card">
             <CardHeader className="py-3">
               <CardTitle className="text-sm">Palavras-chave</CardTitle>
-              <p className="text-[11px] text-muted-foreground mt-1">Pause/ative ou edite o lance máximo (CPC) direto aqui.</p>
+              <p className="text-[11px] text-muted-foreground mt-1">Selecione várias para pausar/ativar em lote, ou pause/edite o CPC linha-a-linha.</p>
             </CardHeader>
             <CardContent className="p-0">
+              <BulkActionBar
+                count={selectedKw.size}
+                pending={edits.bulkToggleKeywords.isPending}
+                onClear={() => setSelectedKw(new Set())}
+                onPause={() => edits.bulkToggleKeywords.mutate(
+                  { items: selectedKwItems, status: "PAUSED" },
+                  { onSuccess: () => setSelectedKw(new Set()) },
+                )}
+                onEnable={() => edits.bulkToggleKeywords.mutate(
+                  { items: selectedKwItems, status: "ENABLED" },
+                  { onSuccess: () => setSelectedKw(new Set()) },
+                )}
+              />
               <SimpleTable
                 loading={reports.keywords.isLoading}
                 rows={reports.keywords.data?.rows}
                 columns={["name", "match_type", "status", "quality_score", "impressions", "clicks", "ctr", "cost", "conversions", "cpa"]}
                 labels={{ name: "Palavra-chave", match_type: "Tipo", quality_score: "QS" }}
                 actionsLabel="Ações"
+                selectable={{
+                  selectedIds: selectedKw,
+                  onToggle: (id) => toggleSet(selectedKw, setSelectedKw, id),
+                  onToggleAll: (ids) => toggleAllSet(selectedKw, setSelectedKw, ids),
+                }}
                 rowActions={(row) => (
                   <>
                     <StatusToggle
@@ -161,12 +232,18 @@ export default function GoogleAdsCampaignDetail() {
         <TabsContent value="negatives" className="mt-4 space-y-4">
           <Card className="glass-card">
             <CardHeader className="py-3">
-              <CardTitle className="text-sm">Palavras-chave negativas — nível Campanha</CardTitle>
-              <p className="text-[11px] text-muted-foreground mt-1">Termos que <strong>bloqueiam</strong> seus anúncios em toda a campanha (ex: "grátis", "barato").</p>
+              <CardTitle className="text-sm">Adicionar palavra-chave negativa</CardTitle>
+              <p className="text-[11px] text-muted-foreground mt-1">Termos que <strong>bloqueiam</strong> seus anúncios. Escolha o escopo: toda a campanha ou um grupo específico.</p>
             </CardHeader>
             <CardContent className="p-0">
-              <AddNegativeKeywordForm edits={edits} />
+              <AddNegativeKeywordForm edits={edits} adGroups={adGroupOptions} />
+            </CardContent>
+          </Card>
+          <Card className="glass-card">
+            <CardHeader className="py-3"><CardTitle className="text-sm">Negativas — nível Campanha</CardTitle></CardHeader>
+            <CardContent className="p-0">
               <SimpleTable
+
                 loading={reports.negKeywordsCamp.isLoading}
                 rows={reports.negKeywordsCamp.data?.rows}
                 columns={["name", "match_type", "level"]}
@@ -233,12 +310,27 @@ export default function GoogleAdsCampaignDetail() {
               <p className="text-[11px] text-muted-foreground mt-1">Clique no ícone <strong>🚫</strong> para adicionar um termo como negativa de campanha.</p>
             </CardHeader>
             <CardContent className="p-0">
+              <BulkActionBar
+                count={selectedTerms.size}
+                pending={edits.bulkAddNegatives.isPending}
+                onClear={() => setSelectedTerms(new Set())}
+                onNegate={() => edits.bulkAddNegatives.mutate(
+                  { terms: selectedTermTexts, match_type: "PHRASE" },
+                  { onSuccess: () => setSelectedTerms(new Set()) },
+                )}
+              />
               <SimpleTable
                 loading={reports.searchTerms.isLoading}
                 rows={reports.searchTerms.data?.rows}
                 columns={["name", "matched_keyword", "match_type", "impressions", "clicks", "ctr", "cost", "conversions"]}
                 labels={{ name: "Termo pesquisado", matched_keyword: "Keyword", match_type: "Tipo" }}
                 actionsLabel=""
+                selectable={{
+                  selectedIds: selectedTerms,
+                  getId: (r) => String(r.name),
+                  onToggle: (id) => toggleSet(selectedTerms, setSelectedTerms, id),
+                  onToggleAll: (ids) => toggleAllSet(selectedTerms, setSelectedTerms, ids),
+                }}
                 rowActions={(row) => <QuickNegativeButton edits={edits} term={row.name} />}
               />
             </CardContent>
