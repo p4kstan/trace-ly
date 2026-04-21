@@ -121,13 +121,38 @@ export default function GoogleAdsCampaignDetail() {
 
         <TabsContent value="keywords" className="mt-4">
           <Card className="glass-card">
-            <CardHeader className="py-3"><CardTitle className="text-sm">Palavras-chave</CardTitle></CardHeader>
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Palavras-chave</CardTitle>
+              <p className="text-[11px] text-muted-foreground mt-1">Pause/ative ou edite o lance máximo (CPC) direto aqui.</p>
+            </CardHeader>
             <CardContent className="p-0">
               <SimpleTable
                 loading={reports.keywords.isLoading}
                 rows={reports.keywords.data?.rows}
                 columns={["name", "match_type", "status", "quality_score", "impressions", "clicks", "ctr", "cost", "conversions", "cpa"]}
                 labels={{ name: "Palavra-chave", match_type: "Tipo", quality_score: "QS" }}
+                actionsLabel="Ações"
+                rowActions={(row) => (
+                  <>
+                    <StatusToggle
+                      status={row.status}
+                      pending={edits.toggleKeyword.isPending}
+                      onToggle={(next) => edits.toggleKeyword.mutate({
+                        ad_group_criterion_id: row.id,
+                        ad_group_id: row.ad_group_id,
+                        status: next,
+                      })}
+                    />
+                    <BidEditor
+                      pending={edits.updateKeywordBid.isPending}
+                      onSave={(cpc) => edits.updateKeywordBid.mutate({
+                        ad_group_criterion_id: row.id,
+                        ad_group_id: row.ad_group_id,
+                        cpc_brl: cpc,
+                      })}
+                    />
+                  </>
+                )}
               />
             </CardContent>
           </Card>
@@ -202,13 +227,18 @@ export default function GoogleAdsCampaignDetail() {
 
         <TabsContent value="search_terms" className="mt-4">
           <Card className="glass-card">
-            <CardHeader className="py-3"><CardTitle className="text-sm">Termos pesquisados (o que usuários digitaram)</CardTitle></CardHeader>
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Termos pesquisados (o que usuários digitaram)</CardTitle>
+              <p className="text-[11px] text-muted-foreground mt-1">Clique no ícone <strong>🚫</strong> para adicionar um termo como negativa de campanha.</p>
+            </CardHeader>
             <CardContent className="p-0">
               <SimpleTable
                 loading={reports.searchTerms.isLoading}
                 rows={reports.searchTerms.data?.rows}
                 columns={["name", "matched_keyword", "match_type", "impressions", "clicks", "ctr", "cost", "conversions"]}
                 labels={{ name: "Termo pesquisado", matched_keyword: "Keyword", match_type: "Tipo" }}
+                actionsLabel=""
+                rowActions={(row) => <QuickNegativeButton edits={edits} term={row.name} />}
               />
             </CardContent>
           </Card>
