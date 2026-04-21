@@ -157,19 +157,55 @@ export default function GoogleAdsCampaignDetail() {
             <Card className="glass-card">
               <CardHeader className="py-3"><CardTitle className="text-sm">Por dispositivo</CardTitle></CardHeader>
               <CardContent className="p-0">
-                <SimpleTable loading={reports.deviceData.isLoading} rows={reports.deviceData.data?.rows} columns={["name", "impressions", "clicks", "ctr", "cost", "conversions"]} />
+                <SimpleTable
+                  loading={reports.deviceData.isLoading}
+                  rows={reports.deviceData.data?.rows}
+                  columns={["name", "impressions", "clicks", "ctr", "cost", "conversions", "bid_modifier"]}
+                  actionsLabel="Lance"
+                  rowActions={(row) => (
+                    <BidModifierInline
+                      pending={edits.updateCampaignBidModifier.isPending}
+                      current={row.bid_modifier}
+                      onSave={(bm) => edits.updateCampaignBidModifier.mutate({ criterion_id: row.id, bid_modifier: bm })}
+                    />
+                  )}
+                />
               </CardContent>
             </Card>
             <Card className="glass-card">
               <CardHeader className="py-3"><CardTitle className="text-sm">Por idade</CardTitle></CardHeader>
               <CardContent className="p-0">
-                <SimpleTable loading={reports.ageData.isLoading} rows={reports.ageData.data?.rows} columns={["name", "impressions", "clicks", "ctr", "cost", "conversions"]} />
+                <SimpleTable
+                  loading={reports.ageData.isLoading}
+                  rows={reports.ageData.data?.rows}
+                  columns={["name", "impressions", "clicks", "ctr", "cost", "conversions", "bid_modifier"]}
+                  actionsLabel="Lance"
+                  rowActions={(row) => row.ad_group_id && row.id ? (
+                    <BidModifierInline
+                      pending={edits.updateAdGroupBidModifier.isPending}
+                      current={row.bid_modifier}
+                      onSave={(bm) => edits.updateAdGroupBidModifier.mutate({ ad_group_id: row.ad_group_id, criterion_id: row.id, bid_modifier: bm })}
+                    />
+                  ) : null}
+                />
               </CardContent>
             </Card>
             <Card className="glass-card">
               <CardHeader className="py-3"><CardTitle className="text-sm">Por gênero</CardTitle></CardHeader>
               <CardContent className="p-0">
-                <SimpleTable loading={reports.genderData.isLoading} rows={reports.genderData.data?.rows} columns={["name", "impressions", "clicks", "ctr", "cost", "conversions"]} />
+                <SimpleTable
+                  loading={reports.genderData.isLoading}
+                  rows={reports.genderData.data?.rows}
+                  columns={["name", "impressions", "clicks", "ctr", "cost", "conversions", "bid_modifier"]}
+                  actionsLabel="Lance"
+                  rowActions={(row) => row.ad_group_id && row.id ? (
+                    <BidModifierInline
+                      pending={edits.updateAdGroupBidModifier.isPending}
+                      current={row.bid_modifier}
+                      onSave={(bm) => edits.updateAdGroupBidModifier.mutate({ ad_group_id: row.ad_group_id, criterion_id: row.id, bid_modifier: bm })}
+                    />
+                  ) : null}
+                />
               </CardContent>
             </Card>
             <Card className="glass-card">
