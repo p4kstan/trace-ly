@@ -32,11 +32,40 @@ export default function GoogleAdsCampaignDetail() {
   const [tab, setTab] = useState("overview");
   const [budgetOpen, setBudgetOpen] = useState(false);
   const [newBudget, setNewBudget] = useState("");
+  const [selectedKw, setSelectedKw] = useState<Set<string>>(new Set());
+  const [selectedTerms, setSelectedTerms] = useState<Set<string>>(new Set());
 
   const m = useCampaignMetrics({ workspaceId: workspace?.id, customerId, campaignId });
   const edits = useCampaignEdits({ workspaceId: workspace?.id, customerId, campaignId });
   const { reports } = m;
   const budget = (reports.camp.data?.rows?.[0]?.budget as number) || 0;
+
+  const adGroupOptions = useMemo(
+    () => (reports.adGroups.data?.rows || []).map((g: any) => ({ id: g.id, name: g.name })),
+    [reports.adGroups.data],
+  );
+
+  const toggleSet = (set: Set<string>, setSet: (s: Set<string>) => void, id: string) => {
+    const next = new Set(set);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSet(next);
+  };
+  const toggleAllSet = (set: Set<string>, setSet: (s: Set<string>) => void, ids: string[]) => {
+    setSet(ids.every((id) => set.has(id)) ? new Set() : new Set(ids));
+  };
+
+  // Build the items list for the bulk-keyword mutation: needs id + ad_group_id pairs.
+  const selectedKwItems = useMemo(() => {
+    const rows = (reports.keywords.data?.rows || []) as any[];
+    return rows
+      .filter((r) => selectedKw.has(r.id))
+      .map((r) => ({ ad_group_criterion_id: r.id, ad_group_id: r.ad_group_id }));
+  }, [reports.keywords.data, selectedKw]);
+
+  const selectedTermTexts = useMemo(() => {
+    const rows = (reports.searchTerms.data?.rows || []) as any[];
+    return rows.filter((r) => selectedTerms.has(r.name)).map((r) => String(r.name));
+  }, [reports.searchTerms.data, selectedTerms]);
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-5">
@@ -51,6 +80,7 @@ export default function GoogleAdsCampaignDetail() {
         onToggleResume={() => m.toggleStatus.mutate("ENABLED")}
         toggleStatusPending={m.toggleStatus.isPending}
         onOpenBudget={() => { setNewBudget(budget.toString()); setBudgetOpen(true); }}
+        edits={edits}
       />
 
       {m.errMsg && (
