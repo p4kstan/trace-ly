@@ -266,6 +266,15 @@ export default function GoogleAdsCampaignDetail() {
                             <Badge variant="outline" className="text-[10px]">{ad.type}</Badge>
                             <StatusBadge status={ad.status} />
                             <span className="text-[10px] text-muted-foreground font-mono">ID {ad.id}</span>
+                            <StatusToggle
+                              status={ad.status}
+                              pending={edits.toggleAd.isPending}
+                              onToggle={(next) => edits.toggleAd.mutate({
+                                ad_id: ad.id,
+                                ad_group_id: ad.ad_group_id,
+                                status: next,
+                              })}
+                            />
                           </div>
                           {ad.headlines?.length > 0 && (
                             <div className="text-xs space-y-0.5">
