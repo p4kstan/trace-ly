@@ -310,12 +310,27 @@ export default function GoogleAdsCampaignDetail() {
               <p className="text-[11px] text-muted-foreground mt-1">Clique no ícone <strong>🚫</strong> para adicionar um termo como negativa de campanha.</p>
             </CardHeader>
             <CardContent className="p-0">
+              <BulkActionBar
+                count={selectedTerms.size}
+                pending={edits.bulkAddNegatives.isPending}
+                onClear={() => setSelectedTerms(new Set())}
+                onNegate={() => edits.bulkAddNegatives.mutate(
+                  { terms: selectedTermTexts, match_type: "PHRASE" },
+                  { onSuccess: () => setSelectedTerms(new Set()) },
+                )}
+              />
               <SimpleTable
                 loading={reports.searchTerms.isLoading}
                 rows={reports.searchTerms.data?.rows}
                 columns={["name", "matched_keyword", "match_type", "impressions", "clicks", "ctr", "cost", "conversions"]}
                 labels={{ name: "Termo pesquisado", matched_keyword: "Keyword", match_type: "Tipo" }}
                 actionsLabel=""
+                selectable={{
+                  selectedIds: selectedTerms,
+                  getId: (r) => String(r.name),
+                  onToggle: (id) => toggleSet(selectedTerms, setSelectedTerms, id),
+                  onToggleAll: (ids) => toggleAllSet(selectedTerms, setSelectedTerms, ids),
+                }}
                 rowActions={(row) => <QuickNegativeButton edits={edits} term={row.name} />}
               />
             </CardContent>
