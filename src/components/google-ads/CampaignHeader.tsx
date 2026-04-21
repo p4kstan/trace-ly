@@ -1,6 +1,6 @@
 /**
- * CampaignHeader — title, status badge, period selector, pause/play and
- * budget edit triggers for the Google Ads Campaign Detail page.
+ * CampaignHeader — title (with rename), status badge, period selector,
+ * pause/play and budget edit for the Google Ads Campaign Detail page.
  */
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Loader2, Pause, Play, Edit3 } from "lucide-react";
@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CampaignStatusBadge as StatusBadge } from "@/components/dashboard/CampaignStatusBadge";
 import { PERIOD_LABELS, type Period } from "@/hooks/api/use-campaign-metrics";
+import { RenameButton } from "./RowActions";
+import type { CampaignEdits } from "@/hooks/api/use-campaign-edits";
 
 interface CampaignSummary {
   name?: string | null;
@@ -26,6 +28,7 @@ interface CampaignHeaderProps {
   onToggleResume: () => void;
   toggleStatusPending: boolean;
   onOpenBudget: () => void;
+  edits: CampaignEdits;
 }
 
 export function CampaignHeader({
@@ -39,6 +42,7 @@ export function CampaignHeader({
   onToggleResume,
   toggleStatusPending,
   onOpenBudget,
+  edits,
 }: CampaignHeaderProps) {
   const navigate = useNavigate();
   const status = campaign?.status ?? null;
@@ -53,6 +57,11 @@ export function CampaignHeader({
           <h1 className="text-xl font-bold flex items-center gap-2">
             {campaign?.name || (isLoadingHeader ? "Carregando…" : "Campanha")}
             {campaign?.status && <StatusBadge status={campaign.status} />}
+            <RenameButton
+              pending={edits.renameCampaign.isPending}
+              currentName={campaign?.name}
+              onSave={(new_name) => edits.renameCampaign.mutate({ new_name })}
+            />
           </h1>
           <p className="text-xs text-muted-foreground mt-1 font-mono">
             ID {campaignId} · {customerId} · {campaign?.channel_type || ""}
