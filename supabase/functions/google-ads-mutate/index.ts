@@ -237,6 +237,30 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── Rename campaign ───────────────────────────────
+    if (action === "rename_campaign") {
+      const new_name = (body as any).new_name as string | undefined;
+      if (!campaign_id || !new_name?.trim()) return json({ error: "campaign_id and new_name required" }, 400);
+      return await callMutate(`${apiBase}/campaigns:mutate`, {
+        operations: [{
+          update: { resourceName: `customers/${customer_id}/campaigns/${campaign_id}`, name: new_name.trim() },
+          updateMask: "name",
+        }],
+      });
+    }
+
+    // ── Rename ad group ───────────────────────────────
+    if (action === "rename_ad_group") {
+      const new_name = (body as any).new_name as string | undefined;
+      if (!ad_group_id || !new_name?.trim()) return json({ error: "ad_group_id and new_name required" }, 400);
+      return await callMutate(`${apiBase}/adGroups:mutate`, {
+        operations: [{
+          update: { resourceName: `customers/${customer_id}/adGroups/${ad_group_id}`, name: new_name.trim() },
+          updateMask: "name",
+        }],
+      });
+    }
+
     // ── Negative keyword: add at campaign or ad-group level ───────
     if (action === "add_negative_keyword") {
       if (!keyword_text || !match_type) {
