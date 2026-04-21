@@ -16,10 +16,18 @@ import { MetricsOverview } from "@/components/google-ads/MetricsOverview";
 import { ConversionDistribution } from "@/components/google-ads/ConversionDistribution";
 import { CampaignSettings } from "@/components/google-ads/CampaignSettings";
 import { AutomationCommandCenter } from "@/components/automation/AutomationCommandCenter";
+import { AutomationRulesPanel } from "@/components/automation/AutomationRulesPanel";
 import { useCampaignEdits } from "@/hooks/api/use-campaign-edits";
 import { StatusToggle, BidEditor, QuickNegativeButton, RenameButton } from "@/components/google-ads/RowActions";
 import { AddNegativeKeywordForm } from "@/components/google-ads/AddNegativeKeywordForm";
 import { BulkActionBar } from "@/components/google-ads/BulkActionBar";
+import { EditAdDialog } from "@/components/google-ads/EditAdDialog";
+import { BiddingStrategyEditor } from "@/components/google-ads/BiddingStrategyEditor";
+import { BidModifierInline } from "@/components/google-ads/BidModifierInline";
+import { CreateKeywordForm, CreateAdGroupForm } from "@/components/google-ads/CreateForms";
+import { DuplicateButton } from "@/components/google-ads/DuplicateButton";
+import { exportRowsToCSV } from "@/lib/export-csv";
+import { Download, Pencil } from "lucide-react";
 
 const fmtNumber = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
 const fmtMoney = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
