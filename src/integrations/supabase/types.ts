@@ -482,6 +482,56 @@ export type Database = {
           },
         ]
       }
+      automation_rule_alerts: {
+        Row: {
+          channel: string
+          created_at: string
+          enabled: boolean
+          id: string
+          last_error: string | null
+          last_sent_at: string | null
+          last_status: string | null
+          only_on_action: boolean
+          rule_id: string
+          target: string
+          workspace_id: string
+        }
+        Insert: {
+          channel: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          last_error?: string | null
+          last_sent_at?: string | null
+          last_status?: string | null
+          only_on_action?: boolean
+          rule_id: string
+          target: string
+          workspace_id: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          last_error?: string | null
+          last_sent_at?: string | null
+          last_status?: string | null
+          only_on_action?: boolean
+          rule_id?: string
+          target?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_rule_alerts_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "automation_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automation_rules: {
         Row: {
           action_json: Json

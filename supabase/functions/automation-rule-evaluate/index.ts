@@ -291,7 +291,20 @@ Deno.serve(async (req) => {
       trigger_count: matched.length > 0 ? executed : 0,
     } as never).eq("id", rule_id);
 
-    return json({ matched: matched.length, executed, skipped, items: log });
+    // Fire-and-forget notifications (don't block response)
+    const notifyPayload = { matched: matched.length, executed, skipped, items: log };
+    try {
+      fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-rule-notify`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ rule_id, payload: notifyPayload }),
+      }).catch((e) => console.error("notify dispatch failed", e));
+    } catch (e) { console.error("notify dispatch error", e); }
+
+    return json(notifyPayload);
   } catch (e) {
     console.error("evaluate rule error", e);
     return json({ error: String(e instanceof Error ? e.message : e) }, 500);
