@@ -26,6 +26,7 @@ import { BiddingStrategyEditor } from "@/components/google-ads/BiddingStrategyEd
 import { BidModifierInline } from "@/components/google-ads/BidModifierInline";
 import { CreateKeywordForm, CreateAdGroupForm } from "@/components/google-ads/CreateForms";
 import { DuplicateButton } from "@/components/google-ads/DuplicateButton";
+import { AIKeywordSuggestions } from "@/components/google-ads/AIKeywordSuggestions";
 import { exportRowsToCSV } from "@/lib/export-csv";
 import { Download, Pencil } from "lucide-react";
 
@@ -221,7 +222,13 @@ export default function GoogleAdsCampaignDetail() {
           </div>
         </TabsContent>
 
-        <TabsContent value="keywords" className="mt-4">
+        <TabsContent value="keywords" className="mt-4 space-y-4">
+          <AIKeywordSuggestions
+            searchTerms={reports.searchTerms.data?.rows}
+            existingKeywords={reports.keywords.data?.rows}
+            adGroups={adGroupOptions}
+            edits={edits}
+          />
           <Card className="glass-card">
             <CardHeader className="py-3 flex-row items-center justify-between space-y-0">
               <div>
