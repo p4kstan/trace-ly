@@ -194,6 +194,21 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── Ad: pause / enable individual ad ──────────────
+    if (action === "update_ad_status") {
+      const ad_id = (body as any).ad_id as string | undefined;
+      if (!ad_group_id || !ad_id || !status) {
+        return json({ error: "ad_group_id, ad_id, status required" }, 400);
+      }
+      const resourceName = `customers/${customer_id}/adGroupAds/${ad_group_id}~${ad_id}`;
+      return await callMutate(`${apiBase}/adGroupAds:mutate`, {
+        operations: [{
+          update: { resourceName, status },
+          updateMask: "status",
+        }],
+      });
+    }
+
     // ── Keyword: pause / enable ───────────────────────
     if (action === "update_keyword_status") {
       if (!ad_group_id || !ad_group_criterion_id || !status) {

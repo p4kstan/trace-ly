@@ -16,6 +16,9 @@ import { MetricsOverview } from "@/components/google-ads/MetricsOverview";
 import { ConversionDistribution } from "@/components/google-ads/ConversionDistribution";
 import { CampaignSettings } from "@/components/google-ads/CampaignSettings";
 import { AutomationCommandCenter } from "@/components/automation/AutomationCommandCenter";
+import { useCampaignEdits } from "@/hooks/api/use-campaign-edits";
+import { StatusToggle, BidEditor, QuickNegativeButton } from "@/components/google-ads/RowActions";
+import { AddNegativeKeywordForm } from "@/components/google-ads/AddNegativeKeywordForm";
 
 const fmtNumber = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
 const fmtMoney = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -30,6 +33,7 @@ export default function GoogleAdsCampaignDetail() {
   const [newBudget, setNewBudget] = useState("");
 
   const m = useCampaignMetrics({ workspaceId: workspace?.id, customerId, campaignId });
+  const edits = useCampaignEdits({ workspaceId: workspace?.id, customerId, campaignId });
   const { reports } = m;
   const budget = (reports.camp.data?.rows?.[0]?.budget as number) || 0;
 
@@ -117,13 +121,38 @@ export default function GoogleAdsCampaignDetail() {
 
         <TabsContent value="keywords" className="mt-4">
           <Card className="glass-card">
-            <CardHeader className="py-3"><CardTitle className="text-sm">Palavras-chave</CardTitle></CardHeader>
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Palavras-chave</CardTitle>
+              <p className="text-[11px] text-muted-foreground mt-1">Pause/ative ou edite o lance máximo (CPC) direto aqui.</p>
+            </CardHeader>
             <CardContent className="p-0">
               <SimpleTable
                 loading={reports.keywords.isLoading}
                 rows={reports.keywords.data?.rows}
                 columns={["name", "match_type", "status", "quality_score", "impressions", "clicks", "ctr", "cost", "conversions", "cpa"]}
                 labels={{ name: "Palavra-chave", match_type: "Tipo", quality_score: "QS" }}
+                actionsLabel="Ações"
+                rowActions={(row) => (
+                  <>
+                    <StatusToggle
+                      status={row.status}
+                      pending={edits.toggleKeyword.isPending}
+                      onToggle={(next) => edits.toggleKeyword.mutate({
+                        ad_group_criterion_id: row.id,
+                        ad_group_id: row.ad_group_id,
+                        status: next,
+                      })}
+                    />
+                    <BidEditor
+                      pending={edits.updateKeywordBid.isPending}
+                      onSave={(cpc) => edits.updateKeywordBid.mutate({
+                        ad_group_criterion_id: row.id,
+                        ad_group_id: row.ad_group_id,
+                        cpc_brl: cpc,
+                      })}
+                    />
+                  </>
+                )}
               />
             </CardContent>
           </Card>
@@ -136,6 +165,7 @@ export default function GoogleAdsCampaignDetail() {
               <p className="text-[11px] text-muted-foreground mt-1">Termos que <strong>bloqueiam</strong> seus anúncios em toda a campanha (ex: "grátis", "barato").</p>
             </CardHeader>
             <CardContent className="p-0">
+              <AddNegativeKeywordForm edits={edits} />
               <SimpleTable
                 loading={reports.negKeywordsCamp.isLoading}
                 rows={reports.negKeywordsCamp.data?.rows}
@@ -198,13 +228,18 @@ export default function GoogleAdsCampaignDetail() {
 
         <TabsContent value="search_terms" className="mt-4">
           <Card className="glass-card">
-            <CardHeader className="py-3"><CardTitle className="text-sm">Termos pesquisados (o que usuários digitaram)</CardTitle></CardHeader>
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Termos pesquisados (o que usuários digitaram)</CardTitle>
+              <p className="text-[11px] text-muted-foreground mt-1">Clique no ícone <strong>🚫</strong> para adicionar um termo como negativa de campanha.</p>
+            </CardHeader>
             <CardContent className="p-0">
               <SimpleTable
                 loading={reports.searchTerms.isLoading}
                 rows={reports.searchTerms.data?.rows}
                 columns={["name", "matched_keyword", "match_type", "impressions", "clicks", "ctr", "cost", "conversions"]}
                 labels={{ name: "Termo pesquisado", matched_keyword: "Keyword", match_type: "Tipo" }}
+                actionsLabel=""
+                rowActions={(row) => <QuickNegativeButton edits={edits} term={row.name} />}
               />
             </CardContent>
           </Card>
@@ -231,6 +266,15 @@ export default function GoogleAdsCampaignDetail() {
                             <Badge variant="outline" className="text-[10px]">{ad.type}</Badge>
                             <StatusBadge status={ad.status} />
                             <span className="text-[10px] text-muted-foreground font-mono">ID {ad.id}</span>
+                            <StatusToggle
+                              status={ad.status}
+                              pending={edits.toggleAd.isPending}
+                              onToggle={(next) => edits.toggleAd.mutate({
+                                ad_id: ad.id,
+                                ad_group_id: ad.ad_group_id,
+                                status: next,
+                              })}
+                            />
                           </div>
                           {ad.headlines?.length > 0 && (
                             <div className="text-xs space-y-0.5">

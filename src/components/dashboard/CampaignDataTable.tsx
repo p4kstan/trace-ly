@@ -85,9 +85,12 @@ interface Props {
   rows?: any[];
   columns: string[];
   labels?: Record<string, string>;
+  /** Optional renderer for an actions column appended to the right of every row */
+  rowActions?: (row: any) => React.ReactNode;
+  actionsLabel?: string;
 }
 
-export function CampaignDataTable({ loading, rows, columns, labels }: Props) {
+export function CampaignDataTable({ loading, rows, columns, labels, rowActions, actionsLabel = "" }: Props) {
   if (loading) return <div className="p-8 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>;
   if (!rows?.length) return <div className="p-8 text-center text-sm text-muted-foreground">Sem dados</div>;
 
@@ -120,6 +123,7 @@ export function CampaignDataTable({ loading, rows, columns, labels }: Props) {
                   </th>
                 );
               })}
+              {rowActions && <th className="py-2.5 px-2 font-semibold text-right w-[80px]">{actionsLabel}</th>}
             </tr>
           </thead>
           <tbody>
@@ -130,6 +134,11 @@ export function CampaignDataTable({ loading, rows, columns, labels }: Props) {
                     {formatCell(c, r[c])}
                   </td>
                 ))}
+                {rowActions && (
+                  <td className="py-1 px-2 text-right">
+                    <div className="inline-flex items-center justify-end gap-0.5">{rowActions(r)}</div>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -138,3 +147,4 @@ export function CampaignDataTable({ loading, rows, columns, labels }: Props) {
     </TooltipProvider>
   );
 }
+
