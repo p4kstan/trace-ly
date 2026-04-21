@@ -124,6 +124,8 @@ export default function GoogleAdsCampaignDetail() {
             biddingStrategy={m.campaign?.bidding_strategy_type || ""}
             chartData={m.chartData}
             chartLoading={reports.series.isLoading}
+            compareEnabled={m.compareEnabled}
+            comparePrev={m.comparePrev}
           />
 
           <Card className="glass-card">
