@@ -33,6 +33,7 @@ const intelligenceItems = [
 
 // 3. CAMPANHAS — visualização das plataformas de ads
 const campaignsItems = [
+  { title: "Visão Multi-Conta", url: "/google-ads-overview", icon: Layers },
   { title: "Google Ads", url: "/google-ads-campaigns", icon: BarChart3 },
   { title: "Facebook Ads", url: "/facebook-ads-campaigns", icon: Megaphone },
   { title: "TikTok Ads", url: "/tiktok-ads-campaigns", icon: Music2 },
