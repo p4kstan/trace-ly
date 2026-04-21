@@ -482,6 +482,57 @@ export type Database = {
           },
         ]
       }
+      automation_rules: {
+        Row: {
+          action_json: Json
+          campaign_id: string | null
+          condition_json: Json
+          created_at: string
+          customer_id: string | null
+          description: string | null
+          enabled: boolean
+          id: string
+          last_evaluated_at: string | null
+          last_triggered_at: string | null
+          name: string
+          trigger_count: number
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          action_json: Json
+          campaign_id?: string | null
+          condition_json: Json
+          created_at?: string
+          customer_id?: string | null
+          description?: string | null
+          enabled?: boolean
+          id?: string
+          last_evaluated_at?: string | null
+          last_triggered_at?: string | null
+          name: string
+          trigger_count?: number
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          action_json?: Json
+          campaign_id?: string | null
+          condition_json?: Json
+          created_at?: string
+          customer_id?: string | null
+          description?: string | null
+          enabled?: boolean
+          id?: string
+          last_evaluated_at?: string | null
+          last_triggered_at?: string | null
+          name?: string
+          trigger_count?: number
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       conversions: {
         Row: {
           attributed_campaign: string | null
