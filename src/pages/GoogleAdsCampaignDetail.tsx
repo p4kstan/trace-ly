@@ -176,15 +176,33 @@ export default function GoogleAdsCampaignDetail() {
           <Card className="glass-card">
             <CardHeader className="py-3">
               <CardTitle className="text-sm">Palavras-chave</CardTitle>
-              <p className="text-[11px] text-muted-foreground mt-1">Pause/ative ou edite o lance máximo (CPC) direto aqui.</p>
+              <p className="text-[11px] text-muted-foreground mt-1">Selecione várias para pausar/ativar em lote, ou pause/edite o CPC linha-a-linha.</p>
             </CardHeader>
             <CardContent className="p-0">
+              <BulkActionBar
+                count={selectedKw.size}
+                pending={edits.bulkToggleKeywords.isPending}
+                onClear={() => setSelectedKw(new Set())}
+                onPause={() => edits.bulkToggleKeywords.mutate(
+                  { items: selectedKwItems, status: "PAUSED" },
+                  { onSuccess: () => setSelectedKw(new Set()) },
+                )}
+                onEnable={() => edits.bulkToggleKeywords.mutate(
+                  { items: selectedKwItems, status: "ENABLED" },
+                  { onSuccess: () => setSelectedKw(new Set()) },
+                )}
+              />
               <SimpleTable
                 loading={reports.keywords.isLoading}
                 rows={reports.keywords.data?.rows}
                 columns={["name", "match_type", "status", "quality_score", "impressions", "clicks", "ctr", "cost", "conversions", "cpa"]}
                 labels={{ name: "Palavra-chave", match_type: "Tipo", quality_score: "QS" }}
                 actionsLabel="Ações"
+                selectable={{
+                  selectedIds: selectedKw,
+                  onToggle: (id) => toggleSet(selectedKw, setSelectedKw, id),
+                  onToggleAll: (ids) => toggleAllSet(selectedKw, setSelectedKw, ids),
+                }}
                 rowActions={(row) => (
                   <>
                     <StatusToggle
@@ -214,12 +232,18 @@ export default function GoogleAdsCampaignDetail() {
         <TabsContent value="negatives" className="mt-4 space-y-4">
           <Card className="glass-card">
             <CardHeader className="py-3">
-              <CardTitle className="text-sm">Palavras-chave negativas — nível Campanha</CardTitle>
-              <p className="text-[11px] text-muted-foreground mt-1">Termos que <strong>bloqueiam</strong> seus anúncios em toda a campanha (ex: "grátis", "barato").</p>
+              <CardTitle className="text-sm">Adicionar palavra-chave negativa</CardTitle>
+              <p className="text-[11px] text-muted-foreground mt-1">Termos que <strong>bloqueiam</strong> seus anúncios. Escolha o escopo: toda a campanha ou um grupo específico.</p>
             </CardHeader>
             <CardContent className="p-0">
-              <AddNegativeKeywordForm edits={edits} />
+              <AddNegativeKeywordForm edits={edits} adGroups={adGroupOptions} />
+            </CardContent>
+          </Card>
+          <Card className="glass-card">
+            <CardHeader className="py-3"><CardTitle className="text-sm">Negativas — nível Campanha</CardTitle></CardHeader>
+            <CardContent className="p-0">
               <SimpleTable
+
                 loading={reports.negKeywordsCamp.isLoading}
                 rows={reports.negKeywordsCamp.data?.rows}
                 columns={["name", "match_type", "level"]}
