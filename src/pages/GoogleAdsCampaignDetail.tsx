@@ -165,6 +165,7 @@ export default function GoogleAdsCampaignDetail() {
               <p className="text-[11px] text-muted-foreground mt-1">Termos que <strong>bloqueiam</strong> seus anúncios em toda a campanha (ex: "grátis", "barato").</p>
             </CardHeader>
             <CardContent className="p-0">
+              <AddNegativeKeywordForm edits={edits} />
               <SimpleTable
                 loading={reports.negKeywordsCamp.isLoading}
                 rows={reports.negKeywordsCamp.data?.rows}
