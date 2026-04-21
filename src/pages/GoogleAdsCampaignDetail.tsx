@@ -16,6 +16,9 @@ import { MetricsOverview } from "@/components/google-ads/MetricsOverview";
 import { ConversionDistribution } from "@/components/google-ads/ConversionDistribution";
 import { CampaignSettings } from "@/components/google-ads/CampaignSettings";
 import { AutomationCommandCenter } from "@/components/automation/AutomationCommandCenter";
+import { useCampaignEdits } from "@/hooks/api/use-campaign-edits";
+import { StatusToggle, BidEditor, QuickNegativeButton } from "@/components/google-ads/RowActions";
+import { AddNegativeKeywordForm } from "@/components/google-ads/AddNegativeKeywordForm";
 
 const fmtNumber = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
 const fmtMoney = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
