@@ -45,8 +45,17 @@ export function useAutomationRules({ workspaceId, campaignId }: ListArgs) {
   const invalidate = () => qc.invalidateQueries({ queryKey: ["automation-rules"] });
 
   const create = useMutation({
-    mutationFn: async (rule: Omit<AutomationRule, "id" | "created_at" | "last_evaluated_at" | "last_triggered_at" | "trigger_count">) => {
-      const { data, error } = await supabase.from("automation_rules").insert(rule).select().single();
+    mutationFn: async (rule: {
+      workspace_id: string; name: string; description?: string | null;
+      customer_id?: string | null; campaign_id?: string | null;
+      enabled?: boolean;
+      condition_json: Record<string, unknown>; action_json: Record<string, unknown>;
+    }) => {
+      const { data, error } = await supabase
+        .from("automation_rules")
+        .insert(rule as never)
+        .select()
+        .single();
       if (error) throw error;
       return data;
     },
