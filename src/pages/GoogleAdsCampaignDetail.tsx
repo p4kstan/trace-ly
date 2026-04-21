@@ -219,11 +219,20 @@ export default function GoogleAdsCampaignDetail() {
 
         <TabsContent value="keywords" className="mt-4">
           <Card className="glass-card">
-            <CardHeader className="py-3">
-              <CardTitle className="text-sm">Palavras-chave</CardTitle>
-              <p className="text-[11px] text-muted-foreground mt-1">Selecione várias para pausar/ativar em lote, ou pause/edite o CPC linha-a-linha.</p>
+            <CardHeader className="py-3 flex-row items-center justify-between space-y-0">
+              <div>
+                <CardTitle className="text-sm">Palavras-chave</CardTitle>
+                <p className="text-[11px] text-muted-foreground mt-1">Crie novas, pause/edite o CPC linha-a-linha, ou use seleção em massa.</p>
+              </div>
+              <Button size="sm" variant="outline" className="h-7 text-xs"
+                disabled={!reports.keywords.data?.rows?.length}
+                onClick={() => exportRowsToCSV(`keywords-${campaignId}`, reports.keywords.data?.rows || [])}
+              >
+                <Download className="w-3 h-3 mr-1" /> Exportar CSV
+              </Button>
             </CardHeader>
             <CardContent className="p-0">
+              <CreateKeywordForm edits={edits} adGroups={adGroupOptions} />
               <BulkActionBar
                 count={selectedKw.size}
                 pending={edits.bulkToggleKeywords.isPending}
@@ -266,6 +275,10 @@ export default function GoogleAdsCampaignDetail() {
                         ad_group_id: row.ad_group_id,
                         cpc_brl: cpc,
                       })}
+                    />
+                    <DuplicateButton
+                      pending={edits.duplicateKeyword.isPending}
+                      onClick={() => edits.duplicateKeyword.mutate({ ad_group_criterion_id: row.id, ad_group_id: row.ad_group_id })}
                     />
                   </>
                 )}
