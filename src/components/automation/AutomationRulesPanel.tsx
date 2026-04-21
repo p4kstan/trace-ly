@@ -15,9 +15,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Play, Trash2, Zap, Plus, FlaskConical } from "lucide-react";
+import { Loader2, Play, Trash2, Zap, Plus, FlaskConical, Bell } from "lucide-react";
 import { useAutomationRules, type AutomationRule } from "@/hooks/api/use-automation-rules";
 import { BacktestRuleDialog } from "./BacktestRuleDialog";
+import { RuleAlertsManager } from "./RuleAlertsManager";
 
 type Metric = "cpa" | "ctr" | "cost" | "roas" | "conversions";
 type Operator = ">" | "<" | ">=" | "<=";
@@ -45,6 +46,8 @@ export function AutomationRulesPanel({ workspaceId, customerId, campaignId }: Pr
   const [backtestRuleId, setBacktestRuleId] = useState<string | null>(null);
   const [backtestRuleName, setBacktestRuleName] = useState<string>("");
   const [backtestDraftOpen, setBacktestDraftOpen] = useState(false);
+  const [alertsRuleId, setAlertsRuleId] = useState<string | null>(null);
+  const [alertsRuleName, setAlertsRuleName] = useState<string>("");
 
   // Builder state
   const [name, setName] = useState("");
@@ -169,6 +172,7 @@ export function AutomationRulesPanel({ workspaceId, customerId, campaignId }: Pr
               <RuleRow
                 key={r.id} rule={r} rules={rules}
                 onBacktest={() => { setBacktestRuleId(r.id); setBacktestRuleName(r.name); }}
+                onAlerts={() => { setAlertsRuleId(r.id); setAlertsRuleName(r.name); }}
               />
             ))}
           </div>
@@ -193,11 +197,18 @@ export function AutomationRulesPanel({ workspaceId, customerId, campaignId }: Pr
         } : undefined}
         title={name || "Nova regra (rascunho)"}
       />
+      <RuleAlertsManager
+        open={!!alertsRuleId}
+        onOpenChange={(o) => { if (!o) setAlertsRuleId(null); }}
+        ruleId={alertsRuleId || undefined}
+        ruleName={alertsRuleName}
+        workspaceId={workspaceId}
+      />
     </Card>
   );
 }
 
-function RuleRow({ rule, rules, onBacktest }: { rule: AutomationRule; rules: ReturnType<typeof useAutomationRules>; onBacktest: () => void }) {
+function RuleRow({ rule, rules, onBacktest, onAlerts }: { rule: AutomationRule; rules: ReturnType<typeof useAutomationRules>; onBacktest: () => void; onAlerts: () => void }) {
   return (
     <div className="p-3 flex items-start justify-between gap-3 hover:bg-muted/20">
       <div className="flex-1 min-w-0">
@@ -212,6 +223,13 @@ function RuleRow({ rule, rules, onBacktest }: { rule: AutomationRule; rules: Ret
         </p>
       </div>
       <div className="flex items-center gap-1 shrink-0 flex-wrap">
+        <Button
+          size="sm" variant="outline" className="h-7 text-xs"
+          onClick={onAlerts}
+          title="Configurar alertas (Slack/Email/Webhook)"
+        >
+          <Bell className="w-3 h-3 mr-1" /> Alertas
+        </Button>
         <Button
           size="sm" variant="outline" className="h-7 text-xs"
           onClick={onBacktest}
