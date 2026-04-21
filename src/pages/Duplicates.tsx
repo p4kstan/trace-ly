@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CheckCircle2, AlertTriangle, ShieldAlert, RefreshCw, ExternalLink } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 
 interface AuditResult {
   window_hours: number;
@@ -101,10 +102,30 @@ export default function Duplicates() {
     },
   });
 
+  const [lastRun, setLastRun] = useState<Date | null>(null);
+
   const runAudit = async () => {
+    if (!workspace?.id) {
+      toast({ title: "Workspace não carregado", description: "Aguarde alguns segundos e tente novamente.", variant: "destructive" });
+      return;
+    }
     setAuditing(true);
     try {
-      await Promise.all([refetchAudit(), refetchDetections()]);
+      const { data, error } = await supabase.functions.invoke("audit-pixel-capi", {
+        body: { workspace_id: workspace.id, hours: 24 },
+      });
+      if (error) throw error;
+      await refetchDetections();
+      await refetchAudit();
+      setLastRun(new Date());
+      const score = (data as AuditResult)?.dedup_health_score ?? 0;
+      toast({
+        title: `Auditoria concluída — Saúde ${score}%`,
+        description: `${(data as AuditResult)?.matched_pairs ?? 0} pareados · ${(data as AuditResult)?.pixel_only ?? 0} só pixel · ${(data as AuditResult)?.capi_only ?? 0} só CAPI`,
+      });
+    } catch (err: any) {
+      console.error("audit error:", err);
+      toast({ title: "Erro ao auditar", description: err?.message || String(err), variant: "destructive" });
     } finally {
       setAuditing(false);
     }
@@ -124,10 +145,17 @@ export default function Duplicates() {
             Monitora conversões duplicadas por <code className="text-xs bg-muted/40 px-1 rounded">order_id</code> em janela de 24h e audita Pixel ↔ CAPI.
           </p>
         </div>
-        <Button onClick={runAudit} disabled={auditing} className="gap-2">
-          <RefreshCw className={`w-4 h-4 ${auditing ? "animate-spin" : ""}`} />
-          {auditing ? "Auditando..." : "Auditar agora"}
-        </Button>
+        <div className="flex flex-col items-end gap-1">
+          <Button onClick={runAudit} disabled={auditing} className="gap-2">
+            <RefreshCw className={`w-4 h-4 ${auditing ? "animate-spin" : ""}`} />
+            {auditing ? "Auditando..." : "Auditar agora"}
+          </Button>
+          {lastRun && (
+            <span className="text-[10px] text-muted-foreground">
+              Última: {lastRun.toLocaleTimeString("pt-BR")}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* KPI cards */}
