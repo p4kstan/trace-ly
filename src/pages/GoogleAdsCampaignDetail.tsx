@@ -27,6 +27,7 @@ import { BidModifierInline } from "@/components/google-ads/BidModifierInline";
 import { CreateKeywordForm, CreateAdGroupForm } from "@/components/google-ads/CreateForms";
 import { DuplicateButton } from "@/components/google-ads/DuplicateButton";
 import { AIKeywordSuggestions } from "@/components/google-ads/AIKeywordSuggestions";
+import { AssetsManager } from "@/components/google-ads/AssetsManager";
 import { exportRowsToCSV } from "@/lib/export-csv";
 import { Download, Pencil } from "lucide-react";
 
@@ -359,9 +360,13 @@ export default function GoogleAdsCampaignDetail() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="extensions" className="mt-4">
+        <TabsContent value="extensions" className="mt-4 space-y-4">
+          <AssetsManager workspaceId={workspace?.id} customerId={customerId} campaignId={campaignId} />
           <Card className="glass-card">
-            <CardHeader className="py-3"><CardTitle className="text-sm">Extensões / Assets</CardTitle></CardHeader>
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm">Performance das extensões</CardTitle>
+              <p className="text-[11px] text-muted-foreground mt-1">Métricas agregadas por asset (últimos cliques/impressões).</p>
+            </CardHeader>
             <CardContent className="p-0">
               <SimpleTable
                 loading={reports.extensions.isLoading}
