@@ -8,6 +8,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useGoogleAdsReport, type GoogleAdsPeriod } from "./use-google-ads-report";
+import { usePeriodComparison } from "./use-period-comparison";
 
 export type Period = GoogleAdsPeriod;
 
@@ -27,6 +28,8 @@ interface UseCampaignMetricsArgs {
 export function useCampaignMetrics({ workspaceId, customerId, campaignId }: UseCampaignMetricsArgs) {
   const qc = useQueryClient();
   const [period, setPeriod] = useState<Period>("7d");
+  const [compareEnabled, setCompareEnabled] = useState(false);
+  const compare = usePeriodComparison({ workspaceId, customerId, campaignId, period, enabled: compareEnabled });
 
   const r = (level: string, parentId?: string) =>
     useGoogleAdsReport({ workspaceId, customerId, level, period, campaignId, parentId });
@@ -131,6 +134,10 @@ export function useCampaignMetrics({ workspaceId, customerId, campaignId }: UseC
   return {
     period,
     setPeriod,
+    compareEnabled,
+    setCompareEnabled,
+    comparePrev: (compare.data ?? null) as Awaited<ReturnType<typeof usePeriodComparison>["data"]> | null,
+    compareLoading: compare.isLoading,
     campaign,
     totals,
     chartData,

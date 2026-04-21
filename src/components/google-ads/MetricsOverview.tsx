@@ -9,6 +9,8 @@ import {
   Tooltip as ReTooltip, Legend,
 } from "recharts";
 import { CampaignMetricCard as MetricCard } from "@/components/dashboard/CampaignMetricCard";
+import { DeltaBadge } from "./DeltaBadge";
+import { pctDelta, type CampaignTotals } from "@/hooks/api/use-period-comparison";
 
 const fmtNumber = (n: number): string => n.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
 const fmtMoney = (n: number): string => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -33,18 +35,25 @@ interface MetricsOverviewProps {
   biddingStrategy: string;
   chartData: Array<{ date: string; cost: number; clicks: number; conversions: number; roas: number }>;
   chartLoading: boolean;
+  /** Optional: enable "vs previous period" comparison badges. */
+  compareEnabled?: boolean;
+  comparePrev?: CampaignTotals | null;
 }
 
-export function MetricsOverview({ totals, budget, biddingStrategy, chartData, chartLoading }: MetricsOverviewProps) {
+export function MetricsOverview({ totals, budget, biddingStrategy, chartData, chartLoading, compareEnabled, comparePrev }: MetricsOverviewProps) {
+  const showDelta = !!(compareEnabled && comparePrev);
+  const d = (cur: number, prev: number, inverted = false) =>
+    showDelta ? <DeltaBadge delta={pctDelta(cur, prev)} inverted={inverted} /> : undefined;
+
   return (
     <>
       {totals && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          <MetricCard icon={DollarSign} label="Custo" value={fmtMoney(totals.cost)} />
-          <MetricCard icon={MousePointerClick} label="Cliques" value={fmtNumber(totals.clicks)} hint={`CTR ${fmtPct(totals.ctr)}`} />
-          <MetricCard icon={BarChart3} label="Impressões" value={fmtNumber(totals.impressions)} hint={`CPC ${fmtMoney(totals.cpc)}`} />
-          <MetricCard icon={Target} label="Conversões" value={fmtFloat(totals.conversions)} hint={`CPA ${fmtMoney(totals.cpa)}`} />
-          <MetricCard icon={TrendingUp} label="ROAS" value={fmtFloat(totals.roas)} hint={`Valor ${fmtMoney(totals.conversions_value)}`} />
+          <MetricCard icon={DollarSign} label="Custo" value={fmtMoney(totals.cost)} delta={d(totals.cost, comparePrev?.cost ?? 0, true)} />
+          <MetricCard icon={MousePointerClick} label="Cliques" value={fmtNumber(totals.clicks)} hint={`CTR ${fmtPct(totals.ctr)}`} delta={d(totals.clicks, comparePrev?.clicks ?? 0)} />
+          <MetricCard icon={BarChart3} label="Impressões" value={fmtNumber(totals.impressions)} hint={`CPC ${fmtMoney(totals.cpc)}`} delta={d(totals.impressions, comparePrev?.impressions ?? 0)} />
+          <MetricCard icon={Target} label="Conversões" value={fmtFloat(totals.conversions)} hint={`CPA ${fmtMoney(totals.cpa)}`} delta={d(totals.conversions, comparePrev?.conversions ?? 0)} />
+          <MetricCard icon={TrendingUp} label="ROAS" value={fmtFloat(totals.roas)} hint={`Valor ${fmtMoney(totals.conversions_value)}`} delta={d(totals.roas, comparePrev?.roas ?? 0)} />
           <MetricCard icon={DollarSign} label="Orçamento diário" value={fmtMoney(budget)} hint={biddingStrategy} />
         </div>
       )}
