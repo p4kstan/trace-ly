@@ -3,9 +3,10 @@
  * - Lists existing rules (scoped to current campaign or workspace-wide).
  * - Lets user create a rule via a simple builder: pick a metric + operator + threshold,
  *   pick an action (pause keyword, pause ad group, pause campaign), and a window.
- * - Lets user toggle / remove / "Avaliar agora" (manual trigger).
+ * - Lets user toggle / remove / "Avaliar agora" (manual trigger) / Backtest.
  *
  * Rules are evaluated on-demand by the `automation-rule-evaluate` edge function.
+ * The Backtest dialog calls `automation-rule-backtest` (read-only).
  */
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,8 +15,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Play, Trash2, Zap, Plus } from "lucide-react";
+import { Loader2, Play, Trash2, Zap, Plus, FlaskConical } from "lucide-react";
 import { useAutomationRules, type AutomationRule } from "@/hooks/api/use-automation-rules";
+import { BacktestRuleDialog } from "./BacktestRuleDialog";
 
 type Metric = "cpa" | "ctr" | "cost" | "roas" | "conversions";
 type Operator = ">" | "<" | ">=" | "<=";
@@ -40,6 +42,9 @@ interface Props {
 export function AutomationRulesPanel({ workspaceId, customerId, campaignId }: Props) {
   const rules = useAutomationRules({ workspaceId, campaignId });
   const [open, setOpen] = useState(false);
+  const [backtestRuleId, setBacktestRuleId] = useState<string | null>(null);
+  const [backtestRuleName, setBacktestRuleName] = useState<string>("");
+  const [backtestDraftOpen, setBacktestDraftOpen] = useState(false);
 
   // Builder state
   const [name, setName] = useState("");
@@ -54,6 +59,9 @@ export function AutomationRulesPanel({ workspaceId, customerId, campaignId }: Pr
     setWindowDays(3); setAction("pause_keyword"); setOpen(false);
   };
 
+  const scopeFromAction = (a: Action) =>
+    a === "pause_campaign" ? "ad_group" : a === "pause_ad_group" ? "ad_group" : "keyword";
+
   const submit = () => {
     if (!workspaceId || !name.trim() || !threshold) return;
     rules.create.mutate(
@@ -64,8 +72,8 @@ export function AutomationRulesPanel({ workspaceId, customerId, campaignId }: Pr
         name: name.trim(),
         description: `${METRIC_LABELS[metric]} ${operator} ${threshold} em ${windowDays}d → ${ACTION_LABELS[action]}`,
         enabled: true,
-        condition_json: { metric, operator, threshold: Number(threshold), window_days: windowDays },
-        action_json: { action, scope: action === "pause_campaign" ? "campaign" : action === "pause_ad_group" ? "ad_group" : "keyword" },
+        condition_json: { metric, operator, threshold: Number(threshold), window_days: windowDays, scope: scopeFromAction(action) },
+        action_json: { type: action, action, scope: action === "pause_campaign" ? "campaign" : action === "pause_ad_group" ? "ad_group" : "keyword" },
       },
       { onSuccess: () => reset() },
     );
@@ -78,7 +86,7 @@ export function AutomationRulesPanel({ workspaceId, customerId, campaignId }: Pr
       <CardHeader className="py-3 flex-row items-center justify-between space-y-0">
         <div>
           <CardTitle className="text-sm flex items-center gap-2"><Zap className="w-4 h-4 text-amber-400" /> Regras de automação</CardTitle>
-          <p className="text-[11px] text-muted-foreground mt-1">Crie regras tipo "se CPA &gt; R$50 em 3d, pausa keyword". Disparo manual via "Avaliar agora".</p>
+          <p className="text-[11px] text-muted-foreground mt-1">Crie regras tipo "se CPA &gt; R$50 em 3d, pausa keyword". Disparo manual via "Avaliar agora". Use Backtest para simular antes.</p>
         </div>
         <Button size="sm" variant="outline" onClick={() => setOpen((o) => !o)}>
           <Plus className="w-3.5 h-3.5 mr-1" /> {open ? "Fechar" : "Nova regra"}
@@ -136,8 +144,12 @@ export function AutomationRulesPanel({ workspaceId, customerId, campaignId }: Pr
               </SelectContent>
             </Select>
           </div>
-          <div className="flex gap-2 justify-end">
+          <div className="flex gap-2 justify-end flex-wrap">
             <Button size="sm" variant="ghost" onClick={reset}>Cancelar</Button>
+            <Button size="sm" variant="outline" onClick={() => setBacktestDraftOpen(true)}
+              disabled={!threshold || !workspaceId}>
+              <FlaskConical className="w-3.5 h-3.5 mr-1" /> Backtest antes
+            </Button>
             <Button size="sm" onClick={submit} disabled={!name.trim() || !threshold || rules.create.isPending}>
               {rules.create.isPending && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
               Criar regra
@@ -153,15 +165,39 @@ export function AutomationRulesPanel({ workspaceId, customerId, campaignId }: Pr
           <div className="p-6 text-center text-xs text-muted-foreground">Nenhuma regra ainda. Crie a primeira acima.</div>
         ) : (
           <div className="divide-y divide-border/40">
-            {list.map((r) => <RuleRow key={r.id} rule={r} rules={rules} />)}
+            {list.map((r) => (
+              <RuleRow
+                key={r.id} rule={r} rules={rules}
+                onBacktest={() => { setBacktestRuleId(r.id); setBacktestRuleName(r.name); }}
+              />
+            ))}
           </div>
         )}
       </CardContent>
+
+      <BacktestRuleDialog
+        open={!!backtestRuleId}
+        onOpenChange={(o) => { if (!o) setBacktestRuleId(null); }}
+        ruleId={backtestRuleId || undefined}
+        title={backtestRuleName}
+      />
+      <BacktestRuleDialog
+        open={backtestDraftOpen}
+        onOpenChange={setBacktestDraftOpen}
+        ruleDraft={workspaceId ? {
+          workspace_id: workspaceId,
+          customer_id: customerId,
+          campaign_id: campaignId,
+          condition_json: { metric, operator, threshold: Number(threshold) || 0, window_days: windowDays, scope: scopeFromAction(action) },
+          action_json: { type: action, action, scope: action === "pause_campaign" ? "campaign" : action === "pause_ad_group" ? "ad_group" : "keyword" },
+        } : undefined}
+        title={name || "Nova regra (rascunho)"}
+      />
     </Card>
   );
 }
 
-function RuleRow({ rule, rules }: { rule: AutomationRule; rules: ReturnType<typeof useAutomationRules> }) {
+function RuleRow({ rule, rules, onBacktest }: { rule: AutomationRule; rules: ReturnType<typeof useAutomationRules>; onBacktest: () => void }) {
   return (
     <div className="p-3 flex items-start justify-between gap-3 hover:bg-muted/20">
       <div className="flex-1 min-w-0">
@@ -175,7 +211,14 @@ function RuleRow({ rule, rules }: { rule: AutomationRule; rules: ReturnType<type
           {rule.last_triggered_at && ` · última: ${new Date(rule.last_triggered_at).toLocaleString("pt-BR")}`}
         </p>
       </div>
-      <div className="flex items-center gap-1 shrink-0">
+      <div className="flex items-center gap-1 shrink-0 flex-wrap">
+        <Button
+          size="sm" variant="outline" className="h-7 text-xs"
+          onClick={onBacktest}
+          title="Simular nos últimos 30 dias antes de aplicar"
+        >
+          <FlaskConical className="w-3 h-3 mr-1" /> Backtest
+        </Button>
         <Button
           size="sm" variant="outline" className="h-7 text-xs"
           disabled={rules.evaluateNow.isPending}
