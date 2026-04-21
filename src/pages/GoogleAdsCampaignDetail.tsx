@@ -16,10 +16,18 @@ import { MetricsOverview } from "@/components/google-ads/MetricsOverview";
 import { ConversionDistribution } from "@/components/google-ads/ConversionDistribution";
 import { CampaignSettings } from "@/components/google-ads/CampaignSettings";
 import { AutomationCommandCenter } from "@/components/automation/AutomationCommandCenter";
+import { AutomationRulesPanel } from "@/components/automation/AutomationRulesPanel";
 import { useCampaignEdits } from "@/hooks/api/use-campaign-edits";
 import { StatusToggle, BidEditor, QuickNegativeButton, RenameButton } from "@/components/google-ads/RowActions";
 import { AddNegativeKeywordForm } from "@/components/google-ads/AddNegativeKeywordForm";
 import { BulkActionBar } from "@/components/google-ads/BulkActionBar";
+import { EditAdDialog } from "@/components/google-ads/EditAdDialog";
+import { BiddingStrategyEditor } from "@/components/google-ads/BiddingStrategyEditor";
+import { BidModifierInline } from "@/components/google-ads/BidModifierInline";
+import { CreateKeywordForm, CreateAdGroupForm } from "@/components/google-ads/CreateForms";
+import { DuplicateButton } from "@/components/google-ads/DuplicateButton";
+import { exportRowsToCSV } from "@/lib/export-csv";
+import { Download, Pencil } from "lucide-react";
 
 const fmtNumber = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
 const fmtMoney = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -34,6 +42,7 @@ export default function GoogleAdsCampaignDetail() {
   const [newBudget, setNewBudget] = useState("");
   const [selectedKw, setSelectedKw] = useState<Set<string>>(new Set());
   const [selectedTerms, setSelectedTerms] = useState<Set<string>>(new Set());
+  const [editingAd, setEditingAd] = useState<any | null>(null);
 
   const m = useCampaignMetrics({ workspaceId: workspace?.id, customerId, campaignId });
   const edits = useCampaignEdits({ workspaceId: workspace?.id, customerId, campaignId });
@@ -148,19 +157,55 @@ export default function GoogleAdsCampaignDetail() {
             <Card className="glass-card">
               <CardHeader className="py-3"><CardTitle className="text-sm">Por dispositivo</CardTitle></CardHeader>
               <CardContent className="p-0">
-                <SimpleTable loading={reports.deviceData.isLoading} rows={reports.deviceData.data?.rows} columns={["name", "impressions", "clicks", "ctr", "cost", "conversions"]} />
+                <SimpleTable
+                  loading={reports.deviceData.isLoading}
+                  rows={reports.deviceData.data?.rows}
+                  columns={["name", "impressions", "clicks", "ctr", "cost", "conversions", "bid_modifier"]}
+                  actionsLabel="Lance"
+                  rowActions={(row) => (
+                    <BidModifierInline
+                      pending={edits.updateCampaignBidModifier.isPending}
+                      current={row.bid_modifier}
+                      onSave={(bm) => edits.updateCampaignBidModifier.mutate({ criterion_id: row.id, bid_modifier: bm })}
+                    />
+                  )}
+                />
               </CardContent>
             </Card>
             <Card className="glass-card">
               <CardHeader className="py-3"><CardTitle className="text-sm">Por idade</CardTitle></CardHeader>
               <CardContent className="p-0">
-                <SimpleTable loading={reports.ageData.isLoading} rows={reports.ageData.data?.rows} columns={["name", "impressions", "clicks", "ctr", "cost", "conversions"]} />
+                <SimpleTable
+                  loading={reports.ageData.isLoading}
+                  rows={reports.ageData.data?.rows}
+                  columns={["name", "impressions", "clicks", "ctr", "cost", "conversions", "bid_modifier"]}
+                  actionsLabel="Lance"
+                  rowActions={(row) => row.ad_group_id && row.id ? (
+                    <BidModifierInline
+                      pending={edits.updateAdGroupBidModifier.isPending}
+                      current={row.bid_modifier}
+                      onSave={(bm) => edits.updateAdGroupBidModifier.mutate({ ad_group_id: row.ad_group_id, criterion_id: row.id, bid_modifier: bm })}
+                    />
+                  ) : null}
+                />
               </CardContent>
             </Card>
             <Card className="glass-card">
               <CardHeader className="py-3"><CardTitle className="text-sm">Por gênero</CardTitle></CardHeader>
               <CardContent className="p-0">
-                <SimpleTable loading={reports.genderData.isLoading} rows={reports.genderData.data?.rows} columns={["name", "impressions", "clicks", "ctr", "cost", "conversions"]} />
+                <SimpleTable
+                  loading={reports.genderData.isLoading}
+                  rows={reports.genderData.data?.rows}
+                  columns={["name", "impressions", "clicks", "ctr", "cost", "conversions", "bid_modifier"]}
+                  actionsLabel="Lance"
+                  rowActions={(row) => row.ad_group_id && row.id ? (
+                    <BidModifierInline
+                      pending={edits.updateAdGroupBidModifier.isPending}
+                      current={row.bid_modifier}
+                      onSave={(bm) => edits.updateAdGroupBidModifier.mutate({ ad_group_id: row.ad_group_id, criterion_id: row.id, bid_modifier: bm })}
+                    />
+                  ) : null}
+                />
               </CardContent>
             </Card>
             <Card className="glass-card">
@@ -174,11 +219,20 @@ export default function GoogleAdsCampaignDetail() {
 
         <TabsContent value="keywords" className="mt-4">
           <Card className="glass-card">
-            <CardHeader className="py-3">
-              <CardTitle className="text-sm">Palavras-chave</CardTitle>
-              <p className="text-[11px] text-muted-foreground mt-1">Selecione várias para pausar/ativar em lote, ou pause/edite o CPC linha-a-linha.</p>
+            <CardHeader className="py-3 flex-row items-center justify-between space-y-0">
+              <div>
+                <CardTitle className="text-sm">Palavras-chave</CardTitle>
+                <p className="text-[11px] text-muted-foreground mt-1">Crie novas, pause/edite o CPC linha-a-linha, ou use seleção em massa.</p>
+              </div>
+              <Button size="sm" variant="outline" className="h-7 text-xs"
+                disabled={!reports.keywords.data?.rows?.length}
+                onClick={() => exportRowsToCSV(`keywords-${campaignId}`, reports.keywords.data?.rows || [])}
+              >
+                <Download className="w-3 h-3 mr-1" /> Exportar CSV
+              </Button>
             </CardHeader>
             <CardContent className="p-0">
+              <CreateKeywordForm edits={edits} adGroups={adGroupOptions} />
               <BulkActionBar
                 count={selectedKw.size}
                 pending={edits.bulkToggleKeywords.isPending}
@@ -221,6 +275,10 @@ export default function GoogleAdsCampaignDetail() {
                         ad_group_id: row.ad_group_id,
                         cpc_brl: cpc,
                       })}
+                    />
+                    <DuplicateButton
+                      pending={edits.duplicateKeyword.isPending}
+                      onClick={() => edits.duplicateKeyword.mutate({ ad_group_criterion_id: row.id, ad_group_id: row.ad_group_id })}
                     />
                   </>
                 )}
@@ -337,11 +395,25 @@ export default function GoogleAdsCampaignDetail() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="ads" className="mt-4">
+        <TabsContent value="ads" className="mt-4 space-y-4">
           <Card className="glass-card">
             <CardHeader className="py-3">
-              <CardTitle className="text-sm">Anúncios criativos</CardTitle>
-              <p className="text-[11px] text-muted-foreground mt-1">Performance de cada anúncio (headlines, descrições e métricas).</p>
+              <CardTitle className="text-sm">Criar novo grupo de anúncios</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0"><CreateAdGroupForm edits={edits} /></CardContent>
+          </Card>
+          <Card className="glass-card">
+            <CardHeader className="py-3 flex-row items-center justify-between space-y-0">
+              <div>
+                <CardTitle className="text-sm">Anúncios criativos</CardTitle>
+                <p className="text-[11px] text-muted-foreground mt-1">Edite, duplique ou pause cada anúncio.</p>
+              </div>
+              <Button size="sm" variant="outline" className="h-7 text-xs"
+                disabled={!reports.ads.data?.rows?.length}
+                onClick={() => exportRowsToCSV(`ads-${campaignId}`, reports.ads.data?.rows || [])}
+              >
+                <Download className="w-3 h-3 mr-1" /> Exportar CSV
+              </Button>
             </CardHeader>
             <CardContent className="p-0">
               {reports.ads.isLoading ? (
@@ -366,6 +438,13 @@ export default function GoogleAdsCampaignDetail() {
                                 ad_group_id: ad.ad_group_id,
                                 status: next,
                               })}
+                            />
+                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingAd(ad)} title="Editar textos">
+                              <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                            </Button>
+                            <DuplicateButton
+                              pending={edits.duplicateAd.isPending}
+                              onClick={() => edits.duplicateAd.mutate({ ad_id: ad.id, ad_group_id: ad.ad_group_id })}
                             />
                           </div>
                           {ad.headlines?.length > 0 && (
@@ -421,7 +500,9 @@ export default function GoogleAdsCampaignDetail() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="settings" className="mt-4">
+        <TabsContent value="settings" className="mt-4 space-y-4">
+          <BiddingStrategyEditor edits={edits} currentStrategy={m.campaign?.bidding_strategy_type} />
+          <AutomationRulesPanel workspaceId={workspace?.id} customerId={customerId} campaignId={campaignId} />
           <CampaignSettings
             bidModifiers={reports.bidModifiers}
             adSchedule={reports.adSchedule}
@@ -453,6 +534,13 @@ export default function GoogleAdsCampaignDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <EditAdDialog
+        open={!!editingAd}
+        onOpenChange={(o) => { if (!o) setEditingAd(null); }}
+        ad={editingAd}
+        edits={edits}
+      />
     </div>
   );
 }
