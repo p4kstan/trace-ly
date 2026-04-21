@@ -90,6 +90,8 @@ export default function GoogleAdsCampaignDetail() {
         toggleStatusPending={m.toggleStatus.isPending}
         onOpenBudget={() => { setNewBudget(budget.toString()); setBudgetOpen(true); }}
         edits={edits}
+        compareEnabled={m.compareEnabled}
+        onCompareToggle={m.setCompareEnabled}
       />
 
       {m.errMsg && (
