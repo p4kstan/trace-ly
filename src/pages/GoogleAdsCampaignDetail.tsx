@@ -395,11 +395,25 @@ export default function GoogleAdsCampaignDetail() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="ads" className="mt-4">
+        <TabsContent value="ads" className="mt-4 space-y-4">
           <Card className="glass-card">
             <CardHeader className="py-3">
-              <CardTitle className="text-sm">Anúncios criativos</CardTitle>
-              <p className="text-[11px] text-muted-foreground mt-1">Performance de cada anúncio (headlines, descrições e métricas).</p>
+              <CardTitle className="text-sm">Criar novo grupo de anúncios</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0"><CreateAdGroupForm edits={edits} /></CardContent>
+          </Card>
+          <Card className="glass-card">
+            <CardHeader className="py-3 flex-row items-center justify-between space-y-0">
+              <div>
+                <CardTitle className="text-sm">Anúncios criativos</CardTitle>
+                <p className="text-[11px] text-muted-foreground mt-1">Edite, duplique ou pause cada anúncio.</p>
+              </div>
+              <Button size="sm" variant="outline" className="h-7 text-xs"
+                disabled={!reports.ads.data?.rows?.length}
+                onClick={() => exportRowsToCSV(`ads-${campaignId}`, reports.ads.data?.rows || [])}
+              >
+                <Download className="w-3 h-3 mr-1" /> Exportar CSV
+              </Button>
             </CardHeader>
             <CardContent className="p-0">
               {reports.ads.isLoading ? (
@@ -424,6 +438,13 @@ export default function GoogleAdsCampaignDetail() {
                                 ad_group_id: ad.ad_group_id,
                                 status: next,
                               })}
+                            />
+                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingAd(ad)} title="Editar textos">
+                              <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                            </Button>
+                            <DuplicateButton
+                              pending={edits.duplicateAd.isPending}
+                              onClick={() => edits.duplicateAd.mutate({ ad_id: ad.id, ad_group_id: ad.ad_group_id })}
                             />
                           </div>
                           {ad.headlines?.length > 0 && (
@@ -479,7 +500,9 @@ export default function GoogleAdsCampaignDetail() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="settings" className="mt-4">
+        <TabsContent value="settings" className="mt-4 space-y-4">
+          <BiddingStrategyEditor edits={edits} currentStrategy={m.campaign?.bidding_strategy_type} />
+          <AutomationRulesPanel workspaceId={workspace?.id} customerId={customerId} campaignId={campaignId} />
           <CampaignSettings
             bidModifiers={reports.bidModifiers}
             adSchedule={reports.adSchedule}
