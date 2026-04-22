@@ -97,7 +97,8 @@ Deno.serve(async (req) => {
     if (action === "list") {
       if (!campaign_id) return json({ error: "campaign_id required" }, 400);
       const q = `
-        SELECT campaign_asset.resource_name, campaign_asset.field_type, campaign_asset.status,
+        SELECT campaign.id,
+               campaign_asset.resource_name, campaign_asset.field_type, campaign_asset.status,
                asset.resource_name, asset.id, asset.type,
                asset.sitelink_asset.link_text, asset.sitelink_asset.description1, asset.sitelink_asset.description2,
                asset.final_urls,
