@@ -402,14 +402,25 @@ function EditGoogleAdsDialog({ dest, onSaved }: { dest: any; onSaved: () => void
   const [saving, setSaving] = useState(false);
 
   async function save() {
+    const cid = customerId.replace(/-/g, "").trim();
+    const conv = conversionId.trim();
+    if (cid && !/^\d{10}$/.test(cid)) {
+      toast.error("ID do cliente inválido. Use 10 dígitos sem hífens.");
+      return;
+    }
+    if (conv && !/^\d+$/.test(conv)) {
+      toast.error("ID de conversão deve ser numérico (ex.: 7586453925).");
+      return;
+    }
     setSaving(true);
     const update: any = {
       display_name: name.trim() || "Google Ads",
-      destination_id: conversionId.trim(),
+      destination_id: conv,
       config_json: {
         ...cfg,
+        customer_id: cid || null,
+        conversion_action_id: conv || null,
         conversion_label: conversionLabel.trim() || null,
-        customer_id: customerId.trim() || null,
       },
     };
     const { error } = await supabase.from("integration_destinations").update(update).eq("id", dest.id);
