@@ -603,6 +603,7 @@ Deno.serve(async (req) => {
       payment_method: order.payment_method, installments: order.installments,
       external_checkout_id: order.external_checkout_id, external_subscription_id: order.external_subscription_id,
       gclid: tk.gclid || null, fbclid: tk.fbclid || null, ttclid: tk.ttclid || null,
+      gbraid: tk.gbraid || null, wbraid: tk.wbraid || null,
       fbp: tk.fbp || null, fbc: tk.fbc || null,
       utm_source: tk.utm_source || null, utm_medium: tk.utm_medium || null,
       utm_campaign: tk.utm_campaign || null, utm_content: tk.utm_content || null, utm_term: tk.utm_term || null,
