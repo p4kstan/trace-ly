@@ -489,9 +489,10 @@ function AddDestinationDialog({
       </div>
 
       <Tabs defaultValue="meta">
-        <TabsList className="grid grid-cols-2 w-full">
+        <TabsList className="grid grid-cols-3 w-full">
           <TabsTrigger value="meta"><Megaphone className="w-3.5 h-3.5 mr-1.5" />Meta Pixel</TabsTrigger>
           <TabsTrigger value="ga4"><BarChart2 className="w-3.5 h-3.5 mr-1.5" />GA4</TabsTrigger>
+          <TabsTrigger value="google_ads"><Target className="w-3.5 h-3.5 mr-1.5" />Google Ads</TabsTrigger>
         </TabsList>
 
         <TabsContent value="meta" className="mt-4">
@@ -500,6 +501,10 @@ function AddDestinationDialog({
 
         <TabsContent value="ga4" className="mt-4">
           <GA4Form workspaceId={workspaceId} onSuccess={onSuccess} />
+        </TabsContent>
+
+        <TabsContent value="google_ads" className="mt-4">
+          <GoogleAdsForm workspaceId={workspaceId} onSuccess={onSuccess} />
         </TabsContent>
       </Tabs>
     </DialogContent>
