@@ -102,22 +102,23 @@ async function buildGoogleConversion(
   // This is what restores keyword-level attribution for purchases where the
   // checkout did not propagate the gclid in metadata.
   const sessionId = session.session_id || p.session_id || order.session_id;
-  // ⚠️ A tabela `sessions` deste projeto só tem `gclid` (não tem gbraid/wbraid).
-  // Antes selecionávamos colunas inexistentes — o erro silencioso quebrava o
-  // fallback inteiro e fazia eventos com gclid válido caírem em skipped_no_identity.
+  // A tabela `sessions` agora suporta gclid + gbraid + wbraid (migration aplicada).
+  // gbraid/wbraid são identificadores do iOS 14.5+ quando cookies não estão disponíveis.
   if (!gclid && !gbraid && !wbraid && sessionId) {
     const { data: sess, error: sessErr } = await supabase
       .from("sessions")
-      .select("gclid")
+      .select("gclid, gbraid, wbraid")
       .eq("id", sessionId)
       .eq("workspace_id", workspaceId)
       .maybeSingle();
     if (sessErr) {
       console.warn(`[google-ads-capi] session lookup failed for ${sessionId}:`, sessErr.message);
     }
-    if (sess?.gclid) {
-      gclid = sanitizeClickId(sess.gclid);
-      console.log(`[google-ads-capi] fallback session lookup HIT session_id=${sessionId} gclid=${gclid || "-"}`);
+    if (sess && (sess.gclid || sess.gbraid || sess.wbraid)) {
+      if (!gclid && sess.gclid) gclid = sanitizeClickId(sess.gclid);
+      if (!gbraid && sess.gbraid) gbraid = sanitizeClickId(sess.gbraid);
+      if (!wbraid && sess.wbraid) wbraid = sanitizeClickId(sess.wbraid);
+      console.log(`[google-ads-capi] fallback session lookup HIT session_id=${sessionId} gclid=${gclid || "-"} gbraid=${gbraid || "-"} wbraid=${wbraid || "-"}`);
     } else if (sessionId) {
       console.log(`[google-ads-capi] fallback session lookup MISS session_id=${sessionId}`);
     }
