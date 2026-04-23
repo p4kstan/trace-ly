@@ -177,7 +177,7 @@ async function reconcile(
   let sessionData: any = null;
   if (identityId) {
     const { data } = await supabase.from("sessions")
-      .select("id, utm_source, utm_medium, utm_campaign, utm_content, utm_term, fbp, fbc, fbclid, gclid, ttclid, landing_page, referrer, ip_hash, user_agent")
+      .select("id, utm_source, utm_medium, utm_campaign, utm_content, utm_term, fbp, fbc, fbclid, gclid, gbraid, wbraid, ttclid, landing_page, referrer, ip_hash, user_agent")
       .eq("workspace_id", workspaceId).eq("identity_id", identityId)
       .order("created_at", { ascending: false }).limit(1).single();
     if (data) { sessionId = data.id; sessionData = data; }
@@ -603,6 +603,7 @@ Deno.serve(async (req) => {
       payment_method: order.payment_method, installments: order.installments,
       external_checkout_id: order.external_checkout_id, external_subscription_id: order.external_subscription_id,
       gclid: tk.gclid || null, fbclid: tk.fbclid || null, ttclid: tk.ttclid || null,
+      gbraid: tk.gbraid || null, wbraid: tk.wbraid || null,
       fbp: tk.fbp || null, fbc: tk.fbc || null,
       utm_source: tk.utm_source || null, utm_medium: tk.utm_medium || null,
       utm_campaign: tk.utm_campaign || null, utm_content: tk.utm_content || null, utm_term: tk.utm_term || null,
@@ -652,6 +653,8 @@ Deno.serve(async (req) => {
         if (!tk.fbc) fallback.fbc = sessionData.fbc;
         if (!tk.fbclid) fallback.fbclid = sessionData.fbclid;
         if (!tk.gclid) fallback.gclid = sessionData.gclid;
+        if (!tk.gbraid) fallback.gbraid = sessionData.gbraid;
+        if (!tk.wbraid) fallback.wbraid = sessionData.wbraid;
         if (!tk.ttclid) fallback.ttclid = sessionData.ttclid;
         if (!tk.landing_page) fallback.landing_page = sessionData.landing_page;
         if (!tk.referrer) fallback.referrer = sessionData.referrer;

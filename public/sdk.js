@@ -620,10 +620,17 @@
       var gaCid = getGa4ClientId();
       if (gaCid && !url.searchParams.has('metadata[ga_client_id]')) url.searchParams.set('metadata[ga_client_id]', gaCid);
 
-      // Click IDs persistidos
+      // Click IDs persistidos (metadata[*] + alias direto na URL como fallback
+      // — alguns gateways só repassam query params nativos, não metadata[*])
+      var GOOGLE_DIRECT_ALIASES = { gclid: 1, gbraid: 1, wbraid: 1 };
       CLICK_IDS.forEach(function(k){
         var v = getLS('ct_' + k) || getCookie('ct_' + k);
-        if (v && !url.searchParams.has('metadata[' + k + ']')) url.searchParams.set('metadata[' + k + ']', v);
+        if (!v) return;
+        if (!url.searchParams.has('metadata[' + k + ']')) url.searchParams.set('metadata[' + k + ']', v);
+        // Alias direto: só para Google click-ids e quando ainda não existir
+        if (GOOGLE_DIRECT_ALIASES[k] && !url.searchParams.has(k)) {
+          url.searchParams.set(k, v);
+        }
       });
 
       // UTMs persistidas
