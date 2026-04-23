@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
+import { EnhancedConversionsPanel } from "@/components/dashboard/EnhancedConversionsPanel";
 
 function formatCurrency(val: number) {
   return "R$ " + val.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -200,6 +201,9 @@ export default function Dashboard() {
         <MetricCard title="Eventos" value={String(stats?.totalEvents || 0)} change={0} icon={Target} />
         <MetricCard title="Abandono" value={`${orderStats?.abandonmentRate || 0}%`} change={0} icon={Users} />
       </div>
+
+      {/* Enhanced Conversions Panel */}
+      <EnhancedConversionsPanel />
 
       {/* AI Insights & Anomalies Row */}
       {((anomalies && anomalies.length > 0) || (aiInsights && aiInsights.length > 0)) && (
