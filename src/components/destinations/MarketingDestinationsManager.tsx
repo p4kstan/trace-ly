@@ -641,6 +641,103 @@ function GA4Form({ workspaceId, onSuccess }: { workspaceId: string; onSuccess: (
   );
 }
 
+function GoogleAdsForm({ workspaceId, onSuccess }: { workspaceId: string; onSuccess: () => void }) {
+  const [name, setName] = useState("Google Ads");
+  const [customerId, setCustomerId] = useState("");
+  const [conversionId, setConversionId] = useState("");
+  const [conversionLabel, setConversionLabel] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    const cid = customerId.replace(/-/g, "").trim();
+    if (!/^\d{10}$/.test(cid)) {
+      toast.error("ID do cliente inválido. Use 10 dígitos sem hífens.");
+      return;
+    }
+    if (!/^\d+$/.test(conversionId.trim())) {
+      toast.error("ID de conversão deve ser numérico.");
+      return;
+    }
+    if (!conversionLabel.trim()) {
+      toast.error("Rótulo de conversão é obrigatório.");
+      return;
+    }
+    setSaving(true);
+    const { error } = await supabase.from("integration_destinations").insert({
+      workspace_id: workspaceId,
+      provider: "google_ads",
+      destination_id: conversionId.trim(),
+      display_name: name.trim() || "Google Ads",
+      config_json: {
+        customer_id: cid,
+        conversion_action_id: conversionId.trim(),
+        conversion_label: conversionLabel.trim(),
+      },
+      is_active: true,
+    });
+    setSaving(false);
+    if (error) {
+      toast.error("Erro ao salvar: " + error.message);
+      return;
+    }
+    toast.success("Google Ads adicionado! As credenciais OAuth são gerenciadas em Configurações → Google Ads.");
+    onSuccess();
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="text-[11px] text-muted-foreground bg-muted/30 border border-border/40 rounded p-2">
+        ⚠️ Conecte sua conta Google Ads via OAuth em <strong>Configurações → Google Ads</strong> antes. Aqui você só configura qual ação de conversão receberá as compras.
+      </div>
+      <div>
+        <Label className="text-xs">Nome do destino</Label>
+        <Input value={name} onChange={e => setName(e.target.value)} placeholder="Marmitex" />
+      </div>
+      <div>
+        <Label className="text-xs">ID do cliente (sem hífens) *</Label>
+        <Input
+          value={customerId}
+          onChange={e => setCustomerId(e.target.value.replace(/-/g, ""))}
+          placeholder="1234567890"
+          className="font-mono"
+        />
+        <p className="text-[10px] text-muted-foreground mt-1">
+          Conta Google Ads — 10 dígitos (ex.: 123-456-7890 → 1234567890)
+        </p>
+      </div>
+      <div>
+        <Label className="text-xs">ID de conversão *</Label>
+        <Input
+          value={conversionId}
+          onChange={e => setConversionId(e.target.value)}
+          placeholder="17862172125"
+          className="font-mono"
+        />
+        <p className="text-[10px] text-muted-foreground mt-1">
+          Em Google Ads → Metas → Resumo → sua conversão "Compra" (apenas dígitos)
+        </p>
+      </div>
+      <div>
+        <Label className="text-xs">Rótulo de conversão *</Label>
+        <Input
+          value={conversionLabel}
+          onChange={e => setConversionLabel(e.target.value)}
+          placeholder="UITqCOjA95wcEN27rMVC"
+          className="font-mono"
+        />
+        <p className="text-[10px] text-muted-foreground mt-1">
+          Necessário para identificar a conversão offline correta
+        </p>
+      </div>
+      <DialogFooter>
+        <Button onClick={save} disabled={saving} className="w-full">
+          {saving ? "Salvando..." : "Adicionar Google Ads"}
+        </Button>
+      </DialogFooter>
+    </div>
+  );
+}
+
 function SyncButton({
   workspaceId, pixels, destinations, onSynced,
 }: {
