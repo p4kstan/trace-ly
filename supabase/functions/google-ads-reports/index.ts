@@ -867,8 +867,13 @@ Deno.serve(async (req) => {
       "developer-token": developerToken,
       "Content-Type": "application/json",
     };
-    const loginCustomerId = (cred.login_customer_id as string | null)?.replace(/-/g, "");
-    if (loginCustomerId && loginCustomerId !== customerId) {
+    const loginCustomerId = normalizeCustomerId(cred.login_customer_id as string | null);
+
+    if (loginCustomerId) {
+      const validation = await validateLoginCustomerId(accessToken, developerToken, customerId, loginCustomerId);
+      if (!validation.ok) {
+        return json({ error: validation.error, code: "INVALID_LOGIN_CUSTOMER_ID", reconnect: false }, 400);
+      }
       headers["login-customer-id"] = loginCustomerId;
     }
 
@@ -890,7 +895,7 @@ Deno.serve(async (req) => {
 
     if (!adsRes.ok) {
       console.error("ads api error", adsJson);
-      return json({ error: "Google Ads API error", detail: adsJson }, 502);
+      return json({ error: getFriendlyGoogleAdsError(adsJson, customerId, loginCustomerId) || "Google Ads API error", detail: adsJson }, 502);
     }
 
     const results = adsJson.results || [];
