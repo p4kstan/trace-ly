@@ -24,6 +24,92 @@ async function refreshAccessToken(refreshToken: string) {
   return { access_token: j.access_token as string, expires_in: j.expires_in as number };
 }
 
+function normalizeCustomerId(value: string | null | undefined) {
+  const cleaned = String(value ?? "").replace(/\D/g, "");
+  return cleaned || null;
+}
+
+function formatCustomerId(value: string) {
+  const cleaned = normalizeCustomerId(value) || value;
+  return cleaned.length === 10
+    ? `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}-${cleaned.slice(6)}`
+    : value;
+}
+
+function extractGoogleAdsErrors(detail: any) {
+  return detail?.error?.details?.flatMap((item: any) => item?.errors || []) || [];
+}
+
+function getFriendlyGoogleAdsError(detail: any, customerId: string, loginCustomerId: string | null) {
+  const errors = extractGoogleAdsErrors(detail);
+  const messages = [detail?.error?.message, ...errors.map((item: any) => item?.message)]
+    .filter(Boolean)
+    .join(" | ");
+
+  if (messages.includes("login-customer-id") || errors.some((item: any) => item?.errorCode?.authorizationError === "USER_PERMISSION_DENIED")) {
+    if (!loginCustomerId) {
+      return "Essa conta parece estar vinculada a uma MCC. Salve o login-customer-id da conta gerenciadora antes de carregar os relatórios.";
+    }
+    return `MCC inválida ou sem acesso à conta ${formatCustomerId(customerId)}. Verifique o login-customer-id salvo e a vinculação da conta cliente na manager do Google Ads.`;
+  }
+
+  if (messages.includes("CUSTOMER_NOT_FOUND") || messages.includes("not found")) {
+    return "MCC não encontrada. Revise o login-customer-id informado.";
+  }
+
+  return null;
+}
+
+async function validateLoginCustomerId(accessToken: string, developerToken: string, customerId: string, loginCustomerId: string) {
+  if (!/^\d{10}$/.test(loginCustomerId)) {
+    return { ok: false as const, error: "MCC inválida. Use o formato XXX-XXX-XXXX ou 10 dígitos." };
+  }
+
+  if (loginCustomerId === customerId) {
+    return { ok: false as const, error: "A MCC deve ser a conta gerenciadora, diferente do Customer ID da conta cliente." };
+  }
+
+  const validationRes = await fetch(
+    `https://googleads.googleapis.com/v21/customers/${loginCustomerId}/googleAds:search`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "developer-token": developerToken,
+        "login-customer-id": loginCustomerId,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query: `SELECT customer_client.id FROM customer_client WHERE customer_client.id = ${customerId} LIMIT 1`,
+      }),
+    }
+  );
+
+  const validationText = await validationRes.text();
+  let validationJson: any = null;
+  try {
+    validationJson = validationText ? JSON.parse(validationText) : null;
+  } catch {
+    validationJson = null;
+  }
+
+  if (!validationRes.ok) {
+    return {
+      ok: false as const,
+      error: getFriendlyGoogleAdsError(validationJson, customerId, loginCustomerId) || "Não foi possível validar a MCC informada no Google Ads.",
+    };
+  }
+
+  if (!validationJson?.results?.length) {
+    return {
+      ok: false as const,
+      error: `A MCC ${formatCustomerId(loginCustomerId)} não possui vínculo com a conta cliente ${formatCustomerId(customerId)} no Google Ads.`,
+    };
+  }
+
+  return { ok: true as const };
+}
+
 function dateRangeClause(period: string, customFrom?: string, customTo?: string) {
   switch (period) {
     case "today": return "segments.date DURING TODAY";
@@ -781,8 +867,13 @@ Deno.serve(async (req) => {
       "developer-token": developerToken,
       "Content-Type": "application/json",
     };
-    const loginCustomerId = (cred.login_customer_id as string | null)?.replace(/-/g, "");
-    if (loginCustomerId && loginCustomerId !== customerId) {
+    const loginCustomerId = normalizeCustomerId(cred.login_customer_id as string | null);
+
+    if (loginCustomerId) {
+      const validation = await validateLoginCustomerId(accessToken, developerToken, customerId, loginCustomerId);
+      if (!validation.ok) {
+        return json({ error: validation.error, code: "INVALID_LOGIN_CUSTOMER_ID", reconnect: false }, 400);
+      }
       headers["login-customer-id"] = loginCustomerId;
     }
 
@@ -804,7 +895,7 @@ Deno.serve(async (req) => {
 
     if (!adsRes.ok) {
       console.error("ads api error", adsJson);
-      return json({ error: "Google Ads API error", detail: adsJson }, 502);
+      return json({ error: getFriendlyGoogleAdsError(adsJson, customerId, loginCustomerId) || "Google Ads API error", detail: adsJson }, 502);
     }
 
     const results = adsJson.results || [];

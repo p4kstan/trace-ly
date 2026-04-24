@@ -17,6 +17,8 @@ interface StatusResponse {
   workspace_credentials: {
     customer_id: string;
     customer_id_formatted: string;
+    login_customer_id?: string | null;
+    login_customer_id_formatted?: string | null;
     status: string;
     has_refresh_token: boolean;
     last_sync_at: string | null;
@@ -32,18 +34,13 @@ export default function GoogleAdsCredentialsManager({ workspaceId, onChanged }: 
   const [loading, setLoading] = useState(true);
   const [editingCustomerId, setEditingCustomerId] = useState(false);
   const [customerIdInput, setCustomerIdInput] = useState("");
+  const [loginCustomerIdInput, setLoginCustomerIdInput] = useState("");
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
     if (!workspaceId) return;
     setLoading(true);
     try {
-      const { data: res, error } = await supabase.functions.invoke("google-ads-credentials-status", {
-        body: undefined,
-        method: "GET",
-        // workspace_id via query string
-      } as any);
-      // fallback: invoke with manual URL since invoke lacks query support
       const session = (await supabase.auth.getSession()).data.session;
       const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-ads-credentials-status?workspace_id=${workspaceId}`;
       const r = await fetch(url, {
@@ -56,6 +53,7 @@ export default function GoogleAdsCredentialsManager({ workspaceId, onChanged }: 
       if (!r.ok) throw new Error(json.error);
       setData(json);
       setCustomerIdInput(json.workspace_credentials?.customer_id_formatted || "");
+      setLoginCustomerIdInput(json.workspace_credentials?.login_customer_id_formatted || "");
     } catch (e: any) {
       toast.error(`Erro ao carregar credenciais: ${e.message}`);
     } finally {
@@ -77,10 +75,15 @@ export default function GoogleAdsCredentialsManager({ workspaceId, onChanged }: 
     setSaving(true);
     try {
       const { data: res, error } = await supabase.functions.invoke("google-ads-credentials-update", {
-        body: { workspace_id: workspaceId, action: "update_customer_id", customer_id: customerIdInput },
+        body: {
+          workspace_id: workspaceId,
+          action: "update_customer_id",
+          customer_id: customerIdInput,
+          login_customer_id: loginCustomerIdInput,
+        },
       });
       if (error) throw error;
-      toast.success("Customer ID atualizado");
+      toast.success("Credenciais Google Ads atualizadas");
       setEditingCustomerId(false);
       await load();
       onChanged?.();
@@ -135,14 +138,12 @@ export default function GoogleAdsCredentialsManager({ workspaceId, onChanged }: 
           Visualize e atualize cada credencial individualmente. Os valores são mascarados por segurança.
         </p>
 
-        {/* Workspace credentials */}
         <div className="space-y-3">
           <h4 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Conta Google Ads</h4>
 
-          {/* Customer ID */}
-          <div className="bg-muted/20 border border-border/30 rounded-lg p-3 space-y-2">
+          <div className="bg-muted/20 border border-border/30 rounded-lg p-3 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-foreground">Customer ID</span>
+              <span className="text-xs font-medium text-foreground">Credenciais da conta</span>
               {!editingCustomerId ? (
                 <Button onClick={() => setEditingCustomerId(true)} variant="ghost" size="sm" className="h-6 px-2 text-xs">
                   <Edit3 className="w-3 h-3 mr-1" /> Editar
@@ -152,27 +153,51 @@ export default function GoogleAdsCredentialsManager({ workspaceId, onChanged }: 
                   <Button onClick={saveCustomerId} disabled={saving} size="sm" className="h-6 px-2 text-xs">
                     {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Save className="w-3 h-3 mr-1" />Salvar</>}
                   </Button>
-                  <Button onClick={() => { setEditingCustomerId(false); setCustomerIdInput(data.workspace_credentials?.customer_id_formatted || ""); }} variant="ghost" size="sm" className="h-6 px-2 text-xs">
+                  <Button onClick={() => {
+                    setEditingCustomerId(false);
+                    setCustomerIdInput(data.workspace_credentials?.customer_id_formatted || "");
+                    setLoginCustomerIdInput(data.workspace_credentials?.login_customer_id_formatted || "");
+                  }} variant="ghost" size="sm" className="h-6 px-2 text-xs">
                     <X className="w-3 h-3" />
                   </Button>
                 </div>
               )}
             </div>
-            {editingCustomerId ? (
-              <Input
-                value={customerIdInput}
-                onChange={(e) => setCustomerIdInput(e.target.value)}
-                placeholder="123-456-7890"
-                className="h-7 text-xs font-mono"
-              />
-            ) : (
-              <p className="text-xs font-mono text-muted-foreground">
-                {data.workspace_credentials?.customer_id_formatted || <span className="italic">não definido</span>}
-              </p>
-            )}
+
+            <div className="space-y-1.5">
+              <span className="text-[11px] text-muted-foreground">Customer ID</span>
+              {editingCustomerId ? (
+                <Input
+                  value={customerIdInput}
+                  onChange={(e) => setCustomerIdInput(e.target.value)}
+                  placeholder="123-456-7890"
+                  className="h-8 text-xs font-mono"
+                />
+              ) : (
+                <p className="text-xs font-mono text-muted-foreground">
+                  {data.workspace_credentials?.customer_id_formatted || <span className="italic">não definido</span>}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="text-[11px] text-muted-foreground">Login Customer ID (MCC)</span>
+              {editingCustomerId ? (
+                <Input
+                  value={loginCustomerIdInput}
+                  onChange={(e) => setLoginCustomerIdInput(e.target.value)}
+                  placeholder="880-479-2807"
+                  className="h-8 text-xs font-mono"
+                />
+              ) : (
+                <p className="text-xs font-mono text-muted-foreground">
+                  {data.workspace_credentials?.login_customer_id_formatted || <span className="italic">não definido</span>}
+                </p>
+              )}
+              <p className="text-[10px] text-muted-foreground">Preencha somente se a conta cliente estiver sob uma manager account (MCC).</p>
+            </div>
           </div>
 
-          {/* OAuth status */}
           <div className="bg-muted/20 border border-border/30 rounded-lg p-3 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-foreground">Autorização OAuth</span>
@@ -200,7 +225,6 @@ export default function GoogleAdsCredentialsManager({ workspaceId, onChanged }: 
           </div>
         </div>
 
-        {/* Global secrets */}
         <div className="space-y-2 pt-2 border-t border-border/30">
           <h4 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Secrets globais (Lovable Cloud)</h4>
           {[

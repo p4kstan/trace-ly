@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
     }
 
-    const { workspace_id, action, customer_id } = await req.json();
+    const { workspace_id, action, customer_id, login_customer_id } = await req.json();
     if (!workspace_id) {
       return new Response(JSON.stringify({ error: "workspace_id required" }), { status: 400, headers: corsHeaders });
     }
@@ -38,12 +38,48 @@ Deno.serve(async (req) => {
     }
 
     if (action === "update_customer_id") {
-      const cleaned = String(customer_id || "").replace(/-/g, "");
+      const cleaned = String(customer_id || "").replace(/\D/g, "");
       if (!/^\d{10}$/.test(cleaned)) {
         return new Response(JSON.stringify({ error: "Invalid customer_id" }), { status: 400, headers: corsHeaders });
       }
-      await service.from("google_ads_credentials")
-        .upsert({ workspace_id, customer_id: cleaned }, { onConflict: "workspace_id" });
+
+      const cleanedLoginCustomerId = String(login_customer_id || "").replace(/\D/g, "");
+      if (cleanedLoginCustomerId && !/^\d{10}$/.test(cleanedLoginCustomerId)) {
+        return new Response(JSON.stringify({ error: "Invalid login_customer_id" }), { status: 400, headers: corsHeaders });
+      }
+      if (cleanedLoginCustomerId && cleanedLoginCustomerId === cleaned) {
+        return new Response(JSON.stringify({ error: "login_customer_id must differ from customer_id" }), { status: 400, headers: corsHeaders });
+      }
+
+      const { data: existing } = await service
+        .from("google_ads_credentials")
+        .select("workspace_id, customer_id")
+        .eq("workspace_id", workspace_id)
+        .limit(1)
+        .maybeSingle();
+
+      const payload = {
+        workspace_id,
+        customer_id: cleaned,
+        login_customer_id: cleanedLoginCustomerId || null,
+      };
+
+      if (existing?.customer_id) {
+        await service.from("google_ads_credentials")
+          .update(payload)
+          .eq("workspace_id", workspace_id)
+          .eq("customer_id", existing.customer_id);
+      } else {
+        await service.from("google_ads_credentials")
+          .insert({
+            ...payload,
+            status: "disconnected",
+            routing_mode: "all",
+            routing_domains: [],
+            routing_tags: [],
+            is_default: true,
+          });
+      }
       return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 

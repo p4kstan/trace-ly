@@ -42,8 +42,10 @@ Deno.serve(async (req) => {
       const service = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
       const { data } = await service
         .from("google_ads_credentials")
-        .select("customer_id, status, last_sync_at, last_error, refresh_token, token_expires_at, updated_at")
+        .select("customer_id, login_customer_id, status, last_sync_at, last_error, refresh_token, token_expires_at, updated_at")
         .eq("workspace_id", workspaceId)
+        .order("is_default", { ascending: false })
+        .limit(1)
         .maybeSingle();
       cred = data;
     }
@@ -56,7 +58,9 @@ Deno.serve(async (req) => {
       },
       workspace_credentials: cred ? {
         customer_id: cred.customer_id,
-        customer_id_formatted: cred.customer_id ? `${cred.customer_id.slice(0,3)}-${cred.customer_id.slice(3,6)}-${cred.customer_id.slice(6)}` : null,
+        customer_id_formatted: cred.customer_id ? `${cred.customer_id.slice(0, 3)}-${cred.customer_id.slice(3, 6)}-${cred.customer_id.slice(6)}` : null,
+        login_customer_id: cred.login_customer_id,
+        login_customer_id_formatted: cred.login_customer_id ? `${cred.login_customer_id.slice(0, 3)}-${cred.login_customer_id.slice(3, 6)}-${cred.login_customer_id.slice(6)}` : null,
         status: cred.status,
         has_refresh_token: !!cred.refresh_token,
         token_expires_at: cred.token_expires_at,
