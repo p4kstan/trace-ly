@@ -52,9 +52,47 @@ Deno.serve(async (req) => {
     const expiresAt = new Date(Date.now() + (expires_in - 60) * 1000).toISOString();
 
     const service = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const developerToken = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN") ?? null;
 
-    // Multi-conta: upsert por (workspace_id, customer_id) — permite N contas por workspace.
-    // Se for a primeira conta do workspace, marca como default.
+    // Auto-detect login_customer_id (MCC) if the account is under a manager.
+    let detectedLoginCustomerId: string | null = null;
+    try {
+      if (developerToken) {
+        const listRes = await fetch("https://googleads.googleapis.com/v21/customers:listAccessibleCustomers", {
+          headers: { Authorization: `Bearer ${access_token}`, "developer-token": developerToken },
+        });
+        const listJson = await listRes.json();
+        const resourceNames: string[] = listRes.ok ? (listJson.resourceNames || []) : [];
+        const accessibleIds = resourceNames.map((r) => r.split("/")[1]).filter(Boolean);
+        const target = state.customer_id;
+
+        // Try each accessible account as a potential MCC parent of the target.
+        for (const candidate of accessibleIds) {
+          if (candidate === target) continue;
+          const q = `SELECT customer_client.id FROM customer_client WHERE customer_client.id = ${target}`;
+          const r = await fetch(`https://googleads.googleapis.com/v21/customers/${candidate}/googleAds:search`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${access_token}`,
+              "developer-token": developerToken,
+              "login-customer-id": candidate,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ query: q }),
+          });
+          if (r.ok) {
+            const j = await r.json();
+            if ((j.results || []).length > 0) {
+              detectedLoginCustomerId = candidate;
+              break;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("MCC auto-detect failed (non-fatal)", e);
+    }
+
     const { count } = await service
       .from("google_ads_credentials")
       .select("id", { count: "exact", head: true })
@@ -70,7 +108,8 @@ Deno.serve(async (req) => {
       token_expires_at: expiresAt,
       status: "connected",
       last_error: null,
-      developer_token: Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN") ?? null,
+      developer_token: developerToken,
+      ...(detectedLoginCustomerId ? { login_customer_id: detectedLoginCustomerId } : {}),
       ...(isFirst ? { is_default: true, account_label: state.account_label || "Conta principal" } : {}),
     }, { onConflict: "workspace_id,customer_id" });
 
