@@ -110,17 +110,17 @@ Deno.serve(async (req) => {
       ORDER BY segments.date DESC
     `;
 
+    const headers: Record<string, string> = {
+      "Authorization": `Bearer ${accessToken}`,
+      "developer-token": developerToken,
+      "Content-Type": "application/json",
+    };
+    const loginCustomerId = (cred.login_customer_id as string | null)?.replace(/-/g, "");
+    if (loginCustomerId) headers["login-customer-id"] = loginCustomerId;
+
     const adsRes = await fetch(
       `https://googleads.googleapis.com/v21/customers/${customerId}/googleAds:search`,
-      {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "developer-token": developerToken,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ query: gaql }),
-      }
+      { method: "POST", headers, body: JSON.stringify({ query: gaql }) }
     );
 
     const adsJson = await adsRes.json();
