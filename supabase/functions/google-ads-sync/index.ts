@@ -201,8 +201,18 @@ Deno.serve(async (req) => {
       "developer-token": developerToken,
       "Content-Type": "application/json",
     };
-    const loginCustomerId = (cred.login_customer_id as string | null)?.replace(/-/g, "");
-    if (loginCustomerId) headers["login-customer-id"] = loginCustomerId;
+    const loginCustomerId = normalizeCustomerId(cred.login_customer_id as string | null);
+    if (loginCustomerId) {
+      const validation = await validateLoginCustomerId(accessToken, developerToken, customerId, loginCustomerId);
+      if (!validation.ok) {
+        await service.from("google_ads_credentials").update({
+          status: "error",
+          last_error: validation.error,
+        }).eq("workspace_id", workspace_id).eq("customer_id", cred.customer_id);
+        return new Response(JSON.stringify({ error: validation.error, code: "INVALID_LOGIN_CUSTOMER_ID" }), { status: 400, headers: corsHeaders });
+      }
+      headers["login-customer-id"] = loginCustomerId;
+    }
 
     const adsRes = await fetch(
       `https://googleads.googleapis.com/v21/customers/${customerId}/googleAds:search`,
@@ -212,10 +222,11 @@ Deno.serve(async (req) => {
     const adsJson = await adsRes.json();
     if (!adsRes.ok) {
       console.error("ads api error", adsJson);
+      const friendlyError = getFriendlyGoogleAdsError(adsJson, customerId, loginCustomerId) || "Google Ads API error";
       await service.from("google_ads_credentials").update({
-        last_error: JSON.stringify(adsJson).slice(0, 500),
+        last_error: friendlyError,
       }).eq("workspace_id", workspace_id).eq("customer_id", cred.customer_id);
-      return new Response(JSON.stringify({ error: "Google Ads API error", detail: adsJson }), { status: 502, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: friendlyError, detail: adsJson }), { status: 502, headers: corsHeaders });
     }
 
     const results = adsJson.results || [];
