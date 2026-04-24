@@ -28,6 +28,7 @@ interface GAccount {
   developer_token?: string | null;
   token_expires_at?: string | null;
   created_at?: string | null;
+  login_customer_id?: string | null;
 }
 
 export default function GoogleAdsAccountDetail() {
@@ -38,6 +39,7 @@ export default function GoogleAdsAccountDetail() {
   const [acc, setAcc] = useState<GAccount | null>(null);
   const [loading, setLoading] = useState(true);
   const [label, setLabel] = useState("");
+  const [loginCustomerId, setLoginCustomerId] = useState("");
   const [rules, setRules] = useState<RoutingRules>({ routing_mode: "all", routing_domains: [], routing_tags: [] });
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -69,6 +71,7 @@ export default function GoogleAdsAccountDetail() {
     setAcc(a);
     if (a) {
       setLabel(a.account_label || "");
+      setLoginCustomerId(a.login_customer_id || "");
       setRules({
         routing_mode: (a.routing_mode as any) || "all",
         routing_domains: a.routing_domains || [],
@@ -97,10 +100,11 @@ export default function GoogleAdsAccountDetail() {
       .from("google_ads_credentials")
       .update({
         account_label: label.trim() || null,
+        login_customer_id: loginCustomerId.replace(/-/g, "").trim() || null,
         routing_mode: rules.routing_mode,
         routing_domains: rules.routing_domains,
         routing_tags: rules.routing_tags,
-      })
+      } as any)
       .eq("workspace_id", workspaceId)
       .eq("customer_id", acc.customer_id);
     setSaving(false);
@@ -274,6 +278,18 @@ export default function GoogleAdsAccountDetail() {
           <div className="space-y-1.5">
             <Label htmlFor="lbl" className="text-xs">Apelido da conta</Label>
             <Input id="lbl" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Ex: Loja BR — Produto A" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="mcc" className="text-xs">ID da conta gerenciadora (MCC) — opcional</Label>
+            <Input
+              id="mcc"
+              value={loginCustomerId}
+              onChange={(e) => setLoginCustomerId(e.target.value)}
+              placeholder="Ex: 880-479-2807 (deixe vazio se a conta não está sob MCC)"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Necessário quando a conta é cliente de uma manager account. Enviado como header <code>login-customer-id</code>.
+            </p>
           </div>
           <RoutingRulesEditor value={rules} onChange={setRules} disabled={saving} />
           <Button onClick={save} disabled={saving} size="sm">
