@@ -83,19 +83,33 @@ Deno.serve(async (req) => {
   const sinceQueueIso = new Date(Date.now() - 7 * 24 * 60 * 60_000).toISOString();
   const sinceDlIso = new Date(Date.now() - 24 * 60 * 60_000).toISOString();
 
-  const [queueRes, dlRes] = await Promise.all([
+  const QUEUE_SAMPLE = 5000;
+  const DL_SAMPLE = 2000;
+
+  const [queueRes, dlRes, queueTotalRes, dlTotalRes] = await Promise.all([
     supabase
       .from("event_queue")
       .select("provider, destination, status, attempt_count, created_at, updated_at, next_retry_at")
       .eq("workspace_id", workspace_id)
       .gte("updated_at", sinceQueueIso)
-      .limit(5000),
+      .limit(QUEUE_SAMPLE),
     supabase
       .from("dead_letter_events")
       .select("provider, source_type, retry_count, created_at")
       .eq("workspace_id", workspace_id)
       .gte("created_at", sinceDlIso)
-      .limit(2000),
+      .limit(DL_SAMPLE),
+    // Exact totals for truncation indicator (head=true → no rows transferred).
+    supabase
+      .from("event_queue")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspace_id)
+      .gte("updated_at", sinceQueueIso),
+    supabase
+      .from("dead_letter_events")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspace_id)
+      .gte("created_at", sinceDlIso),
   ]);
 
   if (queueRes.error) {
