@@ -101,7 +101,7 @@ async function aggregateForWorkspace(supabase: any, workspaceId: string) {
     channels: [...stats.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 20),
     totals: {
       conversions: (conversions || []).length,
-      revenue: (conversions || []).reduce((a, c) => a + Number((c as any).value || 0), 0),
+      revenue: (conversions || []).reduce((a: number, c: any) => a + Number(c?.value || 0), 0),
       touches: (touches || []).length,
     },
     recent_automation: (recentActions || []).slice(0, 50),
