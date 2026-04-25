@@ -114,6 +114,56 @@ export function sanitizeForLog(value: unknown): unknown {
   return redact(value, 0);
 }
 
+// ── Redaction debug mode (Passo L) ──────────────────────────────────────
+// Off by default. When enabled (env `SAFE_LOGGER_DEBUG=1` or via
+// `setSafeLoggerDebug(true)`), the logger emits a SECOND, side-channel
+// summary that lists which CATEGORIES were redacted, never the values.
+//
+// Categories: pii_key, email, phone, cpf, cnpj, jwt, bearer, pix_emv,
+// truncated. The summary is intended for local dev/test only.
+type RedactionStats = Record<string, number>;
+let DEBUG_ENABLED = (() => {
+  try { return Deno.env.get("SAFE_LOGGER_DEBUG") === "1"; } catch { return false; }
+})();
+export function setSafeLoggerDebug(on: boolean): void { DEBUG_ENABLED = !!on; }
+export function isSafeLoggerDebug(): boolean { return DEBUG_ENABLED; }
+
+function bumpStat(stats: RedactionStats, key: string) {
+  stats[key] = (stats[key] || 0) + 1;
+}
+function collectStats(value: unknown, stats: RedactionStats, depth = 0): void {
+  if (value == null || depth > MAX_DEPTH) return;
+  const t = typeof value;
+  if (t === "string") {
+    const s = value as string;
+    if (s.length > MAX_STRING_LEN) bumpStat(stats, "truncated");
+    if (EMAIL_RE.test(s)) bumpStat(stats, "email");
+    if (JWT_RE.test(s)) bumpStat(stats, "jwt");
+    if (BEARER_RE.test(s)) bumpStat(stats, "bearer");
+    if (PIX_EMV_RE.test(s)) bumpStat(stats, "pix_emv");
+    if (CPF_RE.test(s)) bumpStat(stats, "cpf");
+    if (CNPJ_RE.test(s)) bumpStat(stats, "cnpj");
+    if (PHONE_BR_RE.test(s)) bumpStat(stats, "phone");
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.slice(0, MAX_ARRAY_LEN).forEach((v) => collectStats(v, stats, depth + 1));
+    return;
+  }
+  if (t === "object") {
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (isPiiKey(k)) bumpStat(stats, "pii_key");
+      else collectStats(v, stats, depth + 1);
+    }
+  }
+}
+/** For tests/debug ONLY — returns category counts without the actual values. */
+export function redactionStats(value: unknown): RedactionStats {
+  const stats: RedactionStats = {};
+  collectStats(value, stats, 0);
+  return stats;
+}
+
 type LogLevel = "log" | "info" | "warn" | "error" | "debug";
 
 export interface SafeLogger {
