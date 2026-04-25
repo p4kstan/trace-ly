@@ -419,7 +419,7 @@ ${PASSO_M_HARDENING_BLOCK}
 // IA em recommendation por padrão.
 // ──────────────────────────────────────────────────────────────────────────
 export const PASSO_M_HARDENING_BLOCK = `
-## 🔐 Controles de release endurecidos (Passo M+N+O+P — sincronizado)
+## 🔐 Controles de release endurecidos (Passo M+N+O+P+Q — sincronizado)
 Aplique TODOS no projeto-alvo:
 - **test_mode / replay seguro**: \`webhook-replay-test\` exige owner/admin, valida bounds, NÃO grava \`event_deliveries\` reais e usa rate-limit DB-backed sem IP cru. Nunca exponha \`CRON_SECRET\` no frontend.
 - **webhook-auth (Passo N)**: gateway-webhook EXIGE assinatura HMAC válida em produção (Stripe/Yampi/Shopify/Paddle/QuantumPay/genéricos com secret configurado). Sem assinatura ⇒ 401. \`event-replay\` e \`webhook-replay-test\` exigem JWT + workspace admin via \`requireUserJwt\`/\`requireWorkspaceAccess\`.
