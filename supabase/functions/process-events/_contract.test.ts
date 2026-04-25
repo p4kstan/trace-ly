@@ -159,4 +159,45 @@ describe("process-events contract", () => {
     expect(r.enqueue({ workspace_id: WS, event_id: step, provider: "meta_capi", destination: "PIX-1" })).not.toBeNull();
     expect(r.rows.map(x => x.event_id).sort()).toEqual([main, step].sort());
   });
+
+  it("C6 — delivered destination is NEVER re-enqueued because a sibling failed", () => {
+    // Two destinations for the same event_id+provider.
+    r.enqueue({ workspace_id: WS, event_id: EV, provider: "google_ads", destination: "CID-A" });
+    r.enqueue({ workspace_id: WS, event_id: EV, provider: "google_ads", destination: "CID-B" });
+
+    // First pass: A delivered, B failed.
+    r.process(row => row.destination === "CID-A" ? "ok" : "fail");
+    const a = r.rows.find(x => x.destination === "CID-A")!;
+    const b = r.rows.find(x => x.destination === "CID-B")!;
+    expect(a.status).toBe("delivered");
+    expect(b.status).toBe("retry");
+
+    // Operator/event-router tries to re-enqueue the SAME event_id+provider+destA
+    // (e.g. webhook redelivery, F5, or a retry sweep). It MUST be rejected by
+    // the dedup contract — otherwise CID-A would be billed twice on Ads.
+    const reattempt = r.enqueue({
+      workspace_id: WS, event_id: EV, provider: "google_ads", destination: "CID-A",
+    });
+    expect(reattempt).toBeNull();
+
+    // And the delivered row stays delivered.
+    expect(a.status).toBe("delivered");
+    expect(r.delivered.filter(x => x.destination === "CID-A")).toHaveLength(1);
+  });
+
+  it("C6b — retry sweep only touches non-delivered rows", () => {
+    r.enqueue({ workspace_id: WS, event_id: EV, provider: "ga4", destination: "G-A" });
+    r.enqueue({ workspace_id: WS, event_id: EV, provider: "ga4", destination: "G-B" });
+    r.process(row => row.destination === "G-A" ? "ok" : "fail");
+
+    // Force B due, then run a sweep that would deliver everything.
+    const b = r.rows.find(x => x.destination === "G-B")!;
+    b.next_retry_at = Date.now() - 1;
+    r.process(() => "ok");
+
+    // A must NOT appear twice in delivered.
+    expect(r.delivered.filter(x => x.destination === "G-A")).toHaveLength(1);
+    expect(b.status).toBe("delivered");
+  });
 });
+
