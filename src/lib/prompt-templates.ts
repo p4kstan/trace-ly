@@ -450,9 +450,12 @@ o mesmo que o webhook do gateway envia. \`event_id = purchase:<order_id>\`.` : "
 ═══════════════════════════════════════════════
 Quando disparar o Purchase (client-side OU server-side), o payload PRECISA conter:
 
-- **event_id**: SEMPRE no formato \`purchase:<order_id>\` (TMT/upsell: \`purchase:<order_id>:tmt\`).
-  Não use mais \`<external_id>:Purchase\`.
+- **event_id**: SEMPRE no formato \`purchase:<order_id>\` (TMT/upsell/segunda tela:
+  \`purchase:<order_id_principal>:tmt\` — referencia o **pedido pai**, nunca o orderCode
+  da própria TMT). NUNCA envie event_id cru sem prefixo (\`EV-...\`) nem o padrão antigo
+  \`<external_id>:Purchase\`.
 - **order_id**: ID estável do pedido (mostrado ao cliente).
+- **parent_order_id** (apenas em TMT): orderCode do pedido principal correlacionado.
 - **transaction_id** / **gateway_order_id**: ID interno do gateway, em campos **separados**.
 - **event_name**: "Purchase" (ou "Subscribe" pra primeira cobrança de assinatura).
 - **session_id**: lido do cookie/sessionStorage (\`ct_session\`). Permite fallback de atribuição.
@@ -461,8 +464,19 @@ Quando disparar o Purchase (client-side OU server-side), o payload PRECISA conte
 - **fbp / fbc / ga_client_id (alias client_id)**: cookies \`_fbp/_fbc/_ga\`.
 - **utm_source / utm_medium / utm_campaign / utm_term / utm_content**: cookies \`ct_utm_*\`.
 - **landing_page / referrer / user_agent / client_ip**: persistidos no pedido.
+- **value**: para TMT, **APENAS** o valor da própria taxa (não somar o valor do pedido principal).
 - **status do pagamento**: só dispare quando status ∈
   \`{paid, approved, confirmed, succeeded, captured, pix_paid, order_paid}\`.
+
+**Checkout em duas etapas (Pedido principal + TMT/taxa/upsell):**
+- As duas cobranças são legítimas e viram **Purchase separados**.
+- TMT herda do pedido pai: \`gclid, gbraid, wbraid, fbclid, ttclid, msclkid, fbp, fbc,
+  ga_client_id, session_id, utm_*, landing_page, referrer, user_agent, client_ip\`.
+  Lookup do pai via \`externalReference = tmt-<orderCodePrincipal>\` ou \`parent_order_code\`.
+- Se a TMT chegar com metadata vazia, o backend (webhook/check-pix-status/reconcile)
+  **completa antes** de chamar \`/track\`.
+- Cada uma com trava atômica própria: \`purchase_tracked_at\` para o main e
+  \`tmt_tracked_at\` para a TMT (ou tabela \`event_id_sent\`).
 
 A janela de dedupe do CapiTrack é **48h** por \`workspace_id+event_id+provider\` em
 \`event_deliveries\` — então é seguro disparar tanto client-side quanto webhook.
