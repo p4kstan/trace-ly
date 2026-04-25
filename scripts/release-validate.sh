@@ -342,14 +342,22 @@ fi
 ok "audience-seed-export real-export path remains hash-only + consent-default"
 
 # 9e. Semantic RLS audit (only if PGHOST present).
+SEMANTIC_RLS_STATUS="unavailable"
 if [ -n "${PGHOST:-}" ]; then
-  bash scripts/rls-semantic-audit.sh || fail "Semantic RLS audit failed"
+  if bash scripts/rls-semantic-audit.sh; then
+    SEMANTIC_RLS_STATUS="passed"
+  else
+    SEMANTIC_RLS_STATUS="failed"
+    fail "Semantic RLS audit failed"
+  fi
 else
   info "Semantic RLS audit skipped — PGHOST not set"
+  info "  (CI: export PGHOST/PGUSER/PGPASSWORD/PGDATABASE to enable; this is a WARNING, not a failure)"
 fi
+echo "RELEASE_SEMANTIC_RLS_STATUS=${SEMANTIC_RLS_STATUS}"
 
 # ─── 10. Passo M — Go-live certification, adapter contracts, release report ──
-log "10/10 Passo M controls (go-live checks, adapter contracts, release report, prompt sync)"
+log "10/11 Passo M controls (go-live checks, adapter contracts, release report, prompt sync)"
 [ -f src/lib/go-live-checks.ts ] || fail "MISSING src/lib/go-live-checks.ts"
 [ -f src/lib/go-live-checks.test.ts ] || fail "MISSING go-live-checks.test.ts"
 [ -f src/lib/gateway-adapter-contracts.ts ] || fail "MISSING gateway-adapter-contracts.ts"
@@ -366,11 +374,47 @@ grep -q '\${PASSO_M_HARDENING_BLOCK}' src/lib/native-checkout-prompts.ts \
   || fail "native prompt generator must INTERPOLATE PASSO_M_HARDENING_BLOCK"
 grep -q '\${PASSO_M_HARDENING_BLOCK}' src/lib/external-checkout-prompts.ts \
   || fail "external prompt generator must INTERPOLATE PASSO_M_HARDENING_BLOCK"
+# Universal AI prompt generator must include Passo M sync too.
+grep -q "PASSO_M_HARDENING_BLOCK" src/lib/prompt-templates.ts \
+  || fail "universal prompt-templates.ts missing Passo M sync block"
 # Release report must remain static (no live data queries).
 if grep -nE 'from\s*\(\s*"(orders|identities|profiles|workspace_members|event_deliveries|audit_logs)"' src/pages/ReleaseReport.tsx >/dev/null 2>&1; then
   fail "ReleaseReport must remain static — no live-data queries"
 fi
 ok "Passo M controls wired"
 
+# ─── 11. Passo N — Edge auth, fast-path docs, external alerts opt-in ─────
+log "11/11 Passo N controls (edge auth, fast-path guides, external alerts opt-in)"
+[ -f supabase/functions/_shared/edge-auth.ts ] || fail "MISSING _shared/edge-auth.ts"
+[ -f supabase/functions/_shared/edge-auth.test.ts ] || fail "MISSING edge-auth.test.ts"
+[ -f src/lib/gateway-fast-path-guides.ts ] || fail "MISSING gateway-fast-path-guides.ts"
+[ -f src/lib/gateway-fast-path-guides.test.ts ] || fail "MISSING gateway-fast-path-guides.test.ts"
+[ -f src/lib/external-alert-channels.ts ] || fail "MISSING external-alert-channels.ts"
+[ -f src/lib/external-alert-channels.test.ts ] || fail "MISSING external-alert-channels.test.ts"
+
+# event-replay must require JWT + workspace admin (no anonymous re-injection).
+grep -q "requireUserJwt" supabase/functions/event-replay/index.ts \
+  || fail "event-replay must call requireUserJwt"
+grep -q "requireWorkspaceAccess" supabase/functions/event-replay/index.ts \
+  || fail "event-replay must call requireWorkspaceAccess"
+
+# External alerts library must default to disabled + dry_run.
+grep -qE "enabled:\s*false" src/lib/external-alert-channels.ts \
+  || fail "external-alert-channels must default enabled=false"
+grep -qE 'mode:\s*"dry_run"' src/lib/external-alert-channels.ts \
+  || fail "external-alert-channels must default mode=dry_run"
+
+# No real network calls in the alert channels lib (defense in depth).
+if grep -nE '(fetch\(|XMLHttpRequest|sendBeacon)' src/lib/external-alert-channels.ts >/dev/null 2>&1; then
+  fail "external-alert-channels must NOT perform network calls"
+fi
+
+# Hardening block must mention Passo N controls in prompts.
+grep -q "Passo N\|webhook-auth\|external alerts\|alertas externos" src/lib/native-checkout-prompts.ts \
+  || fail "native prompt generator missing Passo N hardening notes"
+
+ok "Passo N controls wired"
+
 echo ""
 ok "RELEASE VALIDATION PASSED"
+

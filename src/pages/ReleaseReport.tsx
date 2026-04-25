@@ -13,6 +13,8 @@ import {
   GATEWAY_ADAPTER_CONTRACTS,
   type GatewayAdapterContract,
 } from "@/lib/gateway-adapter-contracts";
+import { GATEWAY_FAST_PATH_GUIDES } from "@/lib/gateway-fast-path-guides";
+
 
 /**
  * Operational Release Report — Passo M.
@@ -93,6 +95,80 @@ export default function ReleaseReport() {
               /pii-release-report
             </Link>
             .
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-warning/30 bg-warning/5">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-warning" />
+            Auditoria semântica de RLS
+          </CardTitle>
+          <CardDescription>
+            Status reportado pelo CI. Esta página é estática e não consulta o banco.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="text-sm space-y-2">
+          <div>
+            Quando <code>PGHOST</code> não está configurado, a auditoria semântica
+            aparece como{" "}
+            <Badge variant="outline" className="text-[10px]">
+              RLS semantic audit unavailable
+            </Badge>{" "}
+            no log do <code>scripts/release-validate.sh</code>. É um warning,
+            não falha — o checker de RLS-on + policies-presentes continua rodando.
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            Para CI: exporte <code>PGHOST/PGUSER/PGPASSWORD/PGDATABASE</code>.
+            Nenhum segredo precisa ser exibido aqui.
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Fast-path por gateway (Passo N)</CardTitle>
+          <CardDescription>
+            Guias para gateways que passam pelo adapter genérico. Sem chaves reais.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {GATEWAY_FAST_PATH_GUIDES.map((g) => (
+              <div key={g.id} className="rounded-md border border-border/50 bg-muted/20 p-3 space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="font-medium text-sm">{g.label}</div>
+                  <Badge variant="outline" className="text-[10px]">via generic adapter</Badge>
+                </div>
+                <div className="text-[11px] text-muted-foreground line-clamp-3">
+                  {g.signatureRequirement}
+                </div>
+                <div className="text-[10px] text-muted-foreground/80">
+                  {g.fields.filter((f) => f.required).length} campos obrigatórios
+                  · {g.checklist.length} itens no checklist
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-success/20 bg-success/5">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Alertas externos (opt-in)</CardTitle>
+          <CardDescription>
+            Slack/email/webhook ficam desabilitados e em <code>dry_run</code> por
+            padrão. Nenhuma mensagem sai até o owner confirmar.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="text-[12px] text-muted-foreground space-y-1">
+          <div>
+            Validador: <code>src/lib/external-alert-channels.ts</code> · padrão{" "}
+            <code>enabled=false</code>, <code>mode="dry_run"</code>.
+          </div>
+          <div>
+            <code>buildAlertPreview</code> nunca contém workspace/user IDs nem PII.
           </div>
         </CardContent>
       </Card>

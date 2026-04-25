@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.103.0";
+import { requireUserJwt, requireWorkspaceAccess } from "../_shared/edge-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,8 +12,8 @@ const supabase = createClient(
 );
 
 /**
- * Event Replay — re-enqueue dead_letter_events back into event_queue
- * POST /event-replay { job_id, workspace_id }
+ * Event Replay — re-enqueue dead_letter_events back into event_queue.
+ * Passo N: requires JWT + workspace membership; rejects raw workspace_id callers.
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -22,6 +23,10 @@ Deno.serve(async (req) => {
     });
   }
 
+  // ── Auth: JWT + workspace admin (replay can re-inject events). ─────────────
+  const authRes = await requireUserJwt(req);
+  if ("error" in authRes) return authRes.error;
+
   try {
     const { job_id, workspace_id } = await req.json();
     if (!job_id || !workspace_id) {
@@ -29,6 +34,9 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const access = await requireWorkspaceAccess(authRes.ctx, workspace_id, true);
+    if (!access.ok) return access.response;
 
     // Get job
     const { data: job, error: jobErr } = await supabase

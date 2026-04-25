@@ -12,6 +12,11 @@ export default defineConfig({
       "src/**/*.{test,spec}.{ts,tsx}",
       "supabase/functions/**/*.{test,spec}.ts",
     ],
+    exclude: [
+      "node_modules/**",
+      // edge-auth.test.ts uses Deno std imports; runs under deno test, not vitest.
+      "supabase/functions/_shared/edge-auth.test.ts",
+    ],
   },
   resolve: {
     alias: {
