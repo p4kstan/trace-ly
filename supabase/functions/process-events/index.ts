@@ -577,11 +577,11 @@ async function processNonMetaBatch(
   stats: { delivered: number; failed: number; deadLettered: number; skipped?: number },
   globalTestMode = false,
 ) {
-  // Passo T — destination dispatch gate. Empty registry ⇒ legacy fallback.
+  // Passo T+U — destination dispatch gate. Empty registry ⇒ legacy fallback.
+  // test_mode/dry_run items are diverted to recordDryRun and NEVER reach the network.
   const gate = await gateItems(provider, workspaceId, destinationId, items, globalTestMode);
-  if (gate.blocked.length > 0) {
-    await recordBlockedDecisions(provider, destinationId, gate.blocked, stats);
-  }
+  if (gate.dryRun.length > 0) await recordDryRun(provider, destinationId, gate.dryRun, stats);
+  if (gate.blocked.length > 0) await recordBlockedDecisions(provider, destinationId, gate.blocked, stats);
   items = gate.allowed;
   if (items.length === 0) return;
 
