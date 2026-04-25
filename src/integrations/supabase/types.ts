@@ -541,6 +541,8 @@ export type Database = {
           customer_id: string | null
           description: string | null
           enabled: boolean
+          execution_mode: string
+          guardrails_json: Json | null
           id: string
           last_evaluated_at: string | null
           last_triggered_at: string | null
@@ -557,6 +559,8 @@ export type Database = {
           customer_id?: string | null
           description?: string | null
           enabled?: boolean
+          execution_mode?: string
+          guardrails_json?: Json | null
           id?: string
           last_evaluated_at?: string | null
           last_triggered_at?: string | null
@@ -573,6 +577,8 @@ export type Database = {
           customer_id?: string | null
           description?: string | null
           enabled?: boolean
+          execution_mode?: string
+          guardrails_json?: Json | null
           id?: string
           last_evaluated_at?: string | null
           last_triggered_at?: string | null
@@ -3780,6 +3786,7 @@ export type Database = {
       orders: {
         Row: {
           canceled_at: string | null
+          client_ip: string | null
           coupon_code: string | null
           created_at: string
           currency: string | null
@@ -3797,6 +3804,7 @@ export type Database = {
           financial_status: string | null
           first_page: string | null
           fulfillment_status: string | null
+          ga_client_id: string | null
           gateway: string
           gateway_integration_id: string | null
           gateway_order_id: string | null
@@ -3819,6 +3827,7 @@ export type Database = {
           total_value: number | null
           ttclid: string | null
           updated_at: string
+          user_agent: string | null
           utm_campaign: string | null
           utm_content: string | null
           utm_medium: string | null
@@ -3829,6 +3838,7 @@ export type Database = {
         }
         Insert: {
           canceled_at?: string | null
+          client_ip?: string | null
           coupon_code?: string | null
           created_at?: string
           currency?: string | null
@@ -3846,6 +3856,7 @@ export type Database = {
           financial_status?: string | null
           first_page?: string | null
           fulfillment_status?: string | null
+          ga_client_id?: string | null
           gateway: string
           gateway_integration_id?: string | null
           gateway_order_id?: string | null
@@ -3868,6 +3879,7 @@ export type Database = {
           total_value?: number | null
           ttclid?: string | null
           updated_at?: string
+          user_agent?: string | null
           utm_campaign?: string | null
           utm_content?: string | null
           utm_medium?: string | null
@@ -3878,6 +3890,7 @@ export type Database = {
         }
         Update: {
           canceled_at?: string | null
+          client_ip?: string | null
           coupon_code?: string | null
           created_at?: string
           currency?: string | null
@@ -3895,6 +3908,7 @@ export type Database = {
           financial_status?: string | null
           first_page?: string | null
           fulfillment_status?: string | null
+          ga_client_id?: string | null
           gateway?: string
           gateway_integration_id?: string | null
           gateway_order_id?: string | null
@@ -3917,6 +3931,7 @@ export type Database = {
           total_value?: number | null
           ttclid?: string | null
           updated_at?: string
+          user_agent?: string | null
           utm_campaign?: string | null
           utm_content?: string | null
           utm_medium?: string | null
@@ -4263,11 +4278,13 @@ export type Database = {
         Row: {
           anonymous_id: string | null
           city: string | null
+          client_ip: string | null
           country: string | null
           created_at: string
           fbc: string | null
           fbclid: string | null
           fbp: string | null
+          ga_client_id: string | null
           gbraid: string | null
           gclid: string | null
           id: string
@@ -4290,11 +4307,13 @@ export type Database = {
         Insert: {
           anonymous_id?: string | null
           city?: string | null
+          client_ip?: string | null
           country?: string | null
           created_at?: string
           fbc?: string | null
           fbclid?: string | null
           fbp?: string | null
+          ga_client_id?: string | null
           gbraid?: string | null
           gclid?: string | null
           id?: string
@@ -4317,11 +4336,13 @@ export type Database = {
         Update: {
           anonymous_id?: string | null
           city?: string | null
+          client_ip?: string | null
           country?: string | null
           created_at?: string
           fbc?: string | null
           fbclid?: string | null
           fbp?: string | null
+          ga_client_id?: string | null
           gbraid?: string | null
           gclid?: string | null
           id?: string
