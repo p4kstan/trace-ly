@@ -46,10 +46,18 @@ describe("universal-prompts audit (Passo O)", () => {
 
   it("generateFixPrompt embeds the hardening block (universal IDE/IA prompt)", () => {
     const out = generateFixPrompt({
-      problem: "validar pixel meta",
-      context: "ambiente staging",
+      businessType: "ecommerce",
       gateway: "stripe",
-    } as any);
+      platform: "shopify",
+      targetAI: "lovable",
+      publicKey: "pk_test_fake",
+      workspaceId: "00000000-0000-0000-0000-000000000000",
+      endpoint: "https://example.functions.supabase.co/track",
+      hasGoogleAds: true,
+      hasMetaAds: true,
+      hasTikTokAds: false,
+      hasGA4: true,
+    });
     expectAllMentioned("universal", out);
     // Must NEVER leak secrets/keys.
     expect(out).not.toMatch(/SUPABASE_SERVICE_ROLE_KEY|CRON_SECRET\s*=\s*[A-Za-z0-9]/);
