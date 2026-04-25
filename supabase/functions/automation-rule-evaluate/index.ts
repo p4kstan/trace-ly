@@ -275,33 +275,72 @@ Deno.serve(async (req) => {
       }
     };
 
-    const matched = [...agg.values()].filter((it) => it.clicks >= minClicks && cmp(metricFn(it), threshold));
+    const matchedAll = [...agg.values()].filter((it) => it.clicks >= minClicks && cmp(metricFn(it), threshold));
+
+    // ── Apply guardrails: dry_run flag, max_items cap, body-level overrides
+    const guard = resolveGuardrails(rule);
+    // Optional ad-hoc override via request body: { force_dry_run: true }
+    const reqBody = (await req.clone().json().catch(() => ({}))) as Record<string, unknown>;
+    const forceDryRun = reqBody.force_dry_run === true || guard.dry_run;
+    const matched = matchedAll.slice(0, guard.max_items);
+    const cappedBy = matchedAll.length > matched.length ? (matchedAll.length - matched.length) : 0;
 
     // Execute action per matched item
-    let executed = 0, skipped = 0;
+    let executed = 0, skipped = 0, dryRunCount = 0;
     const log: any[] = [];
     for (const it of matched) {
       const [agId, critOrTerm] = it.id.split(":");
       try {
         let body: Record<string, unknown> | null = null;
+        let safeNote: Record<string, unknown> = {};
+
         if (action.type === "pause_keyword" && scope === "keyword") {
           body = { action: "update_keyword_status", workspace_id: rule.workspace_id, customer_id: rule.customer_id, ad_group_criterion_id: critOrTerm, ad_group_id: agId, status: "PAUSED" };
         } else if (action.type === "pause_ad_group" && (scope === "ad_group" || scope === "keyword")) {
           body = { action: "update_ad_group_status", workspace_id: rule.workspace_id, customer_id: rule.customer_id, ad_group_id: agId, status: "PAUSED" };
         } else if ((action.type === "decrease_bid" || action.type === "increase_bid") && scope === "keyword") {
-          // Need current bid — for simplicity, use a fixed micros from action.cpc_brl or refuse
-          const factor = Number(action.factor) || (action.type === "decrease_bid" ? 0.8 : 1.2);
-          // Fetch current bid
+          const rawFactor = Number(action.factor) || (action.type === "decrease_bid" ? 0.8 : 1.2);
           const q = `SELECT ad_group_criterion.cpc_bid_micros FROM ad_group_criterion WHERE ad_group_criterion.criterion_id = ${critOrTerm} AND ad_group.id = ${agId}`;
           const br = await fetch(`${apiBase}/googleAds:search`, { method: "POST", headers, body: JSON.stringify({ query: q }) });
           const bj = await br.json();
           const cur = Number(bj.results?.[0]?.adGroupCriterion?.cpcBidMicros || 0);
           if (!cur) { skipped++; log.push({ id: it.id, name: it.name, skipped: "no current bid" }); continue; }
-          body = { action: "update_keyword_bid", workspace_id: rule.workspace_id, customer_id: rule.customer_id, ad_group_criterion_id: critOrTerm, ad_group_id: agId, cpc_bid_micros: Math.round(cur * factor) };
+
+          // 🔒 clamp factor + clamp absolute bid range
+          const { micros: nextMicros, applied_factor } = clampBidMicros(cur, rawFactor, guard);
+          if (nextMicros === cur) {
+            skipped++;
+            log.push({ id: it.id, name: it.name, skipped: "guardrail: no-op after clamp", current_bid: cur / 1e6 });
+            continue;
+          }
+          safeNote = {
+            requested_factor: rawFactor,
+            applied_factor,
+            current_bid_brl: cur / 1e6,
+            new_bid_brl: nextMicros / 1e6,
+            clamps: { bid_min: guard.bid_min_brl, bid_max: guard.bid_max_brl, max_pct: guard.bid_change_max_pct },
+          };
+          body = { action: "update_keyword_bid", workspace_id: rule.workspace_id, customer_id: rule.customer_id, ad_group_criterion_id: critOrTerm, ad_group_id: agId, cpc_bid_micros: nextMicros };
         } else if (action.type === "negate_search_term" && scope === "search_term") {
           body = { action: "add_negative_keyword", workspace_id: rule.workspace_id, customer_id: rule.customer_id, campaign_id: rule.campaign_id, keyword_text: it.name, match_type: action.match_type || "PHRASE", level: "campaign" };
         }
         if (!body) { skipped++; log.push({ id: it.id, name: it.name, skipped: "scope/action mismatch" }); continue; }
+
+        // ── DRY RUN PATH: never call mutate, only audit ──
+        if (forceDryRun) {
+          dryRunCount++;
+          await service.from("automation_actions").insert({
+            workspace_id: rule.workspace_id, customer_id: rule.customer_id,
+            trigger: "automation_rule",
+            action: action.type,
+            target_type: scope,
+            target_id: it.id,
+            status: "dry_run",
+            metadata_json: { rule_id, metric, value: metricFn(it), threshold, would_send: body, guardrails: guard, ...safeNote },
+          } as never);
+          log.push({ id: it.id, name: it.name, value: metricFn(it), dry_run: action.type, ...safeNote });
+          continue;
+        }
 
         const ar = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/google-ads-mutate`, {
           method: "POST",
@@ -315,16 +354,15 @@ Deno.serve(async (req) => {
         const ok = ar.ok;
         if (ok) {
           executed++;
-          log.push({ id: it.id, name: it.name, value: metricFn(it), executed: action.type });
-          // Also write to automation_actions audit log
+          log.push({ id: it.id, name: it.name, value: metricFn(it), executed: action.type, ...safeNote });
           await service.from("automation_actions").insert({
             workspace_id: rule.workspace_id, customer_id: rule.customer_id,
             trigger: "automation_rule",
             action: action.type,
             target_type: scope,
             target_id: it.id,
-            status: "executed",
-            metadata_json: { rule_id, metric, value: metricFn(it), threshold },
+            status: "success",
+            metadata_json: { rule_id, metric, value: metricFn(it), threshold, guardrails: guard, ...safeNote },
           } as never);
         } else {
           const errJ = await ar.json().catch(() => ({}));
@@ -344,8 +382,17 @@ Deno.serve(async (req) => {
       trigger_count: matched.length > 0 ? executed : 0,
     } as never).eq("id", rule_id);
 
-    // Fire-and-forget notifications (don't block response)
-    const notifyPayload = { matched: matched.length, executed, skipped, items: log };
+    const notifyPayload = {
+      matched: matchedAll.length,
+      evaluated: matched.length,
+      executed,
+      skipped,
+      dry_run: dryRunCount,
+      capped_by_max_items: cappedBy,
+      mode: forceDryRun ? "dry_run" : "live",
+      guardrails: guard,
+      items: log,
+    };
     try {
       fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-rule-notify`, {
         method: "POST",
