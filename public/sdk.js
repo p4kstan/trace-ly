@@ -345,9 +345,12 @@
     // matches what we inject into outbound checkout URLs (and the gateway
     // webhook will re-emit it back via metadata).
     var isCheckoutEvent = /^(InitiateCheckout|AddPaymentInfo|Purchase|Lead|Subscribe|StartTrial)$/i.test(eventName);
+    // Caller-provided event_id wins (browser↔server CAPI dedup). Accept several
+    // common aliases so the GTM/dataLayer bridge and direct ct() calls work.
+    var providedEventId = data && (data.event_id || data.eventId || data.trace_event_id || data.browser_event_id);
     var event = {
       event_name: eventName,
-      event_id: isCheckoutEvent ? getJourneyEventId() : generateId(),
+      event_id: providedEventId || (isCheckoutEvent ? getJourneyEventId() : generateId()),
       url: window.location.href,
       page_path: window.location.pathname,
       referrer: document.referrer || undefined,
