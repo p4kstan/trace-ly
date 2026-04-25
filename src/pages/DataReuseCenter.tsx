@@ -23,47 +23,46 @@ import {
  *   - We never claim to copy a platform's internal ML learning.
  */
 
-type OrderRow = {
+interface OrderRow {
   id: string;
   status: string | null;
-  total: number | null;
+  total_value: number | null;
   currency: string | null;
   created_at: string;
   customer_email: string | null;
   customer_phone: string | null;
-  utm_source: string | null;
-  utm_medium: string | null;
-  utm_campaign: string | null;
-  metadata?: Record<string, unknown> | null;
-};
+  ads_consent_granted: boolean | null;
+  gclid: string | null;
+  gbraid: string | null;
+  wbraid: string | null;
+  fbclid: string | null;
+  ttclid: string | null;
+  msclkid: string | null;
+}
 
 const CLICK_ID_KEYS: ClickIdKey[] = [
   "gclid", "gbraid", "wbraid", "fbclid", "ttclid", "msclkid",
 ];
 
-function detectClickIds(meta: Record<string, unknown> | null | undefined): Partial<Record<ClickIdKey, boolean>> {
-  if (!meta || typeof meta !== "object") return {};
-  const out: Partial<Record<ClickIdKey, boolean>> = {};
-  for (const k of CLICK_ID_KEYS) {
-    const v = (meta as Record<string, unknown>)[k];
-    if (typeof v === "string" && v.length > 0) out[k] = true;
-  }
-  return out;
-}
-
 function toRecord(o: OrderRow): PurchaseRecordSummary {
-  const paid = (o.status ?? "").toLowerCase() === "paid";
+  const status = (o.status ?? "").toLowerCase();
+  const paid = status === "paid" || status === "approved";
+  const click_ids: Partial<Record<ClickIdKey, boolean>> = {};
+  for (const k of CLICK_ID_KEYS) {
+    const v = o[k];
+    if (typeof v === "string" && v.length > 0) click_ids[k] = true;
+  }
   return {
     paid,
     currency: o.currency,
-    value: o.total,
+    value: o.total_value,
     happened_at: o.created_at,
     order_id: o.id,
     event_id: o.id,
     has_email_hash: !!o.customer_email,
     has_phone_hash: !!o.customer_phone,
-    click_ids: detectClickIds(o.metadata ?? null),
-    consent_marketing: !!o.customer_email,
+    click_ids,
+    consent_marketing: o.ads_consent_granted === true,
     test_mode: false,
   };
 }
@@ -95,7 +94,7 @@ export default function DataReuseCenter() {
     queryFn: async (): Promise<OrderRow[]> => {
       const { data, error } = await supabase
         .from("orders")
-        .select("id,status,total,currency,created_at,customer_email,customer_phone,utm_source,utm_medium,utm_campaign,metadata")
+        .select("id,status,total_value,currency,created_at,customer_email,customer_phone,ads_consent_granted,gclid,gbraid,wbraid,fbclid,ttclid,msclkid")
         .eq("workspace_id", workspaceId!)
         .order("created_at", { ascending: false })
         .limit(500);
@@ -107,13 +106,13 @@ export default function DataReuseCenter() {
   const destQuery = useQuery({
     queryKey: ["data-reuse-destinations", workspaceId],
     enabled: !!workspaceId,
-    queryFn: async () => {
+    queryFn: async (): Promise<Array<{ provider: string | null }>> => {
       const { data, error } = await supabase
-        .from("marketing_destinations")
-        .select("id,provider,destination_id,destination_name,is_active,environment")
+        .from("gateway_integrations_safe")
+        .select("provider,status")
         .eq("workspace_id", workspaceId!);
       if (error) return [];
-      return data ?? [];
+      return (data ?? []) as Array<{ provider: string | null }>;
     },
   });
 
@@ -126,11 +125,19 @@ export default function DataReuseCenter() {
   const destinationsByProvider = useMemo(() => {
     const out: Record<string, number> = {};
     for (const d of destQuery.data ?? []) {
-      const p = (d as { provider: string }).provider ?? "unknown";
+      const p = (d.provider ?? "unknown").toLowerCase();
       out[p] = (out[p] ?? 0) + 1;
     }
     return out;
   }, [destQuery.data]);
+
+  function destinationCount(provider: Provider): number {
+    if (provider === "google_ads") return destinationsByProvider["google_ads"] ?? destinationsByProvider["google"] ?? 0;
+    if (provider === "ga4") return destinationsByProvider["ga4"] ?? 0;
+    if (provider === "meta") return destinationsByProvider["meta"] ?? destinationsByProvider["facebook"] ?? 0;
+    if (provider === "tiktok") return destinationsByProvider["tiktok"] ?? 0;
+    return 0;
+  }
 
   return (
     <div className="container mx-auto p-6 space-y-6 max-w-6xl">
@@ -143,7 +150,7 @@ export default function DataReuseCenter() {
           Transforma dados first-party em assets reutilizáveis para Google Ads, GA4, Meta e TikTok —
           sempre em modo preview / hash-only. <strong>Não copiamos o aprendizado interno (ML)</strong> das
           plataformas: o que damos é uma calibração inicial mais forte com base em conversões consolidadas,
-          public hash-only e click IDs disponíveis.
+          público hash-only e click IDs disponíveis.
         </p>
       </div>
 
@@ -195,7 +202,7 @@ export default function DataReuseCenter() {
           {PROVIDER_REQUIREMENTS.map((req) => {
             const eligible = coverage.offline_eligible_per_provider[req.provider];
             const pct = coverage.paid > 0 ? Math.round((eligible / coverage.paid) * 100) : 0;
-            const dest = destinationsByProvider[req.provider] ?? 0;
+            const dest = destinationCount(req.provider);
             return (
               <div key={req.provider} className="rounded-md border border-border/50 bg-muted/20 p-3 space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -236,7 +243,7 @@ export default function DataReuseCenter() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-amber-500" /> Aviso operacional
+            <AlertTriangle className="h-4 w-4 text-warning" /> Aviso operacional
           </CardTitle>
         </CardHeader>
         <CardContent className="text-sm space-y-2 leading-relaxed">
@@ -249,7 +256,7 @@ export default function DataReuseCenter() {
           </p>
           <p>
             Páginas com nome “TMT” ou similares <strong>não substituem</strong> tracking real: este painel só
-            confia em <code>orders</code> + <code>events</code> + <code>marketing_destinations</code> do seu
+            confia em <code>orders</code> + <code>events</code> + <code>gateway_integrations</code> do seu
             workspace, sem heurísticas externas.
           </p>
         </CardContent>
