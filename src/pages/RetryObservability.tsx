@@ -348,3 +348,45 @@ function Empty({ label }: { label: string }) {
     </div>
   );
 }
+
+/** Calls the queue-health Edge Function and renders a single status banner.
+ *  Read-only — never exposes PII; only counters and aging metrics. */
+function QueueHealthBanner({ workspaceId }: { workspaceId: string | undefined }) {
+  const { data } = useQuery({
+    queryKey: ["queue-health", workspaceId],
+    enabled: !!workspaceId,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("queue-health", {
+        body: { workspace_id: workspaceId },
+      });
+      if (error) throw error;
+      return data as {
+        status: "ok" | "warn" | "critical";
+        totals: {
+          dead_letter_count: number;
+          retry_total: number;
+          retry_age_max_ms: number;
+          queued_age_max_ms: number;
+        };
+      };
+    },
+  });
+
+  if (!data) return null;
+  const tone =
+    data.status === "critical" ? "border-destructive/40 text-destructive bg-destructive/5"
+    : data.status === "warn" ? "border-warning/40 text-warning bg-warning/5"
+    : "border-success/40 text-success bg-success/5";
+
+  return (
+    <div className={`border rounded-lg px-4 py-3 text-xs flex flex-wrap items-center gap-4 ${tone}`}>
+      <span className="font-semibold uppercase tracking-wide">queue health: {data.status}</span>
+      <span>dead-letter: <b>{data.totals.dead_letter_count}</b></span>
+      <span>em retry: <b>{data.totals.retry_total}</b></span>
+      <span>retry mais antigo: <b>{data.totals.retry_age_max_ms > 0 ? ageLabel(data.totals.retry_age_max_ms) : "—"}</b></span>
+      <span>queued mais antigo: <b>{data.totals.queued_age_max_ms > 0 ? ageLabel(data.totals.queued_age_max_ms) : "—"}</b></span>
+    </div>
+  );
+}
+
