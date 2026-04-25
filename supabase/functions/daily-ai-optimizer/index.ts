@@ -26,21 +26,30 @@ const json = (b: unknown, s = 200) =>
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || "";
 const SERVICE_BEARER = `Bearer ${SERVICE_KEY}`;
+const ANON_BEARER = ANON_KEY ? `Bearer ${ANON_KEY}` : "";
 const CRON_SECRET = Deno.env.get("CRON_SECRET") || "";
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") || "";
 
-// ─── auth: cron-secret OR (service-role + x-internal-source) ──────────
+// ─── auth: cron-secret OR (service/anon bearer + x-internal-source) ──────────
+// Accepts three call patterns:
+//   1. X-Cron-Secret: <CRON_SECRET>                  → for external schedulers
+//   2. Authorization: Bearer <service-role>          → for trusted internal callers
+//   3. Authorization: Bearer <anon> + x-internal-source: cron|scheduler → pg_cron
 function authorize(req: Request): { ok: true } | { ok: false; reason: string } {
   const cronHeader = req.headers.get("x-cron-secret") || "";
   if (CRON_SECRET && cronHeader && cronHeader === CRON_SECRET) return { ok: true };
 
   const auth = req.headers.get("authorization") || "";
   const internal = (req.headers.get("x-internal-source") || "").toLowerCase();
-  if (auth === SERVICE_BEARER && ["cron", "scheduler", "ui", "manual"].includes(internal)) {
+  const allowedSources = ["cron", "scheduler", "ui", "manual"];
+
+  if (auth === SERVICE_BEARER && allowedSources.includes(internal)) return { ok: true };
+  if (ANON_BEARER && auth === ANON_BEARER && ["cron", "scheduler"].includes(internal)) {
     return { ok: true };
   }
-  return { ok: false, reason: "missing CRON_SECRET or service-role+x-internal-source" };
+  return { ok: false, reason: "missing CRON_SECRET or service/anon bearer + x-internal-source" };
 }
 
 // ─── core ────────────────────────────────────────────────────────────
