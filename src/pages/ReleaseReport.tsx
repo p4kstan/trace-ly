@@ -33,6 +33,7 @@ const QUICK_LINKS = [
   { to: "/rate-limit-configs", label: "Rate-limit Configs" },
   { to: "/audit-logs", label: "Audit Log Viewer" },
   { to: "/pii-release-report", label: "Relatório PII" },
+  { to: "/data-reuse-center", label: "Data Reuse Center" },
 ];
 
 function ContractCard({ c }: { c: GatewayAdapterContract }) {
