@@ -2,7 +2,7 @@
 // Runs under both Vitest (Node) and Deno test (no env-specific APIs used).
 
 import { describe, it, expect } from "vitest";
-import { sanitizeForLog } from "./safe-logger.ts";
+import { sanitizeForLog, redactionStats, setSafeLoggerDebug, isSafeLoggerDebug } from "./safe-logger.ts";
 
 describe("sanitizeForLog", () => {
   it("redacts known PII keys (email, phone, cpf, document)", () => {
