@@ -11,7 +11,7 @@
  *   Live mutation is HARD-BLOCKED in this delivery (no external HTTP to Google/Meta/TikTok).
  */
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.103.0";
-import { requireUserJwt } from "../_shared/edge-auth.ts";
+import { requireMcpAuth, hasScope } from "../_shared/mcpAuth.ts";
 import { redactValue } from "../_shared/traffic-agent-redact.ts";
 import { evaluateGuardrails, type Guardrails } from "../_shared/traffic-agent-guardrails.ts";
 
@@ -46,16 +46,21 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
 
-  const authResult = await requireUserJwt(req);
-  if ("error" in authResult) return authResult.error;
-  const ctx = authResult.ctx;
-
   let body: any;
   try { body = await req.json(); } catch { return json({ error: "invalid_json" }, 400); }
 
   const method = body?.method;
+
+  // Auth: derive workspace_id from arguments when present (JWT path needs it).
+  const argsWorkspaceId: string | undefined =
+    body?.params?.arguments?.workspace_id ?? undefined;
+
+  const authResult = await requireMcpAuth(req, { workspaceId: argsWorkspaceId });
+  if ("error" in authResult) return authResult.error;
+  const ctx = authResult.ctx;
+
   if (method === "tools/list") {
-    return json({ tools: TOOLS });
+    return json({ tools: TOOLS, auth_method: ctx.authMethod });
   }
   if (method !== "tools/call") return json({ error: "unknown_method" }, 400);
 
@@ -64,20 +69,40 @@ Deno.serve(async (req) => {
   const tool = TOOLS.find((t) => t.name === name);
   if (!tool) return json({ error: "unknown_tool", name }, 404);
 
+  // For MCP tokens, force workspace_id to the token's workspace.
+  if (ctx.authMethod === "mcp_token") {
+    args.workspace_id = ctx.workspaceId;
+  }
   const workspaceId: string | undefined = args.workspace_id;
-  if (tool.workspace_required) {
-    if (!workspaceId) return json({ error: "missing_workspace_id" }, 400);
-    const { data: isMember, error } = await ctx.service.rpc("is_workspace_member", {
-      _user_id: ctx.user.id, _workspace_id: workspaceId,
-    });
-    if (error || isMember !== true) return json({ error: "workspace_forbidden" }, 403);
+  if (tool.workspace_required && !workspaceId) {
+    return json({ error: "missing_workspace_id" }, 400);
+  }
+
+  // Scope checks for MCP tokens.
+  if (ctx.authMethod === "mcp_token") {
+    const scopeMap: Record<string, string> = {
+      get_workspace_metrics: "traffic-agent:read",
+      get_campaign_performance: "traffic-agent:read",
+      get_conversion_health: "traffic-agent:read",
+      get_tracking_quality: "traffic-agent:read",
+      search_traffic_knowledge: "rag:read",
+      create_optimization_plan: "traffic-agent:evaluate",
+      simulate_campaign_action: "traffic-agent:simulate",
+      apply_campaign_action: "traffic-agent:dry_run",
+      rollback_campaign_action: "traffic-agent:dry_run",
+      log_agent_decision: "traffic-agent:read",
+    };
+    const need = scopeMap[name];
+    if (need && !hasScope(ctx, need)) {
+      return json({ error: "missing_scope", required: need }, 403);
+    }
   }
 
   const t0 = Date.now();
   let status = "ok";
   let result: any = {};
   try {
-    result = await dispatchTool(ctx.service, name, args, ctx.user.id);
+    result = await dispatchTool(ctx.service, name, args, ctx.user.id ?? "mcp_token");
   } catch (e: any) {
     status = "error";
     result = { error: String(e?.message ?? e) };
@@ -95,7 +120,7 @@ Deno.serve(async (req) => {
     duration_ms: duration,
   });
 
-  return json({ ok: status === "ok", result });
+  return json({ ok: status === "ok", result, auth_method: ctx.authMethod });
 });
 
 function summarize(r: unknown): unknown {

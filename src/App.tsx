@@ -69,6 +69,7 @@ const GatewayDocs = lazy(() => import("@/pages/GatewayDocs"));
 const DataReuseCenter = lazy(() => import("@/pages/DataReuseCenter"));
 const DestinationRegistry = lazy(() => import("@/pages/DestinationRegistry"));
 const TrafficAgent = lazy(() => import("@/pages/TrafficAgent"));
+const McpSettings = lazy(() => import("@/pages/McpSettings"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -140,6 +141,7 @@ function ProtectedRoutes() {
           <Route path="/data-reuse-center" element={<DataReuseCenter />} />
           <Route path="/destination-registry" element={<DestinationRegistry />} />
           <Route path="/traffic-agent" element={<TrafficAgent />} />
+          <Route path="/mcp-settings" element={<McpSettings />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
         </RouteErrorBoundary>
