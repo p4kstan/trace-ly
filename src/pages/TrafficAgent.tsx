@@ -85,42 +85,50 @@ export default function TrafficAgent() {
   }
 
   async function simulate(recId: string) {
-    const { data, error } = await supabase.functions.invoke("traffic-agent-simulate", {
-      body: { workspace_id: wid, recommendation_id: recId },
-    });
-    if (error) { toast.error(error.message); return; }
-    const decision = data?.guardrail_decision;
-    toast(decision?.allowed ? "Permitido (mas dry-run)" : "Bloqueado por guardrails", {
-      description: (decision?.reasons ?? []).map((r: any) => r.code).join(", "),
-    });
+    try {
+      const { data, error } = await supabase.functions.invoke("traffic-agent-simulate", {
+        body: { workspace_id: wid, recommendation_id: recId },
+      });
+      if (error) { toast.error(error.message); return; }
+      const decision = (data as any)?.guardrail_decision;
+      toast(decision?.allowed ? "Permitido (mas dry-run)" : "Bloqueado por guardrails", {
+        description: ((decision?.reasons ?? []) as any[]).map((r: any) => r?.code).filter(Boolean).join(", "),
+      });
+    } catch (e: any) { toast.error(e?.message ?? "Falha ao simular"); }
   }
 
   async function execute(recId: string) {
-    const { data, error } = await supabase.functions.invoke("traffic-agent-execute", {
-      body: { workspace_id: wid, recommendation_id: recId },
-    });
-    if (error) { toast.error(error.message); return; }
-    toast.success("Action registrado (dry-run, sem mutação externa)");
-    await refresh();
+    try {
+      const { error } = await supabase.functions.invoke("traffic-agent-execute", {
+        body: { workspace_id: wid, recommendation_id: recId },
+      });
+      if (error) { toast.error(error.message); return; }
+      toast.success("Action registrado (dry-run, sem mutação externa)");
+      await refresh();
+    } catch (e: any) { toast.error(e?.message ?? "Falha ao registrar"); }
   }
 
   async function indexDoc() {
     if (!wid || !docTitle || docContent.length < 10) { toast.error("Preencha título e conteúdo"); return; }
-    const { error } = await supabase.functions.invoke("traffic-agent-rag-index", {
-      body: { workspace_id: wid, title: docTitle, source_type: "manual", content: docContent },
-    });
-    if (error) { toast.error(error.message); return; }
-    toast.success("Documento indexado");
-    setDocTitle(""); setDocContent(""); await refresh();
+    try {
+      const { error } = await supabase.functions.invoke("traffic-agent-rag-index", {
+        body: { workspace_id: wid, title: docTitle, source_type: "manual", content: docContent },
+      });
+      if (error) { toast.error(error.message); return; }
+      toast.success("Documento indexado");
+      setDocTitle(""); setDocContent(""); await refresh();
+    } catch (e: any) { toast.error(e?.message ?? "Falha ao indexar"); }
   }
 
   async function searchKnowledge() {
     if (!wid || search.trim().length < 2) return;
-    const { data, error } = await supabase.functions.invoke("traffic-agent-rag-search", {
-      body: { workspace_id: wid, query: search, limit: 5 },
-    });
-    if (error) { toast.error(error.message); return; }
-    setResults((data as any)?.results ?? []);
+    try {
+      const { data, error } = await supabase.functions.invoke("traffic-agent-rag-search", {
+        body: { workspace_id: wid, query: search, limit: 5 },
+      });
+      if (error) { toast.error(error.message); return; }
+      setResults(Array.isArray((data as any)?.results) ? (data as any).results : []);
+    } catch (e: any) { toast.error(e?.message ?? "Falha ao buscar"); }
   }
 
   return (
