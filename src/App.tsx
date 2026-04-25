@@ -67,6 +67,7 @@ const RlsWarningsPanel = lazy(() => import("@/pages/RlsWarningsPanel"));
 const GatewayDocs = lazy(() => import("@/pages/GatewayDocs"));
 const DataReuseCenter = lazy(() => import("@/pages/DataReuseCenter"));
 const DestinationRegistry = lazy(() => import("@/pages/DestinationRegistry"));
+const TrafficAgent = lazy(() => import("@/pages/TrafficAgent"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
