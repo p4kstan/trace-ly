@@ -192,7 +192,7 @@ export default function ReleaseReport() {
               <ContractCard key={c.id} c={c} />
             ))}
           </div>
-          <div className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
+          <div className="mt-4 rounded-md border border-border/50 bg-muted/20 p-3 text-xs text-muted-foreground flex items-start gap-2">
             <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
             <div>
               Esta página é um espelho estático dos contratos. Para dados ao
