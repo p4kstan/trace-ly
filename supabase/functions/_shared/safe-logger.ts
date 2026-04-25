@@ -137,13 +137,17 @@ function collectStats(value: unknown, stats: RedactionStats, depth = 0): void {
   if (t === "string") {
     const s = value as string;
     if (s.length > MAX_STRING_LEN) bumpStat(stats, "truncated");
-    if (EMAIL_RE.test(s)) bumpStat(stats, "email");
-    if (JWT_RE.test(s)) bumpStat(stats, "jwt");
-    if (BEARER_RE.test(s)) bumpStat(stats, "bearer");
-    if (PIX_EMV_RE.test(s)) bumpStat(stats, "pix_emv");
-    if (CPF_RE.test(s)) bumpStat(stats, "cpf");
-    if (CNPJ_RE.test(s)) bumpStat(stats, "cnpj");
-    if (PHONE_BR_RE.test(s)) bumpStat(stats, "phone");
+    const inc = (key: string, re: RegExp) => {
+      const m = s.match(re);
+      if (m && m.length) stats[key] = (stats[key] || 0) + m.length;
+    };
+    inc("email", EMAIL_RE);
+    inc("jwt", JWT_RE);
+    inc("bearer", BEARER_RE);
+    inc("pix_emv", PIX_EMV_RE);
+    inc("cpf", CPF_RE);
+    inc("cnpj", CNPJ_RE);
+    inc("phone", PHONE_BR_RE);
     return;
   }
   if (Array.isArray(value)) {
