@@ -297,7 +297,6 @@ export default function CanonicalAudit() {
                     <th className="text-left px-3 py-2 font-medium">status</th>
                     <th className="text-right px-3 py-2 font-medium">attempts</th>
                     <th className="text-left px-3 py-2 font-medium">último visto</th>
-                    <th className="text-left px-3 py-2 font-medium">erro</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -309,7 +308,6 @@ export default function CanonicalAudit() {
                       <td className="px-3 py-2">{statusBadge(t.status)}</td>
                       <td className="px-3 py-2 text-right">{t.attempts ?? 0}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{new Date(t.last_seen_at).toLocaleString()}</td>
-                      <td className="px-3 py-2 text-destructive truncate max-w-[200px]">{t.last_error || ""}</td>
                     </tr>
                   ))}
                 </tbody>
