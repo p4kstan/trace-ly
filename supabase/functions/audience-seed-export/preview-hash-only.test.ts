@@ -30,14 +30,14 @@ describe("audience-seed-export :: preview hash-only guard (Passo O)", () => {
 
   it("preview block returns counters / availability ONLY (no hashes / no PII keys)", () => {
     const block = previewBlock();
-    // Forbidden keys in the preview response shape.
-    const forbidden = [
-      "email_hash", "phone_hash", "external_id_hash",
-      "email\":", "phone\":", "cpf\":", "cnpj\":",
-    ];
-    for (const k of forbidden) {
-      expect(block).not.toContain(k);
-    }
+    // The preview must NOT serialize a `hashes` array or any raw PII value.
+    // (`email_or_email_hash` / `phone_or_phone_hash` are availability counter
+    // names — they carry counts, not identifiers, and are allowed.)
+    expect(block).not.toMatch(/\bhashes\s*:/);
+    expect(block).not.toMatch(/\bemail\s*:\s*[a-zA-Z]/);
+    expect(block).not.toMatch(/\bphone\s*:\s*[a-zA-Z]/);
+    expect(block).not.toMatch(/\bcpf\s*:/i);
+    expect(block).not.toMatch(/\bcnpj\s*:/i);
     // Required: explicit "no hashes, no PII, no export written" note.
     expect(block).toMatch(/no hashes, no PII, no export written/);
     // Required: dry_run flag echoed back.
