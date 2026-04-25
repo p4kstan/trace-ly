@@ -132,6 +132,14 @@ export default function RateLimitConfigs() {
         </p>
       </div>
 
+      {!canEdit && (
+        <div className="border border-warning/40 bg-warning/5 text-warning rounded-lg px-4 py-3 text-xs flex items-center gap-2">
+          <Lock className="w-4 h-4" />
+          Você está em modo somente-leitura. Apenas <b>owner</b> ou <b>admin</b> do workspace
+          podem alterar políticas de rate-limit.
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Políticas ativas</CardTitle>
@@ -162,6 +170,7 @@ export default function RateLimitConfigs() {
                     <ConfigRowEditor
                       key={c.id}
                       row={c}
+                      canEdit={canEdit}
                       onSave={(updated) => upsertMutation.mutate(updated)}
                       onDelete={() => deleteMutation.mutate(c.id)}
                       saving={upsertMutation.isPending}
@@ -174,23 +183,27 @@ export default function RateLimitConfigs() {
         </CardContent>
       </Card>
 
-      <NewConfigForm
-        onCreate={(row) => upsertMutation.mutate(row)}
-        saving={upsertMutation.isPending}
-      />
+      {canEdit && (
+        <NewConfigForm
+          onCreate={(row) => upsertMutation.mutate(row)}
+          saving={upsertMutation.isPending}
+        />
+      )}
     </div>
   );
 }
 
 function ConfigRowEditor({
-  row, onSave, onDelete, saving,
+  row, canEdit, onSave, onDelete, saving,
 }: {
   row: ConfigRow;
+  canEdit: boolean;
   onSave: (r: Partial<ConfigRow> & { id?: string }) => void;
   onDelete: () => void;
   saving: boolean;
 }) {
   const isGlobal = row.workspace_id === null;
+  const locked = isGlobal || !canEdit;
   const [windowS, setWindowS] = useState(row.window_seconds);
   const [maxHits, setMaxHits] = useState(row.max_hits);
   const [failClosed, setFailClosed] = useState(row.fail_closed);
