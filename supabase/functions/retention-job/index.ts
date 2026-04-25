@@ -186,9 +186,43 @@ Deno.serve(async (req) => {
     ga4_cache_cleared = (r2.data as number) || 0;
   }
 
+  // ── Monitor mode (Passo H) ──────────────────────────────────────────
+  // When `monitor=true` we emit an INTERNAL alert per workspace if any
+  // category has ≥ monitor_threshold eligible rows. NO deletion ever
+  // happens here — destructive cleanup remains explicit/manual.
+  const monitor = body?.monitor === true || url.searchParams.get("monitor") === "1";
+  const monitorThreshold = Math.max(1, Number(body?.monitor_threshold || 1000));
+  let monitor_alerts = 0;
+  if (monitor) {
+    for (const row of summary) {
+      const c = row.counts as Record<string, number>;
+      const total = (c.tracked_events_delivered || 0)
+        + (c.event_queue_retry || 0)
+        + (c.event_queue_dead_letter || 0)
+        + (c.audit_logs || 0);
+      if (total < monitorThreshold) continue;
+      const severity: "warn" | "critical" = total >= monitorThreshold * 10 ? "critical" : "warn";
+      const msg = `retention_eligible total=${total} (te_delivered=${c.tracked_events_delivered}, eq_retry=${c.event_queue_retry}, eq_dead=${c.event_queue_dead_letter}, audit=${c.audit_logs})`;
+      const r = await supa.rpc("upsert_queue_health_alert", {
+        _workspace_id: row.workspace_id,
+        _provider: "retention",
+        _destination: "all",
+        _alert_type: "retention_eligible",
+        _severity: severity,
+        _metric_value: total,
+        _message: msg,
+        _window_minutes: 60 * 24, // 1 day dedup
+      });
+      if (!r.error) monitor_alerts++;
+    }
+  }
+
   return new Response(JSON.stringify({
     ok: true,
     dry_run: dryRun,
+    monitor,
+    monitor_alerts,
+    monitor_threshold: monitor ? monitorThreshold : null,
     policies_processed: summary.length,
     summary: summary.slice(0, 200),
     side_effects: { buckets_cleared, ga4_cache_cleared },

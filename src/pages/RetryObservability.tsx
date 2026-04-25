@@ -369,7 +369,11 @@ function QueueHealthBanner({ workspaceId }: { workspaceId: string | undefined })
           retry_total: number;
           retry_age_max_ms: number;
           queued_age_max_ms: number;
+          queue_total_in_window?: number;
+          dead_letter_total_in_window?: number;
         };
+        sample?: { truncated: boolean; queue_sample_size: number; queue_sample_cap: number };
+        retention_recommendation?: { recommended: boolean; reason: string; suggested_action: string };
       };
     },
   });
@@ -381,12 +385,25 @@ function QueueHealthBanner({ workspaceId }: { workspaceId: string | undefined })
     : "border-success/40 text-success bg-success/5";
 
   return (
-    <div className={`border rounded-lg px-4 py-3 text-xs flex flex-wrap items-center gap-4 ${tone}`}>
-      <span className="font-semibold uppercase tracking-wide">queue health: {data.status}</span>
-      <span>dead-letter: <b>{data.totals.dead_letter_count}</b></span>
-      <span>em retry: <b>{data.totals.retry_total}</b></span>
-      <span>retry mais antigo: <b>{data.totals.retry_age_max_ms > 0 ? ageLabel(data.totals.retry_age_max_ms) : "—"}</b></span>
-      <span>queued mais antigo: <b>{data.totals.queued_age_max_ms > 0 ? ageLabel(data.totals.queued_age_max_ms) : "—"}</b></span>
+    <div className="space-y-2">
+      <div className={`border rounded-lg px-4 py-3 text-xs flex flex-wrap items-center gap-4 ${tone}`}>
+        <span className="font-semibold uppercase tracking-wide">queue health: {data.status}</span>
+        <span>dead-letter: <b>{data.totals.dead_letter_count}</b></span>
+        <span>em retry: <b>{data.totals.retry_total}</b></span>
+        <span>retry mais antigo: <b>{data.totals.retry_age_max_ms > 0 ? ageLabel(data.totals.retry_age_max_ms) : "—"}</b></span>
+        <span>queued mais antigo: <b>{data.totals.queued_age_max_ms > 0 ? ageLabel(data.totals.queued_age_max_ms) : "—"}</b></span>
+      </div>
+      {data.sample?.truncated && (
+        <div className="border border-warning/40 bg-warning/5 text-warning rounded-lg px-4 py-2 text-xs flex flex-wrap items-center gap-3">
+          <span className="font-semibold">amostra parcial</span>
+          <span>fila ≥ {data.sample.queue_sample_cap} linhas no período — métricas baseadas em amostra.</span>
+          {data.retention_recommendation?.recommended && (
+            <span className="opacity-80">
+              recomendação: {data.retention_recommendation.suggested_action}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -414,9 +431,18 @@ function InternalAlertsPanel({ workspaceId }: { workspaceId: string | undefined 
   if (!data || data.length === 0) return null;
 
   const ack = async (id: string) => {
-    await supabase.from("queue_health_alerts")
-      .update({ acknowledged: true, acknowledged_at: new Date().toISOString() })
-      .eq("id", id);
+    // Use the audited SECURITY DEFINER RPC so the action is logged
+    // (PII-free) into audit_logs. Falls back to a direct update if the
+    // RPC is missing for any reason — never blocks the operator.
+    const { error } = await supabase.rpc("acknowledge_queue_health_alert" as any, {
+      _alert_id: id,
+      _note: null,
+    });
+    if (error) {
+      await supabase.from("queue_health_alerts")
+        .update({ acknowledged: true, acknowledged_at: new Date().toISOString(), status: "acknowledged" } as any)
+        .eq("id", id);
+    }
     refetch();
   };
 
