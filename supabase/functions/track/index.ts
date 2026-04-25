@@ -129,10 +129,15 @@ Deno.serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    const apiKey = req.headers.get("x-api-key");
+    // Accept API key from header OR query string (sendBeacon fallback).
+    const url = new URL(req.url);
+    const apiKey =
+      req.headers.get("x-api-key") ||
+      url.searchParams.get("key") ||
+      url.searchParams.get("api_key");
     if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: "Missing x-api-key header" }),
+        JSON.stringify({ error: "Missing API key (x-api-key header, ?key= or ?api_key=)" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
