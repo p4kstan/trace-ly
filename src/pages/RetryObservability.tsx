@@ -332,11 +332,11 @@ function KpiCard({ label, value, tone }: { label: string; value: number | string
     : "border-success/40 text-success";
   return (
     <Card className={`border ${cls}`}>
-      <CardContent className="pt-4 flex items-center gap-3">
+      <CardContent className="pt-4 flex items-center gap-3 min-w-0">
         <Clock className="w-5 h-5 shrink-0" />
-        <div>
-          <div className="text-xl font-bold leading-tight">{value}</div>
-          <div className="text-xs text-muted-foreground">{label}</div>
+        <div className="min-w-0">
+          <div className="text-xl font-bold leading-tight tabular-nums break-anywhere">{value}</div>
+          <div className="text-xs text-muted-foreground break-anywhere leading-tight">{label}</div>
         </div>
       </CardContent>
     </Card>
