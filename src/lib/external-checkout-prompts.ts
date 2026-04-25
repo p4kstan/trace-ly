@@ -408,3 +408,25 @@ O CapiTrack:
 - Não envie \`client_ip\` do browser — sempre server-side.
 - Não envie e-mail/telefone em texto puro para ads — sempre SHA-256 server-to-server.`;
 }
+
+// ──────────────────────────────────────────────────────────────────────────
+// Passo M — Hardening sync block (apended to every generated prompt).
+// Mantém prompts nativo + externo sincronizados com controles endurecidos:
+// test_mode/replay seguro, rate-limit, queue-health, retention dry-run, RLS,
+// PII report, export preview/hash-only, consentimento, multi-destination,
+// IA em recommendation por padrão.
+// ──────────────────────────────────────────────────────────────────────────
+export const PASSO_M_HARDENING_BLOCK = `
+## 🔐 Controles de release endurecidos (Passo M — sincronizado)
+Aplique TODOS no projeto-alvo:
+- **test_mode / replay seguro**: \`webhook-replay-test\` exige owner/admin, valida bounds, NÃO grava \`event_deliveries\` reais e usa rate-limit DB-backed sem IP cru. Nunca exponha \`CRON_SECRET\` no frontend.
+- **Rate-limit persistente**: SHA-256 do IP antes de qualquer RPC; bounds \`window 10-3600s\` e \`max_hits 1-10000\`. UI em \`/rate-limit-configs\` é role-gated (owner/admin).
+- **Queue health + alertas internos**: backlog/falhas em \`queue_health_alerts\` com \`open → acknowledged → resolved\` auditados em \`audit_logs\` (sem PII). Auto-resolve quando condição limpa.
+- **Retention dry-run**: \`retention-job\` por padrão é monitor; execução destrutiva só manual via \`X-Cron-Secret\`. Cron NUNCA roda \`execute=1\` automático.
+- **RLS auditado**: tabelas sensíveis (\`event_queue\`, \`queue_health_alerts\`, \`rate_limit_configs\`, \`audit_logs\`, \`audience_seed_exports\`, \`dead_letter_events\`, \`automation_actions\`) têm RLS + policies não-permissivas.
+- **Export hash-only + consentimento**: audience export aceita \`dry_run\` (apenas counts), e o export real exige \`require_consent !== false\` e devolve apenas hashes SHA-256.
+- **Multi-destination**: cada Purchase pode espelhar para Meta/Google/TikTok/GA4 com dedup 4-col \`(workspace, event_id, provider, destination)\`.
+- **IA em recommendation por padrão**: ações automatizadas só com guardrails explícitos; IA sugere, humano confirma — auto apenas com \`execution_mode='auto'\` + \`guardrails_json\`.
+- **PII report + audit viewer**: confira em \`/pii-release-report\` e \`/audit-logs\` (com redaction client-side de email/CPF/CNPJ/JWT/IP).
+- **Relatório operacional**: status consolidado em \`/release-report\`.
+`;
