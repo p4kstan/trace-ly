@@ -14,6 +14,80 @@ export type Database = {
   }
   public: {
     Tables: {
+      ad_conversion_destinations: {
+        Row: {
+          account_id: string | null
+          consent_gate_required: boolean
+          conversion_action_id: string | null
+          created_at: string
+          credential_ref: string | null
+          destination_id: string
+          display_name: string
+          event_name: string | null
+          id: string
+          last_error_at: string | null
+          last_success_at: string | null
+          notes: string | null
+          pixel_id: string | null
+          provider: string
+          send_enabled: boolean
+          status: string
+          test_mode_default: boolean
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          account_id?: string | null
+          consent_gate_required?: boolean
+          conversion_action_id?: string | null
+          created_at?: string
+          credential_ref?: string | null
+          destination_id: string
+          display_name?: string
+          event_name?: string | null
+          id?: string
+          last_error_at?: string | null
+          last_success_at?: string | null
+          notes?: string | null
+          pixel_id?: string | null
+          provider: string
+          send_enabled?: boolean
+          status?: string
+          test_mode_default?: boolean
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          account_id?: string | null
+          consent_gate_required?: boolean
+          conversion_action_id?: string | null
+          created_at?: string
+          credential_ref?: string | null
+          destination_id?: string
+          display_name?: string
+          event_name?: string | null
+          id?: string
+          last_error_at?: string | null
+          last_success_at?: string | null
+          notes?: string | null
+          pixel_id?: string | null
+          provider?: string
+          send_enabled?: boolean
+          status?: string
+          test_mode_default?: boolean
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_conversion_destinations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_conversations: {
         Row: {
           created_at: string
@@ -5091,6 +5165,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      data_reuse_summary: {
+        Args: { _limit?: number; _offset?: number; _workspace_id: string }
+        Returns: Json
+      }
       detect_duplicate_conversion: {
         Args: {
           _currency?: string
@@ -5132,6 +5210,26 @@ export type Database = {
       is_workspace_member: {
         Args: { _user_id: string; _workspace_id: string }
         Returns: boolean
+      }
+      list_ad_conversion_destinations: {
+        Args: { _workspace_id: string }
+        Returns: {
+          account_id: string
+          consent_gate_required: boolean
+          conversion_action_id: string
+          credential_ref: string
+          destination_id: string
+          display_name: string
+          event_name: string
+          id: string
+          last_error_at: string
+          last_success_at: string
+          pixel_id: string
+          provider: string
+          send_enabled: boolean
+          status: string
+          test_mode_default: boolean
+        }[]
       }
       rate_limit_hit: {
         Args: {

@@ -174,6 +174,18 @@ export const GO_LIVE_CHECKS: CertificationCheck[] = [
     status: "enforced",
     link: { to: "/data-reuse-center", label: "Abrir Data Reuse Center" },
   },
+  {
+    id: "destination-registry-r",
+    scope: "all",
+    area: "dedup",
+    title: "Destination registry normalizado + RPC paginada (Passo R)",
+    description:
+      "Tabela `ad_conversion_destinations` com RLS (leitura por workspace, escrita só owner/admin), RPC `list_ad_conversion_destinations` sem segredos, RPC `data_reuse_summary` paginada server-side (limite 1..10000) e simulador lendo `automation_rules` reais via `simulateRule()`. Auto continua bloqueado a menos que `guardrails.auto_enabled=true`.",
+    enforcedBy:
+      "supabase/migrations + src/lib/ad-destination-registry.ts + src/lib/automation-rule-simulator.ts + src/pages/DataReuseCenter.tsx",
+    status: "enforced",
+    link: { to: "/data-reuse-center", label: "Abrir Data Reuse Center" },
+  },
 ];
 
 export interface CertificationSummary {

@@ -28,6 +28,9 @@ const REQUIRED_CONTROLS: Array<{ key: string; matcher: RegExp }> = [
   { key: "data-reuse",      matcher: /Data Reuse Center|data-reuse-center|reuso de dados/i },
   { key: "execution-mode",  matcher: /automation_rules\.execution_mode/i },
   { key: "data-reuse-q",    matcher: /paginação|preview por provider|coverage.*click ID|multi-destination consistency|simulador.*dry-?run/i },
+  { key: "destination-registry-r", matcher: /ad_conversion_destinations|destination registry|list_ad_conversion_destinations/i },
+  { key: "data-reuse-rpc-r",       matcher: /data_reuse_summary|RPC.*paginação|paginação server-side/i },
+  { key: "rule-simulator-r",       matcher: /simulateRule|automation_rules reais/i },
 ];
 
 function expectAllMentioned(label: string, body: string) {

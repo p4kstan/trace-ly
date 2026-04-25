@@ -38,12 +38,16 @@ import {
 } from "@/lib/data-reuse-providers";
 import {
   checkMultiDestinationConsistency,
-  type DestinationDescriptor,
 } from "@/lib/multi-destination-consistency";
 import {
   simulateAutomationChange,
   type SimulationKind,
 } from "@/lib/automation-simulator";
+import {
+  buildDestinationDescriptors,
+  type RegistryRow,
+} from "@/lib/ad-destination-registry";
+import { simulateRule, type AutomationRuleRow } from "@/lib/automation-rule-simulator";
 
 /**
  * Data Reuse Center — Passo P + Q.
@@ -149,7 +153,19 @@ export default function DataReuseCenter() {
     },
   });
 
-  const destQuery = useQuery({
+  const destRegistryQuery = useQuery({
+    queryKey: ["data-reuse-destination-registry", workspaceId],
+    enabled: !!workspaceId,
+    queryFn: async (): Promise<RegistryRow[]> => {
+      const { data, error } = await supabase.rpc("list_ad_conversion_destinations", {
+        _workspace_id: workspaceId!,
+      });
+      if (error) return [];
+      return (data ?? []) as RegistryRow[];
+    },
+  });
+
+  const destFallbackQuery = useQuery({
     queryKey: ["data-reuse-destinations", workspaceId],
     enabled: !!workspaceId,
     queryFn: async (): Promise<Array<{ provider: string | null; status?: string | null }>> => {
@@ -159,6 +175,20 @@ export default function DataReuseCenter() {
         .eq("workspace_id", workspaceId!);
       if (error) return [];
       return (data ?? []) as Array<{ provider: string | null; status?: string | null }>;
+    },
+  });
+
+  const automationRulesQuery = useQuery({
+    queryKey: ["data-reuse-automation-rules", workspaceId],
+    enabled: !!workspaceId,
+    queryFn: async (): Promise<AutomationRuleRow[]> => {
+      const { data, error } = await supabase
+        .from("automation_rules")
+        .select("id,enabled,execution_mode,guardrails_json,action_json")
+        .eq("workspace_id", workspaceId!)
+        .limit(10);
+      if (error) return [];
+      return (data ?? []) as unknown as AutomationRuleRow[];
     },
   });
 
@@ -182,28 +212,23 @@ export default function DataReuseCenter() {
     [previewProvider, records],
   );
 
+  const { descriptors: destinationDescriptors, source: registrySource } = useMemo(
+    () =>
+      buildDestinationDescriptors({
+        registry: destRegistryQuery.data ?? null,
+        fallback: destFallbackQuery.data ?? null,
+      }),
+    [destRegistryQuery.data, destFallbackQuery.data],
+  );
+
   const destinationsByProvider = useMemo(() => {
     const out: Record<string, number> = {};
-    for (const d of destQuery.data ?? []) {
-      const p = (d.provider ?? "unknown").toLowerCase();
+    for (const d of destinationDescriptors) {
+      const p = d.provider;
       out[p] = (out[p] ?? 0) + 1;
     }
     return out;
-  }, [destQuery.data]);
-
-  const destinationDescriptors: DestinationDescriptor[] = useMemo(() => {
-    return (destQuery.data ?? []).map((d, idx) => ({
-      destination_id: `${(d.provider ?? "unknown").toLowerCase()}:#${idx + 1}`,
-      provider: (d.provider ?? "unknown").toLowerCase(),
-      account_id: null,
-      conversion_action_id: null,
-      event_name: "purchase",
-      credential_ref: d.provider ? `cred:${d.provider}` : null,
-      consent_gate: true,
-      status: d.status ?? "unknown",
-      last_success_at: null,
-    }));
-  }, [destQuery.data]);
+  }, [destinationDescriptors]);
 
   const consistencyReport = useMemo(
     () =>
@@ -223,8 +248,19 @@ export default function DataReuseCenter() {
       { kind: "bid",    current: 1.0, proposed: 1.20 },
       { kind: "cpa",    current: 50,  proposed: 70 },
     ];
-    return samples.map((s) =>
-      simulateAutomationChange({
+    const realRule = (automationRulesQuery.data ?? [])[0];
+    return samples.map((s) => {
+      if (realRule) {
+        return simulateRule(realRule, {
+          kind: s.kind,
+          target_id: `rule:${realRule.id}:${s.kind}`,
+          current_value: s.current,
+          proposed_value: s.proposed,
+          recent_conversions: recentConv,
+          hours_since_last_change: 48,
+        });
+      }
+      return simulateAutomationChange({
         kind: s.kind,
         target_id: `sample:${s.kind}`,
         current_value: s.current,
@@ -232,9 +268,12 @@ export default function DataReuseCenter() {
         recent_conversions: recentConv,
         hours_since_last_change: 48,
         execution_mode: "recommendation",
-      }),
-    );
-  }, [coverage.paid]);
+      });
+    });
+  }, [coverage.paid, automationRulesQuery.data]);
+
+  const simulationSource: "real_rule" | "synthetic" =
+    (automationRulesQuery.data ?? []).length > 0 ? "real_rule" : "synthetic";
 
   function destinationCount(provider: Provider): number {
     if (provider === "google_ads") return destinationsByProvider["google_ads"] ?? destinationsByProvider["google"] ?? 0;
@@ -456,7 +495,10 @@ export default function DataReuseCenter() {
                 <Layers className="h-4 w-4 text-primary" /> Consistência multi-destination
               </CardTitle>
               <CardDescription>
-                Verifica destinos duplicados, ausentes, sem credential_ref ou sem consent gate.
+                Verifica destinos duplicados, ausentes, sem credential_ref ou sem consent gate.{" "}
+                <Badge variant="outline" className="ml-1 text-[10px]">
+                  fonte: {registrySource}
+                </Badge>
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -502,7 +544,10 @@ export default function DataReuseCenter() {
                 <Cog className="h-4 w-4 text-primary" /> Simulador de automações (dry-run)
               </CardTitle>
               <CardDescription>
-                Recomendações de orçamento/lance/CPA. <strong>Auto bloqueado por padrão</strong> via guardrails.
+                Recomendações de orçamento/lance/CPA. <strong>Auto bloqueado por padrão</strong> via guardrails.{" "}
+                <Badge variant="outline" className="ml-1 text-[10px]">
+                  fonte: {simulationSource === "real_rule" ? "automation_rules" : "sintético"}
+                </Badge>
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
