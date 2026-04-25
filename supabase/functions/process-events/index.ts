@@ -288,7 +288,7 @@ async function dispatchToProvider(
 }
 
 async function processNonMetaBatch(
-  provider: string, workspaceId: string, items: any[],
+  provider: string, workspaceId: string, destinationId: string, items: any[],
   destCache: Map<string, any>,
   stats: { delivered: number; failed: number; deadLettered: number; skipped?: number }
 ) {
@@ -304,9 +304,16 @@ async function processNonMetaBatch(
     for (const item of items) await handleFailure(item, `No active ${provider} destination configured`, stats);
     return;
   }
-  for (const dest of destinations) {
-    await dispatchToProvider(provider, items, dest, stats);
+  // Dispatch ONLY to the destination this batch was reserved for. Prevents
+  // sending the same conversion to every connected account.
+  const dest = destinations.find((d: any) =>
+    d.destination_id === destinationId || d.id === destinationId,
+  ) || (destinationId === "default" ? destinations[0] : null);
+  if (!dest) {
+    for (const item of items) await handleFailure(item, `${provider} destination ${destinationId} not found`, stats);
+    return;
   }
+  await dispatchToProvider(provider, items, dest, stats);
 }
 
 // ══════════════════════════════════════════════════════════════
