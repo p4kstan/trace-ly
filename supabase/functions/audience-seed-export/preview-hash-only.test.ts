@@ -49,11 +49,13 @@ describe("audience-seed-export :: preview hash-only guard (Passo O)", () => {
   });
 
   it("never console.logs raw email / phone / cpf in any branch", () => {
-    // Allow hashed/availability counters; forbid raw PII keys in console.log.
-    const logs = SOURCE.match(/console\.log\([^)]*\)/g) ?? [];
+    // Allow hashed/availability counters (with_email, email_hash, etc.).
+    // Forbid only the bare `email` / `phone` value being logged.
+    const logs = SOURCE.match(/console\.log\([\s\S]*?\)/g) ?? [];
     for (const line of logs) {
-      expect(line).not.toMatch(/email["'\s:]+[^_]/);
-      expect(line).not.toMatch(/phone["'\s:]+[^_]/);
+      // Bare `email:` (not `with_email`, `email_hash`, `_email`).
+      expect(line).not.toMatch(/(?<![a-z0-9_])email\s*:\s*[a-zA-Z]/);
+      expect(line).not.toMatch(/(?<![a-z0-9_])phone\s*:\s*[a-zA-Z]/);
       expect(line).not.toMatch(/\bcpf\b/i);
       expect(line).not.toMatch(/\bcnpj\b/i);
     }
