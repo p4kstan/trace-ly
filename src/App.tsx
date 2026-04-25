@@ -66,6 +66,7 @@ const ReleaseReport = lazy(() => import("@/pages/ReleaseReport"));
 const RlsWarningsPanel = lazy(() => import("@/pages/RlsWarningsPanel"));
 const GatewayDocs = lazy(() => import("@/pages/GatewayDocs"));
 const DataReuseCenter = lazy(() => import("@/pages/DataReuseCenter"));
+const DestinationRegistry = lazy(() => import("@/pages/DestinationRegistry"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -133,6 +134,7 @@ function ProtectedRoutes() {
           <Route path="/rls-warnings" element={<RlsWarningsPanel />} />
           <Route path="/gateway-docs" element={<GatewayDocs />} />
           <Route path="/data-reuse-center" element={<DataReuseCenter />} />
+          <Route path="/destination-registry" element={<DestinationRegistry />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
