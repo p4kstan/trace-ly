@@ -451,7 +451,7 @@ export default function DataReuseCenter() {
       </div>
 
       <Tabs defaultValue="coverage" className="space-y-4">
-        <TabsList className="flex-wrap h-auto">
+        <TabsList className="flex flex-wrap h-auto w-full justify-start gap-1">
           <TabsTrigger value="coverage" className="gap-1.5">
             <ShieldCheck className="h-3.5 w-3.5" /> Cobertura
           </TabsTrigger>
