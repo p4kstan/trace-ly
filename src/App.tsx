@@ -136,6 +136,7 @@ function ProtectedRoutes() {
           <Route path="/gateway-docs" element={<GatewayDocs />} />
           <Route path="/data-reuse-center" element={<DataReuseCenter />} />
           <Route path="/destination-registry" element={<DestinationRegistry />} />
+          <Route path="/traffic-agent" element={<TrafficAgent />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
