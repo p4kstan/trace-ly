@@ -58,6 +58,7 @@ REQ_FNS=(
   "audience-seed-export"
   "webhook-replay-test"
   "queue-health"
+  "retention-job"
 )
 for fn in "${REQ_FNS[@]}"; do
   [ -f "supabase/functions/$fn/index.ts" ] && ok "edge fn $fn present" || fail "MISSING edge function $fn"
@@ -65,14 +66,42 @@ done
 
 # Safe-logger must be installed in every critical edge function.
 log "4b/7  installSafeConsole wired in critical functions"
-for fn in gateway-webhook process-events event-router automation-rule-evaluate audience-seed-export webhook-replay-test queue-health; do
+for fn in gateway-webhook process-events event-router automation-rule-evaluate audience-seed-export webhook-replay-test queue-health retention-job; do
   grep -q "installSafeConsole" "supabase/functions/$fn/index.ts" || fail "MISSING installSafeConsole in $fn"
 done
 ok "safe-console installed in all critical functions"
 
+# Persistent rate-limit must be wired in webhook-replay-test (no in-memory bucket).
+log "4c/7  Persistent rate-limit (DB-backed)"
+grep -q "checkRateLimit" supabase/functions/webhook-replay-test/index.ts \
+  || fail "webhook-replay-test must use shared checkRateLimit"
+if grep -nE 'rlBuckets|RL_WINDOW_MS' supabase/functions/webhook-replay-test/index.ts >/dev/null 2>&1; then
+  fail "webhook-replay-test still has in-memory rate-limit remnants"
+fi
+# Helper file exists.
+[ -f supabase/functions/_shared/rate-limit.ts ] || fail "MISSING _shared/rate-limit.ts"
+# Hash IP — never persist raw IP.
+grep -q "sha256Hex" supabase/functions/_shared/rate-limit.ts \
+  || fail "_shared/rate-limit.ts must hash IP before persistence"
+ok "persistent rate-limit wired and IP hashed"
+
+# Retention job must be dry-run by default.
+log "4d/7  Retention job dry-run safety"
+grep -q "dryRun = !canExecute" supabase/functions/retention-job/index.ts \
+  || fail "retention-job must default to dry-run"
+ok "retention-job is dry-run by default"
+
+# Internal alerts table referenced.
+log "4e/7  Internal queue health alerts wired"
+grep -q "upsert_queue_health_alert" supabase/functions/queue-health/index.ts \
+  || fail "queue-health must upsert internal alerts"
+grep -q "queue_health_alerts" src/pages/RetryObservability.tsx \
+  || fail "RetryObservability must surface queue_health_alerts"
+ok "internal alerts wired"
+
 # ─── 5. Critical routes ─────────────────────────────────────────────────
 log "5/7  Critical UI routes wired"
-for route in "/canonical-audit" "/retry-observability"; do
+for route in "/canonical-audit" "/retry-observability" "/go-live-checklist"; do
   grep -q "$route" src/App.tsx || fail "route $route not wired in App.tsx"
   grep -q "$route" src/components/AppSidebar.tsx || fail "route $route missing from sidebar"
   ok "route $route wired"
