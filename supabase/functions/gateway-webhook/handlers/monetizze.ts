@@ -2,7 +2,7 @@
 // Docs: https://app.monetizze.com.br/api/v2/postback
 // HMAC: Monetizze uses a token field inside payload — fallback to generic verifier.
 
-import type { GatewayHandler, InternalEvent } from "./_types.ts";
+import type { GatewayHandler } from "./_types.ts";
 import { num, str } from "./_helpers.ts";
 
 export const monetizzeHandler: GatewayHandler = {
