@@ -51,7 +51,7 @@ const LAST_KNOWN_STATUS: AuditStatus = "passed";
 function StatusBadge({ status }: { status: AuditStatus }) {
   if (status === "passed") {
     return (
-      <Badge variant="default" className="gap-1.5 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+      <Badge variant="default" className="gap-1.5">
         <CheckCircle2 className="h-3.5 w-3.5" />
         passed
       </Badge>
@@ -59,14 +59,14 @@ function StatusBadge({ status }: { status: AuditStatus }) {
   }
   if (status === "warning") {
     return (
-      <Badge variant="default" className="gap-1.5 bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+      <Badge variant="destructive" className="gap-1.5">
         <AlertTriangle className="h-3.5 w-3.5" />
         warning
       </Badge>
     );
   }
   return (
-    <Badge variant="default" className="gap-1.5 bg-muted text-muted-foreground border border-border/60">
+    <Badge variant="secondary" className="gap-1.5">
       <Info className="h-3.5 w-3.5" />
       skipped
     </Badge>
