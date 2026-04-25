@@ -510,7 +510,19 @@ async function enqueueForOtherProviders(
       continue;
     }
 
-    await supabase.from("event_queue").upsert({
+    const reserved = await reserveTrackedEvent({
+      workspaceId, eventId,
+      provider: dest.provider,
+      destination: dest.destination_id || "default",
+      eventName: marketingEvent,
+      source: "gateway-webhook",
+      metadata: { order_id: orderId, gateway: order.gateway, dedup_key: dedupKey },
+    });
+    if (!reserved) {
+      console.log(`[enqueueForOther] skip already-reserved provider=${dest.provider} dest=${dest.destination_id} event=${eventId}`);
+      continue;
+    }
+
       workspace_id: workspaceId, event_id: eventId, order_id: orderId,
       provider: dest.provider, destination: dest.destination_id, status: "queued",
       payload_json: {
