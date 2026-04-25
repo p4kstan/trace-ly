@@ -297,8 +297,8 @@ function NewConfigForm({
           <Plus className="w-4 h-4" /> Nova política
         </CardTitle>
       </CardHeader>
-      <CardContent className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
-        <div className="md:col-span-2">
+      <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+        <div className="sm:col-span-2 lg:col-span-2">
           <label className="text-xs text-muted-foreground">rota (Edge Function)</label>
           <Input
             value={route}
@@ -329,7 +329,7 @@ function NewConfigForm({
             criar
           </Button>
         </div>
-        <p className="md:col-span-5 text-xs text-muted-foreground">
+        <p className="sm:col-span-2 lg:col-span-5 text-xs text-muted-foreground">
           Limites permitidos: janela {WINDOW_MIN}–{WINDOW_MAX}s, max reqs {HITS_MIN}–{HITS_MAX}.
           Alterações são auditadas em <code>audit_logs</code> sem expor PII.
         </p>

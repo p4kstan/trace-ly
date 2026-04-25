@@ -12,7 +12,10 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground",
+      // `max-w-full` + horizontal scroll prevents the tab strip from forcing
+      // page-level overflow on narrow viewports when the caller did not
+      // explicitly set a wrap/grid layout.
+      "inline-flex h-10 max-w-full items-center justify-center overflow-x-auto rounded-md bg-muted p-1 text-muted-foreground",
       className,
     )}
     {...props}

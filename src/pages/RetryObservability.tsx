@@ -206,15 +206,15 @@ export default function RetryObservability() {
 
       <Card>
         <CardContent className="pt-4 flex flex-wrap items-center gap-3">
-          <FilterIcon className="w-4 h-4 text-muted-foreground" />
+          <FilterIcon className="w-4 h-4 text-muted-foreground shrink-0" />
           <Input
             placeholder="Buscar por event_id, provider, destination…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="max-w-sm"
+            className="w-full sm:max-w-sm sm:flex-1 min-w-0"
           />
           <Select value={providerFilter} onValueChange={setProviderFilter}>
-            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-44 min-w-0"><SelectValue /></SelectTrigger>
             <SelectContent>
               {PROVIDERS.map((p) => (
                 <SelectItem key={p} value={p}>{p === "all" ? "Todos providers" : p}</SelectItem>
@@ -222,7 +222,7 @@ export default function RetryObservability() {
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-40 min-w-0"><SelectValue /></SelectTrigger>
             <SelectContent>
               {STATUSES.map((s) => (
                 <SelectItem key={s} value={s}>{s}</SelectItem>
@@ -332,11 +332,11 @@ function KpiCard({ label, value, tone }: { label: string; value: number | string
     : "border-success/40 text-success";
   return (
     <Card className={`border ${cls}`}>
-      <CardContent className="pt-4 flex items-center gap-3">
+      <CardContent className="pt-4 flex items-center gap-3 min-w-0">
         <Clock className="w-5 h-5 shrink-0" />
-        <div>
-          <div className="text-xl font-bold leading-tight">{value}</div>
-          <div className="text-xs text-muted-foreground">{label}</div>
+        <div className="min-w-0">
+          <div className="text-xl font-bold leading-tight tabular-nums break-anywhere">{value}</div>
+          <div className="text-xs text-muted-foreground break-anywhere leading-tight">{label}</div>
         </div>
       </CardContent>
     </Card>
