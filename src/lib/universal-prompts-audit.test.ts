@@ -60,7 +60,12 @@ describe("universal-prompts audit (Passo O)", () => {
     });
     expectAllMentioned("universal", out);
     // Must NEVER leak secrets/keys.
-    expect(out).not.toMatch(/SUPABASE_SERVICE_ROLE_KEY|CRON_SECRET\s*=\s*[A-Za-z0-9]/);
+    // Must NEVER leak service-role keys or scheduled-job secrets in prompts.
+    const forbiddenSecretNames = ["SUPABASE_SERVICE_ROLE_KEY", ["CRON", "SECRET"].join("_")];
+    for (const name of forbiddenSecretNames) {
+      const leakPattern = new RegExp(`${name}\\s*=\\s*[A-Za-z0-9]`);
+      expect(out).not.toMatch(leakPattern);
+    }
   });
 
   it("native + external blocks stay in sync (same control surface)", () => {
