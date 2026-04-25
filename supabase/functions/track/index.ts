@@ -269,7 +269,7 @@ Deno.serve(async (req) => {
     const identityPromise = resolveIdentity(workspaceId, emailHash, phoneHash, body, rawEmail, rawPhone);
     const sessionPromise = supabase
       .from("sessions")
-      .select("id, gclid, gbraid, wbraid")
+      .select("id, gclid, gbraid, wbraid, ga_client_id, client_ip")
       .eq("workspace_id", workspaceId)
       .eq("ip_hash", ipHash)
       .eq("user_agent", userAgent)
