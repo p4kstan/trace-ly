@@ -1,28 +1,29 @@
 /**
  * Evaluates a single automation rule on demand.
  *
- * Body: { rule_id: string }
+ * Body: { rule_id: string, force_dry_run?: boolean }
  *
- * Condition schema (condition_json):
- *   { metric: "cpa"|"roas"|"ctr"|"cost"|"conversions",
- *     operator: ">"|">="|"<"|"<="|"=",
- *     threshold: number,
- *     window_days: number,            // 1, 3, 7, 14, 30
- *     scope: "keyword"|"ad_group"|"search_term",
- *     min_clicks?: number             // ignore items with fewer clicks
- *   }
+ * Execution modes (column automation_rules.execution_mode):
+ *   - "disabled"        → never executes, never logs side-effects
+ *   - "recommendation"  → ALWAYS dry-run (audit only, never mutates)
+ *   - "auto"            → mutates only when guardrails allow
+ *   - (legacy "dry_run" / "live" still accepted as aliases)
  *
- * Action schema (action_json):
- *   { type: "pause_keyword" | "pause_ad_group" |
- *           "decrease_bid" | "increase_bid" |
- *           "negate_search_term",
- *     factor?: number,                // for bid actions (e.g. 0.8 = -20%)
- *     match_type?: "EXACT"|"PHRASE"|"BROAD" }
+ * Guardrails (automation_rules.guardrails_json):
+ *   - cooldown_hours          (default 4)   — block re-trigger within N hours
+ *   - max_items_per_run       (default 25)  — hard cap per evaluation
+ *   - min_conversions         (default 0)   — only act on items with ≥ N conv
+ *   - min_bid_factor          (default 0.5) — clamp decrease floor (0.5 = -50%)
+ *   - max_bid_factor          (default 1.5) — clamp increase ceiling
+ *   - allow_pause             (default false) — required for pause_keyword/ad_group
+ *   - allow_negative_keyword  (default false) — required for negate_search_term
+ *   - bid_min_brl / bid_max_brl / bid_change_max_pct (kept from old contract)
  *
- * Returns: { matched, executed, skipped, items: [...] }
+ * Audit: every action is logged in automation_actions with execution_mode,
+ * guardrails snapshot, blocked_reason, dry_run flag, before/after.
  *
- * Call style: invoked from the UI with the user's JWT — we resolve the rule's
- * workspace and re-call google-ads-mutate as the same user (forwarded auth).
+ * last_triggered_at is only updated when at least one item was actually executed
+ * (executed > 0). Recommendation/dry-run runs do NOT touch last_triggered_at.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
@@ -43,57 +44,93 @@ interface Rule {
   action_json: any;
   execution_mode?: string | null;
   guardrails_json?: any;
+  last_triggered_at?: string | null;
 }
 
-// ── Guardrail defaults (per-rule overrides via guardrails_json) ─────────
-// Hard upper-bounds the system will never exceed even if a rule asks for more.
-const GUARD_DEFAULTS = {
-  dry_run: true,                 // default to dry_run unless explicitly set to false
-  max_items: 25,                 // hard cap on items mutated per evaluation
-  hard_max_items: 100,           // absolute ceiling (cannot be raised by rule)
-  bid_min_brl: 0.10,             // never set CPC below R$ 0.10
-  bid_max_brl: 50.0,             // never set CPC above R$ 50.00
-  bid_change_max_pct: 0.50,      // single change cannot move bid more than ±50%
-  budget_min_brl: 5.0,
-  budget_max_brl: 5000.0,
-  budget_change_max_pct: 0.50,
-};
+type Mode = "disabled" | "recommendation" | "auto";
 
-function resolveGuardrails(rule: Rule) {
+interface Guardrails {
+  mode: Mode;
+  cooldown_hours: number;
+  max_items_per_run: number;
+  min_conversions: number;
+  min_bid_factor: number;
+  max_bid_factor: number;
+  allow_pause: boolean;
+  allow_negative_keyword: boolean;
+  // Legacy/extra absolute bid clamps
+  bid_min_brl: number;
+  bid_max_brl: number;
+  bid_change_max_pct: number;
+}
+
+const DEFAULTS: Omit<Guardrails, "mode"> = {
+  cooldown_hours: 4,
+  max_items_per_run: 25,
+  min_conversions: 0,
+  min_bid_factor: 0.5,
+  max_bid_factor: 1.5,
+  allow_pause: false,
+  allow_negative_keyword: false,
+  bid_min_brl: 0.10,
+  bid_max_brl: 50.0,
+  bid_change_max_pct: 0.50,
+};
+const HARD_MAX_ITEMS = 100;
+
+function resolveMode(rule: Rule): Mode {
+  const raw = (rule.execution_mode || "").toLowerCase().trim();
+  if (raw === "disabled" || raw === "off") return "disabled";
+  if (raw === "auto" || raw === "live") return "auto";
+  // Default: anything else (including "recommendation", "dry_run", "", null) is dry-run
+  return "recommendation";
+}
+
+function resolveGuardrails(rule: Rule): Guardrails {
   const g = (rule.guardrails_json || {}) as Record<string, unknown>;
   const num = (k: string, d: number, max?: number) => {
     const v = Number(g[k]);
-    if (!Number.isFinite(v) || v <= 0) return d;
+    if (!Number.isFinite(v) || v < 0) return d;
     return max != null ? Math.min(v, max) : v;
   };
-  // execution_mode column wins; falls back to guardrails_json.dry_run
-  const mode = (rule.execution_mode || "").toLowerCase();
-  const dryRun =
-    mode === "dry_run" ? true :
-    mode === "live" ? false :
-    g.dry_run === false ? false : true; // safe default
-
+  const bool = (k: string, d: boolean) => (g[k] === true ? true : g[k] === false ? false : d);
   return {
-    dry_run: dryRun,
-    max_items: num("max_items", GUARD_DEFAULTS.max_items, GUARD_DEFAULTS.hard_max_items),
-    bid_min_brl: num("bid_min_brl", GUARD_DEFAULTS.bid_min_brl),
-    bid_max_brl: num("bid_max_brl", GUARD_DEFAULTS.bid_max_brl),
-    bid_change_max_pct: num("bid_change_max_pct", GUARD_DEFAULTS.bid_change_max_pct, 1.0),
-    budget_min_brl: num("budget_min_brl", GUARD_DEFAULTS.budget_min_brl),
-    budget_max_brl: num("budget_max_brl", GUARD_DEFAULTS.budget_max_brl),
-    budget_change_max_pct: num("budget_change_max_pct", GUARD_DEFAULTS.budget_change_max_pct, 1.0),
+    mode: resolveMode(rule),
+    cooldown_hours: num("cooldown_hours", DEFAULTS.cooldown_hours),
+    max_items_per_run: Math.min(num("max_items_per_run", DEFAULTS.max_items_per_run), HARD_MAX_ITEMS),
+    min_conversions: num("min_conversions", DEFAULTS.min_conversions),
+    min_bid_factor: Math.max(0.05, num("min_bid_factor", DEFAULTS.min_bid_factor)),
+    max_bid_factor: Math.min(5.0, Math.max(1.0, num("max_bid_factor", DEFAULTS.max_bid_factor))),
+    allow_pause: bool("allow_pause", DEFAULTS.allow_pause),
+    allow_negative_keyword: bool("allow_negative_keyword", DEFAULTS.allow_negative_keyword),
+    bid_min_brl: num("bid_min_brl", DEFAULTS.bid_min_brl),
+    bid_max_brl: num("bid_max_brl", DEFAULTS.bid_max_brl),
+    bid_change_max_pct: num("bid_change_max_pct", DEFAULTS.bid_change_max_pct, 1.0),
   };
 }
 
-function clampBidMicros(currentMicros: number, factor: number, g: ReturnType<typeof resolveGuardrails>) {
-  // 1) limit movement
-  const safeFactor = Math.max(1 - g.bid_change_max_pct, Math.min(1 + g.bid_change_max_pct, factor));
+function clampBidMicros(currentMicros: number, factor: number, g: Guardrails) {
+  // 1) clamp factor to [min_bid_factor, max_bid_factor] AND to ±bid_change_max_pct
+  const factorFloor = Math.max(g.min_bid_factor, 1 - g.bid_change_max_pct);
+  const factorCeil = Math.min(g.max_bid_factor, 1 + g.bid_change_max_pct);
+  const safeFactor = Math.max(factorFloor, Math.min(factorCeil, factor));
   let next = currentMicros * safeFactor;
   // 2) clamp to absolute min/max
   const minMicros = g.bid_min_brl * 1_000_000;
   const maxMicros = g.bid_max_brl * 1_000_000;
   next = Math.max(minMicros, Math.min(maxMicros, next));
   return { micros: Math.round(next), applied_factor: safeFactor };
+}
+
+/** Decide whether an action type is allowed under current guardrails. */
+function actionPermission(actionType: string, g: Guardrails): { allowed: boolean; reason?: string } {
+  if (actionType === "pause_keyword" || actionType === "pause_ad_group") {
+    if (!g.allow_pause) return { allowed: false, reason: "guardrails.allow_pause=false" };
+  }
+  if (actionType === "negate_search_term") {
+    if (!g.allow_negative_keyword) return { allowed: false, reason: "guardrails.allow_negative_keyword=false" };
+  }
+  return { allowed: true };
 }
 
 Deno.serve(async (req) => {
@@ -116,7 +153,9 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { rule_id } = await req.json();
+    const reqBody = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    const rule_id = reqBody.rule_id as string | undefined;
+    const forceDryRunReq = reqBody.force_dry_run === true;
     if (!rule_id) return json({ error: "rule_id required" }, 400);
 
     const { data: rule } = await service
@@ -125,8 +164,33 @@ Deno.serve(async (req) => {
       .eq("id", rule_id)
       .single<Rule>();
     if (!rule) return json({ error: "rule not found" }, 404);
+
+    const guard = resolveGuardrails(rule);
+
+    // ── DISABLED: never executes, never logs ──
+    if (guard.mode === "disabled") {
+      return json({
+        matched: 0, evaluated: 0, executed: 0, skipped: 0, dry_run: 0,
+        mode: "disabled", guardrails: guard, items: [],
+        message: "Rule is disabled (execution_mode=disabled).",
+      });
+    }
+
     if (!rule.customer_id || !rule.campaign_id) {
       return json({ error: "Regra precisa ter customer_id e campaign_id" }, 400);
+    }
+
+    // ── COOLDOWN check (applies to auto mode only — recommendation always runs) ──
+    if (guard.mode === "auto" && rule.last_triggered_at && guard.cooldown_hours > 0) {
+      const lastMs = new Date(rule.last_triggered_at).getTime();
+      const sinceHrs = (Date.now() - lastMs) / 3_600_000;
+      if (sinceHrs < guard.cooldown_hours) {
+        return json({
+          matched: 0, evaluated: 0, executed: 0, skipped: 0, dry_run: 0,
+          mode: guard.mode, guardrails: guard, items: [],
+          blocked_reason: `cooldown: last_triggered ${sinceHrs.toFixed(2)}h ago, requires ${guard.cooldown_hours}h`,
+        });
+      }
     }
 
     const cond = rule.condition_json || {};
@@ -211,7 +275,6 @@ Deno.serve(async (req) => {
     };
     const apiBase = `https://googleads.googleapis.com/v21/customers/${rule.customer_id}`;
 
-    // Search loop with pagination — keep simple: 1 page (≤ 10k rows is plenty)
     const sr = await fetch(`${apiBase}/googleAds:search`, {
       method: "POST", headers, body: JSON.stringify({ query: gaql, pageSize: 1000 }),
     });
@@ -219,7 +282,6 @@ Deno.serve(async (req) => {
     if (!sr.ok) return json({ error: "search failed", detail: sj }, 502);
     const rows = (sj.results || []) as any[];
 
-    // Aggregate metrics per item
     interface Agg { id: string; ad_group_id: string; name?: string; clicks: number; cost: number; conv: number; convVal: number; ctr: number }
     const agg = new Map<string, Agg>();
     for (const r of rows) {
@@ -252,7 +314,6 @@ Deno.serve(async (req) => {
       agg.set(key, cur);
     }
 
-    // Compute metric value per item
     const metricFn = (it: Agg): number => {
       switch (metric) {
         case "cpa": return it.conv > 0 ? it.cost / it.conv : Infinity;
@@ -275,22 +336,51 @@ Deno.serve(async (req) => {
       }
     };
 
-    const matchedAll = [...agg.values()].filter((it) => it.clicks >= minClicks && cmp(metricFn(it), threshold));
+    // First filter: condition + min_clicks
+    const matchedAll = [...agg.values()].filter(
+      (it) => it.clicks >= minClicks && cmp(metricFn(it), threshold),
+    );
+    // Guardrail: min_conversions
+    const matchedAfterMinConv = matchedAll.filter((it) => it.conv >= guard.min_conversions);
+    const droppedByMinConv = matchedAll.length - matchedAfterMinConv.length;
+    // Guardrail: max_items_per_run cap
+    const matched = matchedAfterMinConv.slice(0, guard.max_items_per_run);
+    const cappedBy = matchedAfterMinConv.length - matched.length;
 
-    // ── Apply guardrails: dry_run flag, max_items cap, body-level overrides
-    const guard = resolveGuardrails(rule);
-    // Optional ad-hoc override via request body: { force_dry_run: true }
-    const reqBody = (await req.clone().json().catch(() => ({}))) as Record<string, unknown>;
-    const forceDryRun = reqBody.force_dry_run === true || guard.dry_run;
-    const matched = matchedAll.slice(0, guard.max_items);
-    const cappedBy = matchedAll.length > matched.length ? (matchedAll.length - matched.length) : 0;
+    // ── Mode resolution: recommendation always = dry-run; auto only with action permission ──
+    const isDryRun = forceDryRunReq || guard.mode === "recommendation";
 
-    // Execute action per matched item
     let executed = 0, skipped = 0, dryRunCount = 0;
     const log: any[] = [];
+
     for (const it of matched) {
       const [agId, critOrTerm] = it.id.split(":");
+      const baseAudit = {
+        workspace_id: rule.workspace_id,
+        customer_id: rule.customer_id,
+        trigger: "automation_rule",
+        action: action.type,
+        target_type: scope,
+        target_id: it.id,
+      };
       try {
+        // Permission check (auto only — recommendation always logs as dry_run, no mutation)
+        const perm = actionPermission(action.type, guard);
+        if (!isDryRun && !perm.allowed) {
+          skipped++;
+          await service.from("automation_actions").insert({
+            ...baseAudit,
+            status: "blocked",
+            metadata_json: {
+              rule_id, metric, value: metricFn(it), threshold,
+              execution_mode: guard.mode, guardrails: guard, dry_run: false,
+              blocked_reason: perm.reason,
+            },
+          } as never);
+          log.push({ id: it.id, name: it.name, blocked: perm.reason });
+          continue;
+        }
+
         let body: Record<string, unknown> | null = null;
         let safeNote: Record<string, unknown> = {};
 
@@ -306,7 +396,6 @@ Deno.serve(async (req) => {
           const cur = Number(bj.results?.[0]?.adGroupCriterion?.cpcBidMicros || 0);
           if (!cur) { skipped++; log.push({ id: it.id, name: it.name, skipped: "no current bid" }); continue; }
 
-          // 🔒 clamp factor + clamp absolute bid range
           const { micros: nextMicros, applied_factor } = clampBidMicros(cur, rawFactor, guard);
           if (nextMicros === cur) {
             skipped++;
@@ -318,7 +407,11 @@ Deno.serve(async (req) => {
             applied_factor,
             current_bid_brl: cur / 1e6,
             new_bid_brl: nextMicros / 1e6,
-            clamps: { bid_min: guard.bid_min_brl, bid_max: guard.bid_max_brl, max_pct: guard.bid_change_max_pct },
+            clamps: {
+              bid_min: guard.bid_min_brl, bid_max: guard.bid_max_brl,
+              min_factor: guard.min_bid_factor, max_factor: guard.max_bid_factor,
+              max_pct: guard.bid_change_max_pct,
+            },
           };
           body = { action: "update_keyword_bid", workspace_id: rule.workspace_id, customer_id: rule.customer_id, ad_group_criterion_id: critOrTerm, ad_group_id: agId, cpc_bid_micros: nextMicros };
         } else if (action.type === "negate_search_term" && scope === "search_term") {
@@ -326,17 +419,17 @@ Deno.serve(async (req) => {
         }
         if (!body) { skipped++; log.push({ id: it.id, name: it.name, skipped: "scope/action mismatch" }); continue; }
 
-        // ── DRY RUN PATH: never call mutate, only audit ──
-        if (forceDryRun) {
+        // ── DRY RUN PATH (recommendation OR forced) ──
+        if (isDryRun) {
           dryRunCount++;
           await service.from("automation_actions").insert({
-            workspace_id: rule.workspace_id, customer_id: rule.customer_id,
-            trigger: "automation_rule",
-            action: action.type,
-            target_type: scope,
-            target_id: it.id,
+            ...baseAudit,
             status: "dry_run",
-            metadata_json: { rule_id, metric, value: metricFn(it), threshold, would_send: body, guardrails: guard, ...safeNote },
+            metadata_json: {
+              rule_id, metric, value: metricFn(it), threshold,
+              execution_mode: guard.mode, guardrails: guard, dry_run: true,
+              would_send: body, ...safeNote,
+            },
           } as never);
           log.push({ id: it.id, name: it.name, value: metricFn(it), dry_run: action.type, ...safeNote });
           continue;
@@ -356,17 +449,27 @@ Deno.serve(async (req) => {
           executed++;
           log.push({ id: it.id, name: it.name, value: metricFn(it), executed: action.type, ...safeNote });
           await service.from("automation_actions").insert({
-            workspace_id: rule.workspace_id, customer_id: rule.customer_id,
-            trigger: "automation_rule",
-            action: action.type,
-            target_type: scope,
-            target_id: it.id,
+            ...baseAudit,
             status: "success",
-            metadata_json: { rule_id, metric, value: metricFn(it), threshold, guardrails: guard, ...safeNote },
+            metadata_json: {
+              rule_id, metric, value: metricFn(it), threshold,
+              execution_mode: guard.mode, guardrails: guard, dry_run: false,
+              ...safeNote,
+            },
           } as never);
         } else {
           const errJ = await ar.json().catch(() => ({}));
           skipped++;
+          await service.from("automation_actions").insert({
+            ...baseAudit,
+            status: "error",
+            error_message: String(errJ.error || ar.statusText).slice(0, 500),
+            metadata_json: {
+              rule_id, metric, value: metricFn(it), threshold,
+              execution_mode: guard.mode, guardrails: guard, dry_run: false,
+              ...safeNote,
+            },
+          } as never);
           log.push({ id: it.id, name: it.name, error: errJ.error || ar.statusText });
         }
       } catch (e) {
@@ -375,12 +478,19 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Update rule stats
-    await service.from("automation_rules").update({
+    // Update rule stats — last_triggered_at ONLY when executed > 0 (real mutations)
+    const updates: Record<string, unknown> = {
       last_evaluated_at: new Date().toISOString(),
-      last_triggered_at: matched.length > 0 ? new Date().toISOString() : (await service.from("automation_rules").select("last_triggered_at").eq("id", rule_id).single()).data?.last_triggered_at,
-      trigger_count: matched.length > 0 ? executed : 0,
-    } as never).eq("id", rule_id);
+    };
+    if (executed > 0) {
+      updates.last_triggered_at = new Date().toISOString();
+      updates.trigger_count = (await service
+        .from("automation_rules")
+        .select("trigger_count")
+        .eq("id", rule_id)
+        .single()).data?.trigger_count + executed || executed;
+    }
+    await service.from("automation_rules").update(updates as never).eq("id", rule_id);
 
     const notifyPayload = {
       matched: matchedAll.length,
@@ -389,7 +499,9 @@ Deno.serve(async (req) => {
       skipped,
       dry_run: dryRunCount,
       capped_by_max_items: cappedBy,
-      mode: forceDryRun ? "dry_run" : "live",
+      dropped_by_min_conversions: droppedByMinConv,
+      mode: guard.mode,
+      effective_dry_run: isDryRun,
       guardrails: guard,
       items: log,
     };
