@@ -496,6 +496,11 @@
       if (params.value != null) data.value = params.value;
       if (params.currency) data.currency = params.currency;
       if (params.transaction_id) data.order_id = params.transaction_id;
+      // Propagate any caller-provided event_id so browser Pixel ↔ server CAPI
+      // dedup works (Meta fbq eventID, Google Ads gclid+conversion_id).
+      var providedId = params.event_id || params.eventId || params.trace_event_id || params.browser_event_id;
+      if (providedId) data.event_id = providedId;
+      else if (params.transaction_id) data.event_id = String(params.transaction_id);
       if (params.email) data.email = params.email;
       if (params.phone_number || params.phone) data.phone = params.phone_number || params.phone;
       if (params.items) {
