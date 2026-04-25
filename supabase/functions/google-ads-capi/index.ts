@@ -195,7 +195,7 @@ async function sendToGoogleAds(
   accessToken: string,
   developerToken: string,
   conversions: GoogleConversionPayload[]
-): Promise<{ ok: boolean; status: number; response: any }> {
+): Promise<{ ok: boolean; status: number; response: any; failedIndexes: Set<number> }> {
   const url = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${customerId}:uploadClickConversions`;
 
   const headers: Record<string, string> = {
@@ -214,13 +214,36 @@ async function sendToGoogleAds(
     body: JSON.stringify({ conversions, partial_failure: true }),
   });
 
-  // Read as text first to handle non-JSON error pages
   const text = await res.text();
   let parsed: any;
   try { parsed = JSON.parse(text); } catch { parsed = { raw: text.slice(0, 500) }; }
 
-  const hasPartialFailure = !!parsed?.partialFailureError?.message;
-  return { ok: res.ok && !hasPartialFailure, status: res.status, response: parsed };
+  // Parse partial_failure_error to identify the indexes of failed conversions.
+  // Successful rows must NOT be retried — Google has already accepted them and
+  // a retry would create a duplicate conversion.
+  const failedIndexes = new Set<number>();
+  const pfe = parsed?.partialFailureError;
+  if (pfe?.details && Array.isArray(pfe.details)) {
+    for (const detail of pfe.details) {
+      const errs = detail?.errors || [];
+      for (const e of errs) {
+        const fieldPath = e?.location?.fieldPathElements || [];
+        for (const fp of fieldPath) {
+          if (fp?.fieldName === "conversions" && typeof fp?.index === "number") {
+            failedIndexes.add(fp.index);
+          }
+        }
+      }
+    }
+  }
+
+  const hasResults = Array.isArray(parsed?.results) && parsed.results.length > 0;
+  // ok=true when HTTP ok AND there is no top-level error AND no partialFailureError
+  // (or all rows succeeded). When some rows succeeded, we still return ok=false but
+  // the caller can use failedIndexes to mark only failures for retry.
+  const allFailed = pfe && failedIndexes.size === conversions.length;
+  const fullyOk = res.ok && !pfe && hasResults;
+  return { ok: fullyOk, status: res.status, response: parsed, failedIndexes };
 }
 
 Deno.serve(async (req) => {
@@ -352,12 +375,23 @@ Deno.serve(async (req) => {
       || null;
     const dedupKey = firstPayload.dedup_key || null;
 
+    // Partial-failure-aware accounting:
+    // - delivered = conversions Google ACCEPTED
+    // - failed    = conversions Google REJECTED (will be retried by worker)
+    // process-events uses these counts to mark only the failed slice for retry,
+    // preventing duplicate uploads of already-accepted conversions.
+    const totalConv = conversions.length;
+    const failedCount = result.failedIndexes.size;
+    const deliveredCount = totalConv - failedCount;
+    const fullyOk = result.ok;
+    const partial = !fullyOk && deliveredCount > 0;
+
     await supabase.from("event_deliveries").insert({
       event_id: items[0]?.event_id || crypto.randomUUID(),
       workspace_id: wsId,
       provider: "google_ads",
       destination: `customers/${finalCustomerId}/conversionActions/${conversionLabel}`,
-      status: result.ok ? "delivered" : "failed",
+      status: fullyOk ? "delivered" : (partial ? "partial" : "failed"),
       attempt_count: 1,
       last_attempt_at: new Date().toISOString(),
       request_json: {
@@ -366,19 +400,29 @@ Deno.serve(async (req) => {
         conversion_label: conversionLabel,
         external_transaction_id: externalTxId,
         dedup_key: dedupKey,
+        delivered_count: deliveredCount,
+        failed_count: failedCount,
+        failed_indexes: Array.from(result.failedIndexes),
       },
       response_json: result.response,
-      error_message: result.ok ? null : JSON.stringify(result.response).slice(0, 1000),
+      error_message: fullyOk ? null : JSON.stringify(result.response).slice(0, 1000),
     });
 
     return new Response(JSON.stringify({
-      status: result.ok ? "ok" : "error",
+      // status "ok" if everything went through (so worker marks all delivered);
+      // status "partial" so worker marks `deliveredCount` first as delivered and
+      // only the trailing `failedCount` items go back to retry.
+      status: fullyOk ? "ok" : (partial ? "partial" : "error"),
       http_status: result.status,
-      delivered: result.ok ? conversions.length : 0,
-      failed: result.ok ? 0 : conversions.length,
+      delivered: deliveredCount,
+      failed: failedCount,
       skipped: skipped.length,
+      failed_indexes: Array.from(result.failedIndexes),
       response: result.response,
-    }), { status: result.ok ? 200 : 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }), {
+      status: (fullyOk || partial) ? 200 : 502,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
 
   } catch (err) {
     console.error("Google Ads CAPI error:", err);

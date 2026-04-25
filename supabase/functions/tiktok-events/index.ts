@@ -60,24 +60,30 @@ function buildTikTokEvent(item: any): TikTokEvent | null {
   const customer = p.customer || {};
   const session = p.session || {};
   const order = p.order || {};
-  const marketingEvent = p.marketing_event || "Purchase";
+  const marketingEvent = p.marketing_event || p.event_name || "Purchase";
 
   const tiktokEvent = EVENT_TO_TIKTOK[marketingEvent];
   if (!tiktokEvent) return null;
 
   const user: TikTokEvent["user"] = {};
+  // em/ph hashes (already SHA-256). Accept ph alias as well.
   if (customer.email_hash) user.email = [customer.email_hash];
   if (customer.phone_hash) user.phone = [customer.phone_hash];
   if (p.identity_id) user.external_id = p.identity_id;
-  if (session.ip_hash) user.ip = session.ip_hash;
+  // RAW client IP — TikTok needs raw IP, not a hash.
+  const rawIp = session.client_ip || session.ip || null;
+  if (rawIp && !/^[a-f0-9]{64}$/i.test(rawIp)) user.ip = rawIp;
   if (session.user_agent) user.user_agent = session.user_agent;
   if (session.ttp) user.ttp = session.ttp;
   if (session.ttclid) user.ttclid = session.ttclid;
 
+  // Prefer browser event_id (TikTok pixel `eventID`) for browser↔server dedup.
+  const eventId = p.event_id || p.browser_event_id || item.event_id || crypto.randomUUID();
+
   return {
     event: tiktokEvent,
-    event_time: Math.floor(new Date(item.created_at).getTime() / 1000),
-    event_id: item.event_id || crypto.randomUUID(),
+    event_time: Math.floor(new Date(p.event_time || item.created_at).getTime() / 1000),
+    event_id: eventId,
     user,
     properties: {
       value: order.total_value,

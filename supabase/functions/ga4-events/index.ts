@@ -270,14 +270,21 @@ Deno.serve(async (req) => {
       const evt = buildGA4Event(item);
       if (!evt) { totalSkipped++; continue; }
 
-      const clientId = item.payload_json?.identity_id ||
-                       item.payload_json?.session?.client_id ||
-                       item.payload_json?.anonymous_id ||
-                       item.payload_json?.fingerprint ||
-                       crypto.randomUUID();
+      // GA4 client_id priority: real ga_client_id from session > legacy client_id
+      // > custom_data.ga_client_id > user_data.ga_client_id > identity > random.
+      // The real GA4 _ga cookie value MUST win to keep web+server attribution joined.
+      const pj = item.payload_json || {};
+      const clientId =
+        pj.session?.ga_client_id ||
+        pj.session?.client_id ||
+        pj.custom_data?.ga_client_id ||
+        pj.user_data?.ga_client_id ||
+        pj.identity_id ||
+        pj.anonymous_id ||
+        pj.fingerprint ||
+        crypto.randomUUID();
 
-      const userId = item.payload_json?.user_data?.external_id ||
-                     item.payload_json?.user_data?.email;
+      const userId = pj.user_data?.external_id || pj.user_data?.email;
 
       if (!eventsByClient.has(clientId)) {
         eventsByClient.set(clientId, { ga4Events: [], queueItems: [], userId });

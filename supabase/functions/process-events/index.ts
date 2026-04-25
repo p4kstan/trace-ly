@@ -401,7 +401,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const stats = { delivered: 0, failed: 0, deadLettered: 0 };
+    const stats: { delivered: number; failed: number; deadLettered: number; skipped: number } = { delivered: 0, failed: 0, deadLettered: 0, skipped: 0 };
     const pixelCache = new Map<string, any>();
     const destCache = new Map<string, any>();
 
