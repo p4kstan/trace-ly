@@ -20,6 +20,7 @@ const routes: Array<[string, () => Promise<unknown>]> = [
   ["/destination-registry", () => import("@/pages/DestinationRegistry")],
   ["/release-report", () => import("@/pages/ReleaseReport")],
   ["/prompt-generator", () => import("@/pages/PromptGenerator")],
+  ["/mcp-settings", () => import("@/pages/McpSettings")],
 ];
 
 describe("Route smoke tests (import-time)", () => {
