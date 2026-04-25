@@ -27,6 +27,7 @@ const overviewItems = [
 const intelligenceItems = [
   { title: "Insights IA", url: "/ai-analytics", icon: Brain },
   { title: "Agente de Tráfego", url: "/traffic-agent", icon: Brain },
+  { title: "MCP & Codex", url: "/mcp-settings", icon: Cpu },
   { title: "Atribuição", url: "/attribution", icon: GitBranch },
   { title: "Predições", url: "/predictions", icon: TrendingUp },
   { title: "Otimização", url: "/optimization", icon: Lightbulb },
