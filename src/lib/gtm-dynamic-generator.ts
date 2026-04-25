@@ -111,13 +111,22 @@ function metaPixelTag(state: BuildState, opts: {
     // Bootstrap não rodou ainda (race) — empilha no fbq.queue se existir.
     window.fbq = window.fbq || function(){(window.fbq.queue=window.fbq.queue||[]).push(arguments);};
   }
-fbq('track', '${opts.eventName}'${opts.withValue ? `, {
-  value: {{CT - DLV - ecommerce.value}} || {{CT - DLV - value}} || 0,
-  currency: {{CT - DLV - ecommerce.currency}} || 'BRL',
-  content_ids: ((({{CT - DLV - ecommerce.items}}||[]).map(function(i){return i.item_id})) || []),
-  contents: (({{CT - DLV - ecommerce.items}}||[]).map(function(i){return {id: i.item_id, quantity: i.quantity, item_price: i.price}})),
-  num_items: (({{CT - DLV - ecommerce.items}}||[]).length || 1)
-}` : ""});
+  // Browser↔CAPI dedup: Meta deduplica por (event_name, eventID) numa janela
+  // de ~48h. Usamos event_id da DLV (preenchido pelo SDK / checkout) ou,
+  // como fallback, o transaction_id do ecommerce.
+  var __evtId = ({{CT - DLV - event_id}} || {{CT - DLV - ecommerce.transaction_id}} || '') + '';
+  var __payload = ${opts.withValue ? `{
+    value: {{CT - DLV - ecommerce.value}} || {{CT - DLV - value}} || 0,
+    currency: {{CT - DLV - ecommerce.currency}} || 'BRL',
+    content_ids: ((({{CT - DLV - ecommerce.items}}||[]).map(function(i){return i.item_id})) || []),
+    contents: (({{CT - DLV - ecommerce.items}}||[]).map(function(i){return {id: i.item_id, quantity: i.quantity, item_price: i.price}})),
+    num_items: (({{CT - DLV - ecommerce.items}}||[]).length || 1)
+  }` : `{}`};
+  if (__evtId) {
+    fbq('track', '${opts.eventName}', __payload, { eventID: __evtId });
+  } else {
+    fbq('track', '${opts.eventName}', __payload);
+  }
 })();
 </script>`;
 
