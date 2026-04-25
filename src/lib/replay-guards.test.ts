@@ -6,9 +6,9 @@ import {
   type ReplayDecision,
 } from "./replay-guards";
 
-function reject(d: ReplayDecision): { reason: string; details?: string[] } {
-  if (d.allow) throw new Error("expected reject decision but got allow");
-  return { reason: d.reason, details: d.details };
+function reject(d: ReplayDecision): Extract<ReplayDecision, { allow: false }> {
+  if (d.allow === true) throw new Error("expected reject decision but got allow");
+  return d;
 }
 
 describe("replay-guards (Passo O)", () => {
