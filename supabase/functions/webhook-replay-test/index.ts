@@ -147,7 +147,28 @@ Deno.serve(async (req) => {
     });
   }
 
-  // ── PII guard (warn but allow — operator must sanitize first) ───────
+  // ── Rate limit (best-effort, per-instance) ──────────────────────────
+  // Key includes user, workspace and best-effort client IP. We never store
+  // the IP — it only lives in this in-memory map for the 60s window.
+  const ipHdr = req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip") || "";
+  const ip = ipHdr.split(",")[0].trim() || "unknown";
+  const rlKey = `${workspace_id}:${user.id}:${ip}`;
+  const rl = rateLimitHit(rlKey);
+  if (!rl.ok) {
+    return new Response(JSON.stringify({
+      error: "rate_limited",
+      hint: `max ${RL_MAX} replays / ${RL_WINDOW_MS / 1000}s per workspace+user+ip`,
+      retry_after_seconds: rl.retryAfter,
+    }), {
+      status: 429,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+        "Retry-After": String(rl.retryAfter),
+      },
+    });
+  }
+
   const piiHits = detectRawPII(payload);
   if (piiHits.length > 0) {
     return new Response(JSON.stringify({
