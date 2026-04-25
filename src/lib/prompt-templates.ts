@@ -15,6 +15,8 @@
  *  - Fallback: se webhook chega sem gclid, busca em sessions via session_id
  */
 
+import { PASSO_M_HARDENING_BLOCK } from "./native-checkout-prompts";
+
 export type BusinessType =
   | "ecommerce"
   | "infoproduct"
@@ -351,6 +353,8 @@ Gateway: ${GATEWAY_LABELS[cfg.gateway]}
 CapiTrack endpoint: ${cfg.endpoint}
 CapiTrack public key: ${cfg.publicKey || "<COLE_SUA_PUBLIC_KEY>"}
 Workspace ID: ${cfg.workspaceId || "<COLE_SEU_WORKSPACE_ID>"}
+
+${PASSO_M_HARDENING_BLOCK}
 
 ═══════════════════════════════════════════════
 1) INSTALAR/UNIFICAR SDK CAPITRACK
