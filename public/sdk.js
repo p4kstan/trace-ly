@@ -345,9 +345,12 @@
     // matches what we inject into outbound checkout URLs (and the gateway
     // webhook will re-emit it back via metadata).
     var isCheckoutEvent = /^(InitiateCheckout|AddPaymentInfo|Purchase|Lead|Subscribe|StartTrial)$/i.test(eventName);
+    // Caller-provided event_id wins (browser↔server CAPI dedup). Accept several
+    // common aliases so the GTM/dataLayer bridge and direct ct() calls work.
+    var providedEventId = data && (data.event_id || data.eventId || data.trace_event_id || data.browser_event_id);
     var event = {
       event_name: eventName,
-      event_id: isCheckoutEvent ? getJourneyEventId() : generateId(),
+      event_id: providedEventId || (isCheckoutEvent ? getJourneyEventId() : generateId()),
       url: window.location.href,
       page_path: window.location.pathname,
       referrer: document.referrer || undefined,
@@ -372,10 +375,13 @@
 
     if (data) {
       var userFields = ['email', 'phone', 'first_name', 'last_name', 'city', 'state', 'zip', 'country', 'external_id', 'name'];
+      // Keys consumed at the top level — must NOT leak into custom_data.
+      var reservedKeys = ['event_id', 'eventId', 'trace_event_id', 'browser_event_id', 'value', 'currency'];
       var customData = {};
       for (var key in data) {
         if (key === 'value') event.value = Number(data[key]);
         else if (key === 'currency') event.currency = String(data[key]);
+        else if (reservedKeys.indexOf(key) !== -1) continue;
         else if (userFields.indexOf(key) !== -1) userData[key] = data[key];
         else customData[key] = data[key];
       }
@@ -490,6 +496,11 @@
       if (params.value != null) data.value = params.value;
       if (params.currency) data.currency = params.currency;
       if (params.transaction_id) data.order_id = params.transaction_id;
+      // Propagate any caller-provided event_id so browser Pixel ↔ server CAPI
+      // dedup works (Meta fbq eventID, Google Ads gclid+conversion_id).
+      var providedId = params.event_id || params.eventId || params.trace_event_id || params.browser_event_id;
+      if (providedId) data.event_id = providedId;
+      else if (params.transaction_id) data.event_id = String(params.transaction_id);
       if (params.email) data.email = params.email;
       if (params.phone_number || params.phone) data.phone = params.phone_number || params.phone;
       if (params.items) {

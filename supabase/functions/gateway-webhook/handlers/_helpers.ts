@@ -11,11 +11,11 @@ export function num(v: any): number {
   return isNaN(n) ? 0 : n;
 }
 
-export function dig(obj: any, ...keys: string[]): any {
-  let cur = obj;
+export function dig(obj: any, ...keys: (string | number)[]): any {
+  let cur: any = obj;
   for (const k of keys) {
     if (cur == null) return undefined;
-    cur = cur[k];
+    cur = cur[k as any];
   }
   return cur;
 }

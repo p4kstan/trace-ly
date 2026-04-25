@@ -129,10 +129,15 @@ Deno.serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    const apiKey = req.headers.get("x-api-key");
+    // Accept API key from header OR query string (sendBeacon fallback).
+    const url = new URL(req.url);
+    const apiKey =
+      req.headers.get("x-api-key") ||
+      url.searchParams.get("key") ||
+      url.searchParams.get("api_key");
     if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: "Missing x-api-key header" }),
+        JSON.stringify({ error: "Missing API key (x-api-key header, ?key= or ?api_key=)" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -212,16 +217,34 @@ Deno.serve(async (req) => {
     }
 
     // ── Compute hashes in parallel ──
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
+    // Raw client IP — Cloudflare > Forwarded > X-Real-IP. Stored cleartext
+    // (server-side only) for Meta CAPI / TikTok / GA4 client_ip_address.
+    const ip =
+      req.headers.get("cf-connecting-ip") ||
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown";
     const userAgent = req.headers.get("user-agent") || "unknown";
     const rawEmail = body.email || body.user_data?.email;
     const rawPhone = body.phone || body.user_data?.phone;
+    // Pre-hashed user data (privacy-preserving — used when raw email/phone absent)
+    const preHashedEm = body.user_data_hashed?.em || body.user_data?.em;
+    const preHashedPh = body.user_data_hashed?.ph || body.user_data?.ph;
 
-    const [ipHash, emailHash, phoneHash] = await Promise.all([
+    const [ipHash, computedEmailHash, computedPhoneHash] = await Promise.all([
       hashSHA256(ip),
       rawEmail ? hashSHA256(String(rawEmail).toLowerCase()) : Promise.resolve(null),
       rawPhone ? hashSHA256(String(rawPhone)) : Promise.resolve(null),
     ]);
+    const emailHash = computedEmailHash || (preHashedEm ? String(preHashedEm).toLowerCase() : null);
+    const phoneHash = computedPhoneHash || (preHashedPh ? String(preHashedPh).toLowerCase() : null);
+
+    // GA4 client_id from payload (gtag/GTM bridge sets this).
+    const gaClientId =
+      body.ga_client_id ||
+      body.client_id ||
+      body.user_data?.ga_client_id ||
+      null;
 
     // ── Deduplication check ──
     if (body.event_id) {
@@ -246,7 +269,7 @@ Deno.serve(async (req) => {
     const identityPromise = resolveIdentity(workspaceId, emailHash, phoneHash, body, rawEmail, rawPhone);
     const sessionPromise = supabase
       .from("sessions")
-      .select("id, gclid, gbraid, wbraid")
+      .select("id, gclid, gbraid, wbraid, ga_client_id, client_ip")
       .eq("workspace_id", workspaceId)
       .eq("ip_hash", ipHash)
       .eq("user_agent", userAgent)
@@ -265,19 +288,14 @@ Deno.serve(async (req) => {
     let sessionId: string | null = null;
     if (sessionResult.data) {
       sessionId = sessionResult.data.id;
-      if (
-        (sanitizedGclid && !sessionResult.data.gclid) ||
-        (sanitizedGbraid && !sessionResult.data.gbraid) ||
-        (sanitizedWbraid && !sessionResult.data.wbraid)
-      ) {
-        await supabase
-          .from("sessions")
-          .update({
-            ...(sanitizedGclid && !sessionResult.data.gclid ? { gclid: sanitizedGclid } : {}),
-            ...(sanitizedGbraid && !sessionResult.data.gbraid ? { gbraid: sanitizedGbraid } : {}),
-            ...(sanitizedWbraid && !sessionResult.data.wbraid ? { wbraid: sanitizedWbraid } : {}),
-          })
-          .eq("id", sessionId);
+      const sessionUpdate: Record<string, any> = {};
+      if (sanitizedGclid && !sessionResult.data.gclid) sessionUpdate.gclid = sanitizedGclid;
+      if (sanitizedGbraid && !sessionResult.data.gbraid) sessionUpdate.gbraid = sanitizedGbraid;
+      if (sanitizedWbraid && !sessionResult.data.wbraid) sessionUpdate.wbraid = sanitizedWbraid;
+      if (gaClientId && !sessionResult.data.ga_client_id) sessionUpdate.ga_client_id = gaClientId;
+      if (ip && ip !== "unknown" && !sessionResult.data.client_ip) sessionUpdate.client_ip = ip;
+      if (Object.keys(sessionUpdate).length > 0) {
+        await supabase.from("sessions").update(sessionUpdate).eq("id", sessionId);
       }
     } else {
       const { data: newSession } = await supabase
@@ -286,7 +304,9 @@ Deno.serve(async (req) => {
           workspace_id: workspaceId,
           identity_id: identityId,
           ip_hash: ipHash,
+          client_ip: ip && ip !== "unknown" ? ip : null,
           user_agent: userAgent,
+          ga_client_id: gaClientId,
           referrer: body.referrer || null,
           landing_page: body.url || body.landing_page || null,
           utm_source: body.utm_source || body.utm?.utm_source || null,
@@ -310,10 +330,13 @@ Deno.serve(async (req) => {
       ...(emailHash ? { em: emailHash } : {}),
       ...(phoneHash ? { ph: phoneHash } : {}),
       ...(ipHash ? { client_ip_hash: ipHash } : {}),
+      // Raw IP — Meta CAPI / TikTok / GA4 client_ip_address (NEVER hashed).
+      ...(ip && ip !== "unknown" ? { client_ip: ip } : {}),
       ...(userAgent ? { client_user_agent: userAgent } : {}),
       ...(body.fbp ? { fbp: body.fbp } : {}),
       ...(body.fbc ? { fbc: body.fbc } : {}),
       ...(body.external_id ? { external_id: body.external_id } : {}),
+      ...(gaClientId ? { ga_client_id: gaClientId } : {}),
     };
 
     const deduplicationKey = body.event_id
@@ -330,6 +353,7 @@ Deno.serve(async (req) => {
       ...(body.fbclid ? { fbclid: body.fbclid } : {}),
       ...(body.ttclid ? { ttclid: body.ttclid } : {}),
       ...(body.msclkid ? { msclkid: body.msclkid } : {}),
+      ...(gaClientId ? { ga_client_id: gaClientId } : {}),
       ...(body.utm_source ? { utm_source: body.utm_source } : {}),
       ...(body.utm_medium ? { utm_medium: body.utm_medium } : {}),
       ...(body.utm_campaign ? { utm_campaign: body.utm_campaign } : {}),
