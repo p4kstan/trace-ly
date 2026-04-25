@@ -131,7 +131,7 @@ export default function PromptGenerator() {
             Gerador de Prompts de Implementação
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Configure o tipo do projeto-alvo e gere 3 prompts prontos para colar na IA do Lovable (ou ChatGPT/Claude) que controla o outro projeto.
+            Configure o tipo do projeto-alvo e gere prompts prontos para colar na IA-agente do projeto-alvo (Lovable, Cursor, Claude Code, ChatGPT/Codex, Manus, Bolt.new, v0, Windsurf ou outra).
           </p>
         </div>
         <Badge variant="outline" className="gap-1">
