@@ -217,16 +217,34 @@ Deno.serve(async (req) => {
     }
 
     // ── Compute hashes in parallel ──
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
+    // Raw client IP — Cloudflare > Forwarded > X-Real-IP. Stored cleartext
+    // (server-side only) for Meta CAPI / TikTok / GA4 client_ip_address.
+    const ip =
+      req.headers.get("cf-connecting-ip") ||
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown";
     const userAgent = req.headers.get("user-agent") || "unknown";
     const rawEmail = body.email || body.user_data?.email;
     const rawPhone = body.phone || body.user_data?.phone;
+    // Pre-hashed user data (privacy-preserving — used when raw email/phone absent)
+    const preHashedEm = body.user_data_hashed?.em || body.user_data?.em;
+    const preHashedPh = body.user_data_hashed?.ph || body.user_data?.ph;
 
-    const [ipHash, emailHash, phoneHash] = await Promise.all([
+    const [ipHash, computedEmailHash, computedPhoneHash] = await Promise.all([
       hashSHA256(ip),
       rawEmail ? hashSHA256(String(rawEmail).toLowerCase()) : Promise.resolve(null),
       rawPhone ? hashSHA256(String(rawPhone)) : Promise.resolve(null),
     ]);
+    const emailHash = computedEmailHash || (preHashedEm ? String(preHashedEm).toLowerCase() : null);
+    const phoneHash = computedPhoneHash || (preHashedPh ? String(preHashedPh).toLowerCase() : null);
+
+    // GA4 client_id from payload (gtag/GTM bridge sets this).
+    const gaClientId =
+      body.ga_client_id ||
+      body.client_id ||
+      body.user_data?.ga_client_id ||
+      null;
 
     // ── Deduplication check ──
     if (body.event_id) {
