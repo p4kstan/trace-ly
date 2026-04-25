@@ -446,16 +446,23 @@ CRÍTICO para dedup: o \`order_id\` enviado no Purchase client-side deve ser EXA
 o mesmo que o webhook do gateway envia. \`event_id = purchase:<order_id>\`.` : "Sem gateway — pular esta etapa."}
 
 ═══════════════════════════════════════════════
-4.1) PAYLOAD DO PURCHASE — REGRAS CRÍTICAS (atualizado 04/2026 — Fluxo Final)
+4.1) PAYLOAD DO PURCHASE — REGRAS CRÍTICAS (atualizado 04/2026 — Multi-etapas genérico)
 ═══════════════════════════════════════════════
 Quando disparar o Purchase (client-side OU server-side), o payload PRECISA conter:
 
-- **event_id**: SEMPRE no formato \`purchase:<order_id>\` (TMT/upsell/segunda tela:
-  \`purchase:<order_id_principal>:tmt\` — referencia o **pedido pai**, nunca o orderCode
-  da própria TMT). NUNCA envie event_id cru sem prefixo (\`EV-...\`) nem o padrão antigo
-  \`<external_id>:Purchase\`.
+- **event_id**: SEMPRE com prefixo \`purchase:\`.
+  - Pedido principal: \`purchase:<root_order_code>\`.
+  - **Etapas adicionais** (taxa de entrega, taxa de manipulação, seguro, frete express,
+    prioridade, garantia, upsell, **TMT** etc.): \`purchase:<root_order_code>:step:<step_key>\`
+    onde \`step_key\` é estável (\`shipping_fee\`, \`handling_fee\`, \`upsell_1\`, \`insurance\`,
+    \`priority_fee\`, \`warranty\`, \`tmt\`, ...). **TMT é apenas exemplo** — descubra os
+    nomes reais auditando o código.
+  - NUNCA envie event_id cru sem prefixo (\`EV-...\`) nem o padrão antigo
+    \`<external_id>:Purchase\`.
 - **order_id**: ID estável do pedido (mostrado ao cliente).
-- **parent_order_id** (apenas em TMT): orderCode do pedido principal correlacionado.
+- **parent_order_id** / **root_order_code** (em etapas adicionais): orderCode do pedido
+  principal correlacionado.
+- **step_key** (em etapas adicionais): identificador estável do tipo da etapa.
 - **transaction_id** / **gateway_order_id**: ID interno do gateway, em campos **separados**.
 - **event_name**: "Purchase" (ou "Subscribe" pra primeira cobrança de assinatura).
 - **session_id**: lido do cookie/sessionStorage (\`ct_session\`). Permite fallback de atribuição.
@@ -464,27 +471,42 @@ Quando disparar o Purchase (client-side OU server-side), o payload PRECISA conte
 - **fbp / fbc / ga_client_id (alias client_id)**: cookies \`_fbp/_fbc/_ga\`.
 - **utm_source / utm_medium / utm_campaign / utm_term / utm_content**: cookies \`ct_utm_*\`.
 - **landing_page / referrer / user_agent / client_ip**: persistidos no pedido.
-- **value**: para TMT, **APENAS** o valor da própria taxa (não somar o valor do pedido principal).
+- **value**: para etapa adicional, **APENAS** o valor daquela etapa (não somar o principal).
 - **status do pagamento**: só dispare quando status ∈
   \`{paid, approved, confirmed, succeeded, captured, pix_paid, order_paid}\`.
 
-**Checkout em duas etapas (Pedido principal + TMT/taxa/upsell):**
-- As duas cobranças são legítimas e viram **Purchase separados**.
-- TMT herda do pedido pai: \`gclid, gbraid, wbraid, fbclid, ttclid, msclkid, fbp, fbc,
-  ga_client_id, session_id, utm_*, landing_page, referrer, user_agent, client_ip\`.
-  Lookup do pai via \`externalReference = tmt-<orderCodePrincipal>\` ou \`parent_order_code\`.
-- Se a TMT chegar com metadata vazia, o backend (webhook/check-pix-status/reconcile)
-  **completa antes** de chamar \`/track\`.
-- Cada uma com trava atômica própria: \`purchase_tracked_at\` para o main e
-  \`tmt_tracked_at\` para a TMT (ou tabela \`event_id_sent\`).
+**Checkout MULTI-ETAPAS (Pedido principal + N pagamentos adicionais):**
+- O checkout pode ter **2, 3, 5+ etapas** com qualquer nome de página/rota
+  (taxa de entrega, taxa de manipulação, seguro, upsell, complemento, frete express,
+  prioridade, garantia, **TMT** etc.). **TMT é apenas exemplo, não regra fixa.**
+- **Auditoria obrigatória primeiro**: liste TODAS as páginas/funções que criam
+  pagamento/charge no projeto-alvo, com \`route, gateway, value, externalReference,
+  status source, step_key sugerido, relação com root\`.
+- Cada etapa vira **Purchase separado** com event_id único e value isolado.
+- **Toda etapa adicional herda do root**: \`gclid, gbraid, wbraid, fbclid, ttclid,
+  msclkid, fbp, fbc, ga_client_id, session_id, utm_*, landing_page, referrer,
+  user_agent, client_ip\`. Lookup do root via \`externalReference =
+  step:<step_key>:<root_order_code>\` ou \`parent_order_code\`.
+- Se a etapa adicional chegar com metadata vazia, o backend (webhook/check-status/
+  reconcile) **completa antes** de chamar \`/track\`.
+- **Idempotência por \`event_id\`** (não por flag global): use tabela
+  \`tracked_events (event_id PRIMARY KEY, root_order_code, step_key, source,
+  tracked_at)\` para suportar N etapas dinâmicas. Para número fixo de etapas,
+  pode usar colunas separadas (\`purchase_tracked_at\`, \`shipping_fee_tracked_at\`,
+  \`upsell_1_tracked_at\`).
+- Como reportar para os ads: para otimizar só pelo principal, trate adicionais como
+  secondary conversion; para LTV/receita total, eventos separados com event_id
+  único e value isolado. **Nunca** duplicar o mesmo Purchase para inflar receita.
 
 A janela de dedupe do CapiTrack é **48h** por \`workspace_id+event_id+provider\` em
 \`event_deliveries\` — então é seguro disparar tanto client-side quanto webhook.
 
-**Idempotência server-side (PIX/boleto)**: use coluna \`purchase_tracked_at TIMESTAMPTZ NULL\`
-no pedido + UPDATE atômico \`WHERE purchase_tracked_at IS NULL\`. Todas as fontes
-(\`pix-webhook\`, \`check-pix-status\`, \`reconcile-pix-payments\`) chamam a mesma função
-\`maybeFirePurchase()\` — só uma ganha a corrida, as outras viram no-op silencioso.
+**Idempotência server-side (PIX/boleto)**: para o pedido principal, use coluna
+\`purchase_tracked_at TIMESTAMPTZ NULL\` + UPDATE atômico \`WHERE purchase_tracked_at
+IS NULL\`. Para etapas adicionais, use a função genérica \`maybeFireStepPurchase\`
+com trava por \`event_id\` na tabela \`tracked_events\`. Todas as fontes (\`pix-webhook\`,
+\`check-pix-status\`, \`reconcile-pix-payments\`) chamam a mesma função — só uma ganha
+a corrida, as outras viram no-op silencioso.
 
 ═══════════════════════════════════════════════
 5) ALTERNATIVA — IMPORTAR CONTAINER GTM (opcional)
@@ -580,21 +602,29 @@ ${cfg.gateway !== "none" ? `1. Faça 1 compra/conversão real
 7. Se for PIX nativo: confirme \`purchase_tracked_source\` no pedido — uma das três:
    \`pix-webhook\`, \`check-pix-status\`, ou \`reconcile-pix\`. Apenas UMA delas vence a corrida.
 8. \`msclkid\` e \`ga_client_id\` aparecem persistidos quando existirem na sessão original.
-9. **Checkout em duas etapas (Pedido principal + TMT/taxa/upsell)** — se aplicável:
-   - [ ] Existem **DOIS** Purchase distintos: \`purchase:<orderCode>\` e \`purchase:<orderCode>:tmt\`.
+9. **Checkout MULTI-ETAPAS (Pedido principal + N pagamentos adicionais)** — se aplicável:
+   - [ ] **Auditoria**: você listou TODAS as etapas pagas do projeto (principal +
+         N adicionais — ex.: taxa de entrega, taxa de manipulação, seguro, upsell,
+         frete express, prioridade, garantia, **TMT** etc.). TMT é apenas exemplo.
+   - [ ] Para CADA etapa, existe um Purchase distinto:
+         principal = \`purchase:<root_order_code>\`,
+         adicionais = \`purchase:<root_order_code>:step:<step_key>\`.
    - [ ] **NÃO** existe Purchase com event_id cru tipo \`EV-...\` (sem prefixo \`purchase:\`).
-   - [ ] **NÃO** existe Purchase com event_id \`purchase:<orderCodeTMT>\` (TMT usando próprio orderCode).
-   - [ ] A TMT carrega \`gclid/msclkid/utm_*/fbp/session_id\` IDÊNTICOS ao do pedido principal.
-   - [ ] \`value\` da TMT = APENAS o valor da taxa (não somado ao do pedido principal).
+   - [ ] **NÃO** existe etapa adicional usando o orderCode dela própria como event_id
+         principal (\`purchase:<orderCodeDaEtapa>\`).
+   - [ ] **Toda etapa adicional** carrega \`gclid/msclkid/utm_*/fbp/session_id\`
+         IDÊNTICOS ao do pedido principal (herança via root).
+   - [ ] \`value\` de cada etapa adicional = APENAS o valor dela (não somado ao principal).
    - [ ] Falha em Google Ads com \`UNPARSEABLE_GCLID\` para gclid de teste sintético é
          **esperada** — não indica bug; confirma apenas que o gclid foi preservado.
 
 - [ ] Eventos no CapiTrack com mesmo event_id = purchase:<order_id>
-- [ ] Meta Events Manager mostra 1 Purchase (não 2)
-- [ ] Google Ads Conversões mostra 1 (não 2)
-- [ ] F5 na thank-you não duplica
+- [ ] Meta Events Manager mostra 1 Purchase (não 2) por etapa
+- [ ] Google Ads Conversões mostra 1 (não 2) por etapa
+- [ ] F5 na thank-you não duplica nenhuma etapa
 - [ ] Reentrega manual de webhook não duplica
-- [ ] (Se aplicável) Pedido principal e TMT aparecem como 2 Purchases separados, sem duplicatas` : "Sem gateway — pular."}
+- [ ] (Se aplicável) Pedido principal e cada etapa adicional aparecem como Purchases
+      separados, com event_ids distintos e sem duplicatas` : "Sem gateway — pular."}
 
 ═══════════════════════════════════════════════
 TESTE 4: PII HASHEADO
