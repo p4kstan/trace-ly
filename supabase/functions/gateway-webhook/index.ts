@@ -21,6 +21,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.103.0";
 import { getRegisteredHandler, getHandler } from "./handlers/_registry.ts";
 import type { NormalizedCustomer, NormalizedOrder } from "./handlers/_types.ts";
 import { sha256, str } from "./handlers/_helpers.ts";
+import { buildCanonicalEventIdentity } from "./handlers/_canonical.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -339,6 +340,40 @@ async function buildHashedCustomer(c: NormalizedCustomer) {
 }
 
 // ════════════════════════════════════════════════════════════
+// Idempotency reservation — atomic insert into `tracked_events`.
+// Returns true when this (workspace, event_id, provider, destination) was
+// reserved for the FIRST time (caller may proceed to enqueue). Returns false
+// when it was already reserved/delivered (caller MUST skip enqueueing to
+// avoid duplicate dispatches across webhook reentries / multiple sources).
+// ════════════════════════════════════════════════════════════
+async function reserveTrackedEvent(opts: {
+  workspaceId: string;
+  eventId: string;
+  provider: string;
+  destination: string;
+  eventName: string;
+  source: string;
+  metadata?: Record<string, unknown>;
+}): Promise<boolean> {
+  const { error } = await supabase.from("tracked_events").insert({
+    workspace_id: opts.workspaceId,
+    event_id: opts.eventId,
+    provider: opts.provider,
+    destination: opts.destination,
+    event_name: opts.eventName,
+    status: "reserved",
+    source: opts.source,
+    metadata_json: opts.metadata || {},
+  });
+  if (!error) return true;
+  // Unique violation = already reserved → skip silently
+  const msg = String(error.message || "").toLowerCase();
+  if (msg.includes("duplicate") || msg.includes("unique")) return false;
+  console.error("[reserveTrackedEvent] insert error:", error);
+  return false;
+}
+
+// ════════════════════════════════════════════════════════════
 // Queue dispatch — Meta CAPI + Google Ads / TikTok / GA4
 // ════════════════════════════════════════════════════════════
 
@@ -353,6 +388,18 @@ async function enqueueForMeta(
   if (!pixels?.length) return;
 
   for (const pixel of pixels) {
+    const reserved = await reserveTrackedEvent({
+      workspaceId, eventId,
+      provider: "meta",
+      destination: pixel.pixel_id,
+      eventName: marketingEvent,
+      source: "gateway-webhook",
+      metadata: { order_id: orderId, gateway: order.gateway },
+    });
+    if (!reserved) {
+      console.log(`[enqueueForMeta] skip already-reserved event=${eventId} dest=${pixel.pixel_id}`);
+      continue;
+    }
     await supabase.from("event_queue").upsert({
       workspace_id: workspaceId, event_id: eventId, order_id: orderId,
       provider: "meta", destination: pixel.pixel_id, status: "queued",
@@ -360,13 +407,12 @@ async function enqueueForMeta(
         marketing_event: marketingEvent,
         order: { total_value: order.total_value, currency: order.currency, external_order_id: order.external_order_id, payment_method: order.payment_method, items: order.items },
         customer: enrichedCustomer,
-        session: sessionData ? { fbp: sessionData.fbp, fbc: sessionData.fbc, ip_hash: sessionData.ip_hash, user_agent: sessionData.user_agent, landing_page: sessionData.landing_page, gclid: sessionData.gclid, ttclid: sessionData.ttclid, ttp: sessionData.ttp, referrer: sessionData.referrer, utm_source: sessionData.utm_source, utm_medium: sessionData.utm_medium, utm_campaign: sessionData.utm_campaign } : null,
-        // Webhook-provided IP/UA as fallback when no session matched
+        session: sessionData ? { fbp: sessionData.fbp, fbc: sessionData.fbc, ip_hash: sessionData.ip_hash, user_agent: sessionData.user_agent, landing_page: sessionData.landing_page, gclid: sessionData.gclid, ttclid: sessionData.ttclid, ttp: sessionData.ttp, referrer: sessionData.referrer, utm_source: sessionData.utm_source, utm_medium: sessionData.utm_medium, utm_campaign: sessionData.utm_campaign, msclkid: sessionData.msclkid } : null,
         webhook_client_ip: order.customer?.ip || null,
         webhook_user_agent: order.customer?.user_agent || null,
         identity_id: identityId,
       },
-    }, { onConflict: "workspace_id,event_id,provider", ignoreDuplicates: true });
+    }, { onConflict: "workspace_id,event_id,provider,destination", ignoreDuplicates: true });
   }
 }
 
@@ -464,7 +510,19 @@ async function enqueueForOtherProviders(
       continue;
     }
 
-    await supabase.from("event_queue").upsert({
+    const reserved = await reserveTrackedEvent({
+      workspaceId, eventId,
+      provider: dest.provider,
+      destination: dest.destination_id || "default",
+      eventName: marketingEvent,
+      source: "gateway-webhook",
+      metadata: { order_id: orderId, gateway: order.gateway, dedup_key: dedupKey },
+    });
+    if (!reserved) {
+      console.log(`[enqueueForOther] skip already-reserved provider=${dest.provider} dest=${dest.destination_id} event=${eventId}`);
+      continue;
+    }
+
       workspace_id: workspaceId, event_id: eventId, order_id: orderId,
       provider: dest.provider, destination: dest.destination_id, status: "queued",
       payload_json: {
@@ -474,12 +532,12 @@ async function enqueueForOtherProviders(
         primary_provider: primaryProvider,
         order: { total_value: order.total_value, currency: order.currency, external_order_id: order.external_order_id, payment_method: order.payment_method, items: order.items },
         customer: enrichedCustomer,
-        session: sessionData ? { fbp: sessionData.fbp, fbc: sessionData.fbc, ip_hash: sessionData.ip_hash, user_agent: sessionData.user_agent, landing_page: sessionData.landing_page, gclid: sessionData.gclid, ttclid: sessionData.ttclid, ttp: sessionData.ttp, gbraid: sessionData.gbraid, wbraid: sessionData.wbraid, referrer: sessionData.referrer, utm_source: sessionData.utm_source, utm_medium: sessionData.utm_medium, utm_campaign: sessionData.utm_campaign, client_id: sessionData.ga_client_id } : null,
+        session: sessionData ? { fbp: sessionData.fbp, fbc: sessionData.fbc, ip_hash: sessionData.ip_hash, user_agent: sessionData.user_agent, landing_page: sessionData.landing_page, gclid: sessionData.gclid, ttclid: sessionData.ttclid, ttp: sessionData.ttp, gbraid: sessionData.gbraid, wbraid: sessionData.wbraid, msclkid: sessionData.msclkid, referrer: sessionData.referrer, utm_source: sessionData.utm_source, utm_medium: sessionData.utm_medium, utm_campaign: sessionData.utm_campaign, client_id: sessionData.ga_client_id } : null,
         webhook_client_ip: order.customer?.ip || null,
         webhook_user_agent: order.customer?.user_agent || null,
         identity_id: identityId,
       },
-    }, { onConflict: "workspace_id,event_id,provider", ignoreDuplicates: true });
+    }, { onConflict: "workspace_id,event_id,provider,destination", ignoreDuplicates: true });
   }
 }
 

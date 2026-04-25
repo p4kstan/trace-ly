@@ -93,6 +93,7 @@ export function extractTrackingFromMetadata(meta: any): NormalizedTracking {
     fbp: get("fbp", "_fbp"),
     fbc: get("fbc", "_fbc"),
     ttclid: get("ttclid"),
+    msclkid: get("msclkid", "msclickid", "ms_clkid"),
     utm_source: get("utm_source", "utmsource", "src"),
     utm_medium: get("utm_medium", "utmmedium"),
     utm_campaign: get("utm_campaign", "utmcampaign", "xcod"),
@@ -109,6 +110,24 @@ export function extractTrackingFromMetadata(meta: any): NormalizedTracking {
       "event_id", "eventid", "trace_event_id", "browser_event_id",
       // Stripe `client_reference_id` is commonly used to carry our event_id.
       "client_reference_id", "clientreferenceid",
+    ),
+    // Multi-step canonical model — main order + N additional payments
+    // (shipping_fee, handling_fee, upsell_1, insurance, priority_fee, warranty, tmt, ...).
+    // Inference fallback in _canonical.ts handles externalReference patterns.
+    root_order_code: get(
+      "root_order_code", "rootordercode", "root_orderid", "root_order_id",
+      "main_order_code", "mainordercode",
+    ),
+    parent_order_code: get(
+      "parent_order_code", "parentordercode", "parent_order_id", "parentorderid",
+    ),
+    main_order_code: get("main_order_code", "mainordercode"),
+    order_code: get("order_code", "ordercode", "ordercodigo"),
+    step_key: get("step_key", "stepkey", "step", "checkout_step", "checkoutstep", "payment_role", "paymentrole"),
+    checkout_step: get("checkout_step", "checkoutstep"),
+    payment_role: get("payment_role", "paymentrole"),
+    external_reference: get(
+      "external_reference", "externalreference", "external_ref", "externalref",
     ),
   };
 }

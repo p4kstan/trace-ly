@@ -35,6 +35,8 @@ export interface NormalizedCustomer {
 export interface NormalizedTracking {
   gclid?: string; gbraid?: string; wbraid?: string;
   fbclid?: string; fbp?: string; fbc?: string; ttclid?: string;
+  /** Microsoft / Bing Click ID (case-sensitive). */
+  msclkid?: string;
   utm_source?: string; utm_medium?: string; utm_campaign?: string;
   utm_content?: string; utm_term?: string;
   landing_page?: string; referrer?: string;
@@ -43,6 +45,16 @@ export interface NormalizedTracking {
   /** Browser-side event_id propagated through checkout metadata.
    *  Critical for browser↔CAPI dedup (Meta/Google Ads). */
   event_id?: string;
+  /** Multi-step canonical model — pedido principal + N pagamentos adicionais.
+   *  All optional; resolved by `_canonical.ts` with safe inference. */
+  root_order_code?: string;
+  parent_order_code?: string;
+  main_order_code?: string;
+  order_code?: string;
+  step_key?: string;
+  checkout_step?: string;
+  payment_role?: string;
+  external_reference?: string;
 }
 
 export interface NormalizedOrder {
