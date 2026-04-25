@@ -63,6 +63,8 @@ const RateLimitConfigs = lazy(() => import("@/pages/RateLimitConfigs"));
 const AuditLogViewer = lazy(() => import("@/pages/AuditLogViewer"));
 const PiiReleaseReport = lazy(() => import("@/pages/PiiReleaseReport"));
 const ReleaseReport = lazy(() => import("@/pages/ReleaseReport"));
+const RlsWarningsPanel = lazy(() => import("@/pages/RlsWarningsPanel"));
+const GatewayDocs = lazy(() => import("@/pages/GatewayDocs"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
