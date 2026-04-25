@@ -4295,6 +4295,99 @@ export type Database = {
         }
         Relationships: []
       }
+      queue_health_alerts: {
+        Row: {
+          acknowledged: boolean
+          acknowledged_at: string | null
+          alert_type: string
+          created_at: string
+          destination: string
+          first_seen_at: string
+          id: string
+          last_seen_at: string
+          message: string | null
+          metric_value: number | null
+          occurrences: number
+          provider: string
+          severity: string
+          window_minutes: number
+          workspace_id: string
+        }
+        Insert: {
+          acknowledged?: boolean
+          acknowledged_at?: string | null
+          alert_type: string
+          created_at?: string
+          destination?: string
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          message?: string | null
+          metric_value?: number | null
+          occurrences?: number
+          provider?: string
+          severity?: string
+          window_minutes?: number
+          workspace_id: string
+        }
+        Update: {
+          acknowledged?: boolean
+          acknowledged_at?: string | null
+          alert_type?: string
+          created_at?: string
+          destination?: string
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          message?: string | null
+          metric_value?: number | null
+          occurrences?: number
+          provider?: string
+          severity?: string
+          window_minutes?: number
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      rate_limit_buckets: {
+        Row: {
+          created_at: string
+          hits: number
+          id: string
+          ip_hash: string
+          route: string
+          updated_at: string
+          user_id: string | null
+          window_seconds: number
+          window_start: string
+          workspace_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          hits?: number
+          id?: string
+          ip_hash?: string
+          route: string
+          updated_at?: string
+          user_id?: string | null
+          window_seconds?: number
+          window_start: string
+          workspace_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          hits?: number
+          id?: string
+          ip_hash?: string
+          route?: string
+          updated_at?: string
+          user_id?: string | null
+          window_seconds?: number
+          window_start?: string
+          workspace_id?: string | null
+        }
+        Relationships: []
+      }
       realtime_metrics: {
         Row: {
           id: string
@@ -4365,6 +4458,36 @@ export type Database = {
           provider?: string | null
           reconciliation_type?: string
           status?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      retention_policies: {
+        Row: {
+          audit_log_days: number
+          created_at: string
+          dead_letter_days: number
+          delivered_days: number
+          retry_days: number
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          audit_log_days?: number
+          created_at?: string
+          dead_letter_days?: number
+          delivered_days?: number
+          retry_days?: number
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          audit_log_days?: number
+          created_at?: string
+          dead_letter_days?: number
+          delivered_days?: number
+          retry_days?: number
+          updated_at?: string
           workspace_id?: string
         }
         Relationships: []
@@ -4892,6 +5015,7 @@ export type Database = {
     }
     Functions: {
       cleanup_expired_ga4_cache: { Args: never; Returns: number }
+      cleanup_rate_limit_buckets: { Args: never; Returns: number }
       compute_attribution: {
         Args: {
           _conversion_id: string
@@ -4939,6 +5063,30 @@ export type Database = {
       is_workspace_member: {
         Args: { _user_id: string; _workspace_id: string }
         Returns: boolean
+      }
+      rate_limit_hit: {
+        Args: {
+          _ip_hash: string
+          _max_hits?: number
+          _route: string
+          _user_id: string
+          _window_seconds?: number
+          _workspace_id: string
+        }
+        Returns: Json
+      }
+      upsert_queue_health_alert: {
+        Args: {
+          _alert_type: string
+          _destination: string
+          _message: string
+          _metric_value: number
+          _provider: string
+          _severity: string
+          _window_minutes?: number
+          _workspace_id: string
+        }
+        Returns: string
       }
     }
     Enums: {

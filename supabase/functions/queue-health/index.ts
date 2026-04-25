@@ -148,6 +148,56 @@ Deno.serve(async (req) => {
     status = "critical";
   }
 
+  // ── Internal alerts (deduped, no external dispatch) ────────────────
+  // Generate per-condition; the upsert RPC dedups by (ws, provider,
+  // destination, alert_type) within the configured window.
+  const alertOps: Promise<unknown>[] = [];
+  const upsertAlert = (
+    provider: string, destination: string, alertType: string,
+    severity: "warn" | "critical", value: number, message: string,
+  ) => {
+    alertOps.push(
+      supabase.rpc("upsert_queue_health_alert", {
+        _workspace_id: workspace_id,
+        _provider: provider,
+        _destination: destination,
+        _alert_type: alertType,
+        _severity: severity,
+        _metric_value: value,
+        _message: message,
+        _window_minutes: 15,
+      }),
+    );
+  };
+
+  if (status !== "ok") {
+    upsertAlert("all", "all", "queue_status_" + status,
+      status === "critical" ? "critical" : "warn",
+      dead_letter_count + retry_total,
+      `queue health=${status} dl=${dead_letter_count} retry=${retry_total}`);
+  }
+  for (const g of groupsArr) {
+    if (g.dead_letter > 0) {
+      upsertAlert(g.provider, g.destination, "dead_letter_present",
+        g.dead_letter > 25 ? "critical" : "warn", g.dead_letter,
+        `dead_letter=${g.dead_letter} on ${g.provider}/${g.destination}`);
+    }
+    if (g.oldest_retry_age_ms > 30 * 60_000) {
+      upsertAlert(g.provider, g.destination, "retry_aging",
+        g.oldest_retry_age_ms > 4 * 60 * 60_000 ? "critical" : "warn",
+        Math.round(g.oldest_retry_age_ms / 60_000),
+        `retry oldest=${Math.round(g.oldest_retry_age_ms / 60_000)}min`);
+    }
+    if (g.oldest_queued_age_ms > 15 * 60_000) {
+      upsertAlert(g.provider, g.destination, "queued_aging",
+        g.oldest_queued_age_ms > 60 * 60_000 ? "critical" : "warn",
+        Math.round(g.oldest_queued_age_ms / 60_000),
+        `queued oldest=${Math.round(g.oldest_queued_age_ms / 60_000)}min`);
+    }
+  }
+  // Best-effort — never block the response on alert writes.
+  await Promise.allSettled(alertOps);
+
   return new Response(JSON.stringify({
     status,
     window: { queue_days: 7, dead_letter_hours: 24 },
