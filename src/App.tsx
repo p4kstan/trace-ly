@@ -142,6 +142,7 @@ function ProtectedRoutes() {
           <Route path="/traffic-agent" element={<TrafficAgent />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </RouteErrorBoundary>
       </Suspense>
     </DashboardLayout>
   );
