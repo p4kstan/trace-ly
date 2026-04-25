@@ -715,6 +715,76 @@ export default function DataReuseCenter() {
               ))}
             </CardContent>
           </Card>
+
+          {/* MULTI-RULE REPORT (Passo S) */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Cog className="h-4 w-4 text-primary" /> Multi-rule simulator (Passo S)
+              </CardTitle>
+              <CardDescription>
+                Itera todas as <code>automation_rules</code> aplicáveis ao workspace e agrupa por
+                regra/outcome. Auto continua bloqueado sem <code>guardrails.auto_enabled=true</code>{" "}
+                e <code>execution_mode=auto</code>.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <StatBlock label="Inspecionadas" value={multiRuleReport.inspected_rules} />
+                <StatBlock label="Aplicáveis" value={multiRuleReport.applicable_rules} />
+                <StatBlock label="Permitidas" value={multiRuleReport.by_outcome.allowed} />
+                <StatBlock
+                  label="Bloqueadas"
+                  value={
+                    multiRuleReport.by_outcome.blocked +
+                    multiRuleReport.by_outcome.auto_blocked
+                  }
+                />
+              </div>
+              {multiRuleReport.empty ? (
+                <p className="text-sm text-muted-foreground">
+                  Nenhuma <code>automation_rule</code> cadastrada — usando simulação sintética acima.
+                </p>
+              ) : (
+                <ul className="mt-2 space-y-1.5">
+                  {multiRuleReport.entries.map((e) => (
+                    <li
+                      key={e.rule_id}
+                      className="rounded border border-border/40 px-3 py-2 flex items-start justify-between gap-2"
+                    >
+                      <div>
+                        <div className="font-medium text-sm">
+                          {e.rule_name ?? e.rule_id}
+                        </div>
+                        {e.result.reasons.length > 0 && (
+                          <div className="text-[11px] text-muted-foreground">
+                            {e.result.reasons.join(" · ")}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <Badge
+                          variant={
+                            e.result.outcome === "allowed" ? "default" :
+                            e.result.outcome === "needs_review" ? "secondary" :
+                            "destructive"
+                          }
+                          className="text-[10px]"
+                        >
+                          {e.result.outcome}
+                        </Badge>
+                        {e.is_auto_attempt && (
+                          <Badge variant="outline" className="text-[10px]">
+                            tentativa auto
+                          </Badge>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
