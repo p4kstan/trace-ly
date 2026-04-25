@@ -179,7 +179,7 @@ async function reconcile(
   let sessionData: any = null;
   if (identityId) {
     const { data } = await supabase.from("sessions")
-      .select("id, utm_source, utm_medium, utm_campaign, utm_content, utm_term, fbp, fbc, fbclid, gclid, gbraid, wbraid, ttclid, landing_page, referrer, ip_hash, user_agent")
+      .select("id, utm_source, utm_medium, utm_campaign, utm_content, utm_term, fbp, fbc, fbclid, gclid, gbraid, wbraid, ttclid, landing_page, referrer, ip_hash, client_ip, user_agent, ga_client_id")
       .eq("workspace_id", workspaceId).eq("identity_id", identityId)
       .order("created_at", { ascending: false }).limit(1).single();
     if (data) { sessionId = data.id; sessionData = data; }
