@@ -1,4 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.103.0";
+import { installSafeConsole } from "../_shared/install-safe-console.ts";
+
+installSafeConsole("process-events");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
