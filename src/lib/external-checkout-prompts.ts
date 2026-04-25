@@ -351,22 +351,38 @@ O CapiTrack:
 7. Dispara para Meta CAPI / Google Ads CAPI / TikTok / GA4 — deduplicando contra
    o evento browser pelo \`event_id\`.
 
-## 5. Mapear order_id/transaction_id de forma estável
+## 5. Mapear order_id/transaction_id de forma estável (multi-etapas)
 - O \`order_id\` que você usa no \`event_id\` deve ser o **MESMO** entre:
   - Querystring da thank-you page (ex: \`?order_id=123\`)
   - Campo \`${m.orderIdField}\` do payload do webhook
   - ID que o cliente vê no e-mail/recibo
 - \`transaction_id\` (ID da transação no gateway interno da ${m.label}) é **separado**
   e vai num campo próprio do payload — não troque pelo \`order_id\`.
-- Para vendas com upsell/order-bump (TMT), use \`event_id = purchase:<order_id>:tmt\`.
+- **Multi-etapas (genérico, sem nome fixo)**: se o checkout cobra mais de uma transação
+  (ex.: taxa de entrega, taxa de manipulação, seguro, frete express, prioridade,
+  garantia, upsell, complemento, **TMT** etc. — pode haver 2, 3, 5+ etapas com
+  qualquer nome de página/rota), use:
+  - **Pedido principal** → \`event_id = purchase:<root_order_code>\`
+  - **Cada etapa adicional** → \`event_id = purchase:<root_order_code>:step:<step_key>\`
+    onde \`step_key\` é estável e sem PII (\`shipping_fee\`, \`handling_fee\`, \`upsell_1\`,
+    \`insurance\`, \`priority_fee\`, \`warranty\`, \`tmt\`...). **Nunca** dependa de uma
+    página chamada "TMT" — descubra dinamicamente todas as etapas pagas no projeto.
+  - O \`root_order_code\` deve ser **herdado** em toda etapa adicional (lookup pelo
+    \`externalReference\`/\`parent_order_code\`). \`value\` de cada etapa é **isolado**,
+    sem somar o pedido principal.
+- Sempre propague no payload: \`gclid\`, \`gbraid\`, \`wbraid\`, \`fbclid\`, \`fbp\`, \`fbc\`,
+  \`ttclid\`, **\`msclkid\`**, \`ga_client_id\`, \`session_id\`, \`utm_*\`, \`landing_page\`,
+  \`referrer\`, \`user_agent\`, \`client_ip\` (este último capturado server-side).
 
 ## ⚠️ Regras críticas (Fluxo Final Validado — 04/2026)
-1. **\`event_id = purchase:<order_id>\`** — mesmo formato em browser e webhook.
-2. **Webhook é a fonte de verdade**. Browser/thank-you é reforço opcional.
-3. **Dedup automático**: 48h em \`event_deliveries\` por \`workspace_id+event_id+provider\`.
-4. **Click IDs case-sensitive**: nunca aplique \`.toLowerCase()\` em gclid/fbclid/etc.
-5. **Sem PII em logs**: CPF/e-mail/telefone/endereço/QR ficam server-to-server.
-6. **HMAC obrigatório**: configure o secret de webhook no painel de integrações
+1. **Principal: \`event_id = purchase:<root_order_code>\`** (mesmo formato em browser e webhook).
+2. **Etapas adicionais: \`event_id = purchase:<root_order_code>:step:<step_key>\`** — referenciam
+   sempre o root, nunca o orderCode da própria etapa.
+3. **Webhook é a fonte de verdade**. Browser/thank-you é reforço opcional.
+4. **Dedup automático**: 48h em \`event_deliveries\` por \`workspace_id+event_id+provider+destination\`.
+5. **Click IDs case-sensitive**: nunca aplique \`.toLowerCase()\` em gclid/fbclid/msclkid/etc.
+6. **Sem PII em logs**: CPF/e-mail/telefone/endereço/QR ficam server-to-server.
+7. **HMAC obrigatório**: configure o secret de webhook no painel de integrações
    do CapiTrack — webhooks sem assinatura válida são rejeitados.
 
 ## Validação
