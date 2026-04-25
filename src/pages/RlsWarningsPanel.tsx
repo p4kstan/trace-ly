@@ -115,11 +115,11 @@ export default function RlsWarningsPanel() {
             </div>
           </div>
           {status === "skipped" && (
-            <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-amber-800 dark:text-amber-200 text-xs flex items-start gap-2">
-              <ServerCrash className="h-4 w-4 mt-0.5" />
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-foreground text-xs flex items-start gap-2">
+              <ServerCrash className="h-4 w-4 mt-0.5 text-destructive" />
               <div>
                 <strong>RLS semantic audit unavailable.</strong> A última execução não encontrou
-                <code className="mx-1 px-1 py-0.5 rounded bg-amber-500/20">PGHOST</code>
+                <code className="mx-1 px-1 py-0.5 rounded bg-muted">PGHOST</code>
                 no ambiente de CI. Configure as variáveis <code>PGHOST</code>/<code>PGUSER</code>/<code>PGPASSWORD</code>
                 no runner para reativar o audit semântico — o linter de schema continua ativo.
               </div>
