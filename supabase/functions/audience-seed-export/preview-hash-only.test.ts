@@ -45,7 +45,7 @@ describe("audience-seed-export :: preview hash-only guard (Passo O)", () => {
   });
 
   it("real-export path defaults require_consent to TRUE", () => {
-    expect(SOURCE).toMatch(/require_consent\s*=\s*body\.require_consent\s*!==\s*false/);
+    expect(SOURCE).toMatch(/requireConsent\s*=\s*body\.require_consent\s*!==\s*false/);
   });
 
   it("never console.logs raw email / phone / cpf in any branch", () => {
