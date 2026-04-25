@@ -13,9 +13,10 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import {
   Wand2, Copy, Search, Wrench, CheckCircle2, ShoppingBag, GraduationCap,
-  Cloud, Users, UtensilsCrossed, Store, Briefcase, Sparkles, Info, HelpCircle, Bot, ShoppingCart,
+  Cloud, Users, UtensilsCrossed, Store, Briefcase, Sparkles, Info, HelpCircle, Bot, ShoppingCart, Globe,
 } from "lucide-react";
 import { NativeCheckoutBuilder } from "@/components/setup/NativeCheckoutBuilder";
+import { ExternalCheckoutBuilder } from "@/components/setup/ExternalCheckoutBuilder";
 import {
   BUSINESS_PROFILES, generateAuditPrompt, generateFixPrompt, generateValidationPrompt,
   type BusinessType, type Gateway, type Platform, type ProjectConfig, type TargetAI,
@@ -283,7 +284,7 @@ export default function PromptGenerator() {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="audit">
-            <TabsList className="bg-muted/30">
+            <TabsList className="bg-muted/30 flex-wrap h-auto">
               <TabsTrigger value="audit">
                 <Search className="w-3.5 h-3.5 mr-1" /> 1. Auditoria
               </TabsTrigger>
@@ -295,6 +296,9 @@ export default function PromptGenerator() {
               </TabsTrigger>
               <TabsTrigger value="native">
                 <ShoppingCart className="w-3.5 h-3.5 mr-1" /> 4. Checkout Nativo
+              </TabsTrigger>
+              <TabsTrigger value="external">
+                <Globe className="w-3.5 h-3.5 mr-1" /> 5. Checkout Externo
               </TabsTrigger>
             </TabsList>
 
@@ -332,14 +336,29 @@ export default function PromptGenerator() {
               <Alert className="border-primary/20 bg-primary/5">
                 <ShoppingCart className="w-4 h-4" />
                 <AlertDescription className="text-xs">
-                  Use SEMPRE que o checkout for próprio (PIX, cartão, boleto, assinatura).
-                  3 modos: <strong>Wizard</strong> (rápido por gateway+métodos), <strong>IA</strong> (analisa seu código real),
-                  <strong> Template</strong> (cobre todos os métodos do gateway escolhido).
+                  Use quando o checkout é <strong>próprio</strong> — meu site cria o pedido (PIX, cartão, boleto, assinatura).
+                  Inclui webhook + check-status + reconcile-pix com idempotência atômica.
                 </AlertDescription>
               </Alert>
               <NativeCheckoutBuilder
                 publicKey={config.publicKey}
                 endpoint={config.endpoint}
+                supabaseUrl={supabaseUrl}
+              />
+            </TabsContent>
+
+            <TabsContent value="external" className="mt-4 space-y-3">
+              <Alert className="border-primary/20 bg-primary/5">
+                <Globe className="w-4 h-4" />
+                <AlertDescription className="text-xs">
+                  Use quando o cliente <strong>sai do seu site</strong> para pagar (Yampi, Shopify, WooCommerce,
+                  Hotmart, Kiwify, Eduzz, Monetizze etc.). Foco em webhook/postback + UTMs + dedup.
+                </AlertDescription>
+              </Alert>
+              <ExternalCheckoutBuilder
+                publicKey={config.publicKey}
+                endpoint={config.endpoint}
+                supabaseUrl={supabaseUrl}
               />
             </TabsContent>
           </Tabs>
