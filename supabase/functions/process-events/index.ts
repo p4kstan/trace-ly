@@ -512,7 +512,8 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const { workspace_id, limit = 200 } = body;
+    const { workspace_id, limit = 200, test_mode = false, dry_run = false } = body;
+    const globalTestMode = test_mode === true || dry_run === true;
 
     let query = supabase.from("event_queue")
       .select("*")
@@ -572,10 +573,10 @@ Deno.serve(async (req) => {
 
     await Promise.all([
       processInParallel(metaEntries, CONCURRENCY, async ([pixelKey, items]) => {
-        await processMetaBatch(pixelKey, items, pixelCache, stats);
+        await processMetaBatch(pixelKey, items, pixelCache, stats, globalTestMode);
       }),
       processInParallel(nonMetaEntries, CONCURRENCY, async ({ provider, workspaceId, destination, items }) => {
-        await processNonMetaBatch(provider, workspaceId, destination, items, destCache, stats);
+        await processNonMetaBatch(provider, workspaceId, destination, items, destCache, stats, globalTestMode);
       }),
     ]);
 
