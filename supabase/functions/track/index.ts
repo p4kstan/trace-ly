@@ -288,19 +288,14 @@ Deno.serve(async (req) => {
     let sessionId: string | null = null;
     if (sessionResult.data) {
       sessionId = sessionResult.data.id;
-      if (
-        (sanitizedGclid && !sessionResult.data.gclid) ||
-        (sanitizedGbraid && !sessionResult.data.gbraid) ||
-        (sanitizedWbraid && !sessionResult.data.wbraid)
-      ) {
-        await supabase
-          .from("sessions")
-          .update({
-            ...(sanitizedGclid && !sessionResult.data.gclid ? { gclid: sanitizedGclid } : {}),
-            ...(sanitizedGbraid && !sessionResult.data.gbraid ? { gbraid: sanitizedGbraid } : {}),
-            ...(sanitizedWbraid && !sessionResult.data.wbraid ? { wbraid: sanitizedWbraid } : {}),
-          })
-          .eq("id", sessionId);
+      const sessionUpdate: Record<string, any> = {};
+      if (sanitizedGclid && !sessionResult.data.gclid) sessionUpdate.gclid = sanitizedGclid;
+      if (sanitizedGbraid && !sessionResult.data.gbraid) sessionUpdate.gbraid = sanitizedGbraid;
+      if (sanitizedWbraid && !sessionResult.data.wbraid) sessionUpdate.wbraid = sanitizedWbraid;
+      if (gaClientId && !sessionResult.data.ga_client_id) sessionUpdate.ga_client_id = gaClientId;
+      if (ip && ip !== "unknown" && !sessionResult.data.client_ip) sessionUpdate.client_ip = ip;
+      if (Object.keys(sessionUpdate).length > 0) {
+        await supabase.from("sessions").update(sessionUpdate).eq("id", sessionId);
       }
     } else {
       const { data: newSession } = await supabase
@@ -309,7 +304,9 @@ Deno.serve(async (req) => {
           workspace_id: workspaceId,
           identity_id: identityId,
           ip_hash: ipHash,
+          client_ip: ip && ip !== "unknown" ? ip : null,
           user_agent: userAgent,
+          ga_client_id: gaClientId,
           referrer: body.referrer || null,
           landing_page: body.url || body.landing_page || null,
           utm_source: body.utm_source || body.utm?.utm_source || null,
