@@ -44,7 +44,7 @@ class FakeStore {
 
   /** Mimics: ON CONFLICT (workspace_id, event_id, provider, destination) DO NOTHING
    *  scoped to active statuses (queued|processing|retry). */
-  enqueue(row: Omit<QueueRow, "id" | "attempt_count" | "max_attempts" | "next_retry_at" | "last_error" | "status">) {
+  enqueue(row: { workspace_id: string; event_id: string; provider: string; destination: string }) {
     const exists = this.queue.find(q =>
       q.workspace_id === row.workspace_id &&
       q.event_id === row.event_id &&
@@ -105,17 +105,28 @@ class FakeStore {
 
 function makeOrder(overrides: Partial<NormalizedOrder> = {}): NormalizedOrder {
   return {
+    gateway: "hotmart",
     external_order_id: "EV-20260425-XYZ",
-    external_payment_id: null,
     status: "paid",
     total_value: 100,
     currency: "BRL",
     customer: {},
     items: [],
     tracking: {},
-    raw: {},
+    raw_payload: {},
     ...overrides,
   } as NormalizedOrder;
+}
+
+function buildId(order: NormalizedOrder, opts: Partial<Parameters<typeof buildCanonicalEventIdentity>[0]> = {}) {
+  return buildCanonicalEventIdentity({
+    order,
+    eventName: "Purchase",
+    internalEvent: "order_paid",
+    provider: "hotmart",
+    externalEventId: null,
+    ...opts,
+  });
 }
 
 const WS = "00000000-0000-0000-0000-000000000001";
@@ -126,11 +137,8 @@ describe("canonical flow — multi-step + multi-destination dedup", () => {
   beforeEach(() => { store = new FakeStore(); });
 
   it("main purchase + extra step produce two distinct queue rows", () => {
-    const main = buildCanonicalEventIdentity(makeOrder(), { provider: "hotmart" });
-    const step = buildCanonicalEventIdentity(
-      makeOrder({ raw: { step_key: "shipping_fee" } as any }),
-      { provider: "hotmart" }
-    );
+    const main = buildId(makeOrder());
+    const step = buildId(makeOrder({ tracking: { step_key: "shipping_fee" } }));
     expect(main.eventId).toBe("purchase:EV-20260425-XYZ");
     expect(step.eventId).toBe("purchase:EV-20260425-XYZ:step:shipping_fee");
 
@@ -140,7 +148,7 @@ describe("canonical flow — multi-step + multi-destination dedup", () => {
   });
 
   it("same provider + multiple destinations does NOT collapse", () => {
-    const id = buildCanonicalEventIdentity(makeOrder(), { provider: "hotmart" }).eventId;
+    const id = buildId(makeOrder()).eventId;
     store.enqueue({ workspace_id: WS, event_id: id, provider: "google_ads", destination: "CID-100" });
     store.enqueue({ workspace_id: WS, event_id: id, provider: "google_ads", destination: "CID-200" });
     store.enqueue({ workspace_id: WS, event_id: id, provider: "google_ads", destination: "CID-300" });
@@ -149,7 +157,7 @@ describe("canonical flow — multi-step + multi-destination dedup", () => {
   });
 
   it("webhook redelivery is idempotent per destination", () => {
-    const id = buildCanonicalEventIdentity(makeOrder(), { provider: "hotmart" }).eventId;
+    const id = buildId(makeOrder()).eventId;
     const r1 = store.enqueue({ workspace_id: WS, event_id: id, provider: "meta_capi", destination: "PIX-1" });
     const r2 = store.enqueue({ workspace_id: WS, event_id: id, provider: "meta_capi", destination: "PIX-1" });
     const r3 = store.enqueue({ workspace_id: WS, event_id: id, provider: "meta_capi", destination: "PIX-1" });
@@ -160,9 +168,8 @@ describe("canonical flow — multi-step + multi-destination dedup", () => {
   });
 
   it("F5 / browser-duplicate event_id is treated as same canonical id", () => {
-    // Browser sends purchase:EV-20260425-XYZ via SDK; webhook later reprocesses.
     const browserId = "purchase:EV-20260425-XYZ";
-    const webhookId = buildCanonicalEventIdentity(makeOrder(), { provider: "hotmart" }).eventId;
+    const webhookId = buildId(makeOrder()).eventId;
     expect(browserId).toBe(webhookId);
     store.enqueue({ workspace_id: WS, event_id: browserId, provider: "ga4", destination: "G-AAA" });
     store.enqueue({ workspace_id: WS, event_id: webhookId, provider: "ga4", destination: "G-AAA" });
@@ -170,7 +177,7 @@ describe("canonical flow — multi-step + multi-destination dedup", () => {
   });
 
   it("one destination failing does NOT block another destination delivery", () => {
-    const id = buildCanonicalEventIdentity(makeOrder(), { provider: "hotmart" }).eventId;
+    const id = buildId(makeOrder()).eventId;
     const a = store.enqueue({ workspace_id: WS, event_id: id, provider: "google_ads", destination: "CID-A" }).row;
     const b = store.enqueue({ workspace_id: WS, event_id: id, provider: "google_ads", destination: "CID-B" }).row;
 
@@ -189,7 +196,7 @@ describe("canonical flow — multi-step + multi-destination dedup", () => {
   });
 
   it("retry → backoff → dead_letter after max_attempts per destination", () => {
-    const id = buildCanonicalEventIdentity(makeOrder(), { provider: "hotmart" }).eventId;
+    const id = buildId(makeOrder()).eventId;
     const r = store.enqueue({ workspace_id: WS, event_id: id, provider: "tiktok", destination: "TT-1" }).row;
 
     for (let i = 0; i < 5; i++) store.fail(r.id, `fail ${i}`);
@@ -202,8 +209,8 @@ describe("canonical flow — multi-step + multi-destination dedup", () => {
     expect(tracked.status).toBe("dead_letter");
   });
 
-  it("delivered destination is NOT re-enqueued on webhook redelivery (active-only constraint)", () => {
-    const id = buildCanonicalEventIdentity(makeOrder(), { provider: "hotmart" }).eventId;
+  it("delivered destination keeps single tracked row on webhook redelivery", () => {
+    const id = buildId(makeOrder()).eventId;
     const r = store.enqueue({ workspace_id: WS, event_id: id, provider: "meta_capi", destination: "PIX-1" }).row;
     store.markDelivered(r.id);
     // Webhook redelivery: active-only unique constraint allows re-enqueue,
@@ -213,6 +220,6 @@ describe("canonical flow — multi-step + multi-destination dedup", () => {
     const trackedRows = store.tracked.filter(t =>
       t.event_id === id && t.provider === "meta_capi" && t.destination === "PIX-1"
     );
-    expect(trackedRows).toHaveLength(1); // single audit row, status flipped
+    expect(trackedRows).toHaveLength(1);
   });
 });
