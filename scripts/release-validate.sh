@@ -154,13 +154,15 @@ ok "Passo I controls wired"
 log "4i/7  No CRON_SECRET / app.cron_secret value exposure in client/logs"
 # Frontend must never read or display CRON_SECRET. The diag RPC only
 # returns a boolean — never the value.
-if grep -RnE 'CRON_SECRET|cron_secret\s*[:=]' src 2>/dev/null \
-    | grep -vE '(cron_secret_configured|app\.cron_secret\b|//|/\*)' \
-    | grep -v 'RetryObservability.tsx' >/dev/null 2>&1; then
+# Allow-list: prompt templates that document Edge Function snippets are not
+# executed in the browser. They live under src/lib/*-prompts.ts.
+PII_SECRET_HITS=$(grep -RnE 'CRON_SECRET|cron_secret\s*[:=]' src 2>/dev/null \
+  | grep -vE '(cron_secret_configured|app\.cron_secret\b|//|/\*)' \
+  | grep -vE 'src/lib/.*-prompts\.ts' \
+  | grep -v 'RetryObservability.tsx' || true)
+if [ -n "$PII_SECRET_HITS" ]; then
   echo "Suspicious CRON_SECRET reference in src/:"
-  grep -RnE 'CRON_SECRET|cron_secret\s*[:=]' src 2>/dev/null \
-    | grep -vE '(cron_secret_configured|app\.cron_secret\b|//|/\*)' \
-    | grep -v 'RetryObservability.tsx'
+  echo "$PII_SECRET_HITS"
   fail "Remove CRON_SECRET reference from frontend"
 fi
 # RPC must NOT return the actual secret value.
