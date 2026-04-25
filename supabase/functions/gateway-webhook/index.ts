@@ -206,7 +206,7 @@ async function lookupClickIdsByOrder(
   if (externalOrderId) {
     const { data } = await supabase
       .from("orders")
-      .select("gclid, fbclid, ttclid, fbp, fbc, utm_source, utm_medium, utm_campaign, utm_term, utm_content, landing_page, user_agent, ip_address")
+      .select("gclid, fbclid, ttclid, fbp, fbc, utm_source, utm_medium, utm_campaign, utm_term, utm_content, landing_page, user_agent, client_ip, ga_client_id")
       .eq("workspace_id", workspaceId)
       .eq("gateway_order_id", externalOrderId)
       .order("created_at", { ascending: false })
@@ -219,7 +219,7 @@ async function lookupClickIdsByOrder(
         utm_source: data.utm_source, utm_medium: data.utm_medium,
         utm_campaign: data.utm_campaign, utm_term: data.utm_term, utm_content: data.utm_content,
         landing_page: data.landing_page, user_agent: data.user_agent,
-        ip_hash: data.ip_address,
+        client_ip: data.client_ip, ga_client_id: data.ga_client_id,
         _retro_source: "orders.external_id",
       };
     }
