@@ -348,5 +348,29 @@ else
   info "Semantic RLS audit skipped — PGHOST not set"
 fi
 
+# ─── 10. Passo M — Go-live certification, adapter contracts, release report ──
+log "10/10 Passo M controls (go-live checks, adapter contracts, release report, prompt sync)"
+[ -f src/lib/go-live-checks.ts ] || fail "MISSING src/lib/go-live-checks.ts"
+[ -f src/lib/go-live-checks.test.ts ] || fail "MISSING go-live-checks.test.ts"
+[ -f src/lib/gateway-adapter-contracts.ts ] || fail "MISSING gateway-adapter-contracts.ts"
+[ -f src/lib/gateway-adapter-contracts.test.ts ] || fail "MISSING gateway-adapter-contracts.test.ts"
+[ -f src/pages/ReleaseReport.tsx ] || fail "MISSING src/pages/ReleaseReport.tsx"
+grep -q "/release-report" src/App.tsx || fail "/release-report route not wired"
+grep -q "/release-report" src/components/AppSidebar.tsx || fail "/release-report missing from sidebar"
+# Prompt generators must include the Passo M sync block.
+grep -q "PASSO_M_HARDENING_BLOCK" src/lib/native-checkout-prompts.ts \
+  || fail "native prompt generator missing Passo M sync block"
+grep -q "PASSO_M_HARDENING_BLOCK" src/lib/external-checkout-prompts.ts \
+  || fail "external prompt generator missing Passo M sync block"
+grep -q '\${PASSO_M_HARDENING_BLOCK}' src/lib/native-checkout-prompts.ts \
+  || fail "native prompt generator must INTERPOLATE PASSO_M_HARDENING_BLOCK"
+grep -q '\${PASSO_M_HARDENING_BLOCK}' src/lib/external-checkout-prompts.ts \
+  || fail "external prompt generator must INTERPOLATE PASSO_M_HARDENING_BLOCK"
+# Release report must remain static (no live data queries).
+if grep -nE 'from\s*\(\s*"(orders|identities|profiles|workspace_members|event_deliveries|audit_logs)"' src/pages/ReleaseReport.tsx >/dev/null 2>&1; then
+  fail "ReleaseReport must remain static — no live-data queries"
+fi
+ok "Passo M controls wired"
+
 echo ""
 ok "RELEASE VALIDATION PASSED"

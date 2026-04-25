@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, GitBranch, MonitorDot, ScrollText, Bug, Settings,
   Zap, Brain, CreditCard, HeartPulse, Key, LogOut, ShoppingCart, Webhook, Inbox, BookOpen, Cpu, Gauge,
-  Shield, TrendingUp, Lightbulb, Filter, Radio, Send, Code, FileText, HelpCircle, Layers, BarChart3, Wand2,
+  Shield, ShieldCheck, TrendingUp, Lightbulb, Filter, Radio, Send, Code, FileText, HelpCircle, Layers, BarChart3, Wand2,
   Megaphone, Music2, Copy,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
@@ -86,6 +86,7 @@ const logsItems = [
   { title: "Rate-limit", url: "/rate-limit-configs", icon: Shield },
   { title: "Audit Log", url: "/audit-logs", icon: ScrollText },
   { title: "Relatório PII", url: "/pii-release-report", icon: Shield },
+  { title: "Relatório de Release", url: "/release-report", icon: ShieldCheck },
   { title: "Saúde do Sistema", url: "/system-diagnostic", icon: HeartPulse },
 ];
 
