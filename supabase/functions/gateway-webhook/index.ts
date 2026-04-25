@@ -119,7 +119,9 @@ async function verifySignature(
       || req.headers.get("x-signature")
       || req.headers.get("x-hub-signature-256")
       || "";
-    if (!sig) return { valid: true, reason: "no_signature_header" };
+    // When a secret IS configured, we MUST require a signature header.
+    // Silently accepting unsigned requests would defeat the whole purpose.
+    if (!sig) return { valid: false, reason: "missing_signature_header_with_secret_configured" };
     const sigBytes = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(rawBody)));
     const computed = Array.from(sigBytes).map((b) => b.toString(16).padStart(2, "0")).join("");
     const normalized = sig.replace(/^sha256=/, "");
@@ -177,7 +179,7 @@ async function reconcile(
   let sessionData: any = null;
   if (identityId) {
     const { data } = await supabase.from("sessions")
-      .select("id, utm_source, utm_medium, utm_campaign, utm_content, utm_term, fbp, fbc, fbclid, gclid, gbraid, wbraid, ttclid, landing_page, referrer, ip_hash, user_agent")
+      .select("id, utm_source, utm_medium, utm_campaign, utm_content, utm_term, fbp, fbc, fbclid, gclid, gbraid, wbraid, ttclid, landing_page, referrer, ip_hash, client_ip, user_agent, ga_client_id")
       .eq("workspace_id", workspaceId).eq("identity_id", identityId)
       .order("created_at", { ascending: false }).limit(1).single();
     if (data) { sessionId = data.id; sessionData = data; }
@@ -204,7 +206,7 @@ async function lookupClickIdsByOrder(
   if (externalOrderId) {
     const { data } = await supabase
       .from("orders")
-      .select("gclid, fbclid, ttclid, fbp, fbc, utm_source, utm_medium, utm_campaign, utm_term, utm_content, landing_page, user_agent, ip_address")
+      .select("gclid, fbclid, ttclid, fbp, fbc, utm_source, utm_medium, utm_campaign, utm_term, utm_content, landing_page, user_agent, client_ip, ga_client_id")
       .eq("workspace_id", workspaceId)
       .eq("gateway_order_id", externalOrderId)
       .order("created_at", { ascending: false })
@@ -217,7 +219,7 @@ async function lookupClickIdsByOrder(
         utm_source: data.utm_source, utm_medium: data.utm_medium,
         utm_campaign: data.utm_campaign, utm_term: data.utm_term, utm_content: data.utm_content,
         landing_page: data.landing_page, user_agent: data.user_agent,
-        ip_hash: data.ip_address,
+        client_ip: data.client_ip, ga_client_id: data.ga_client_id,
         _retro_source: "orders.external_id",
       };
     }
@@ -593,6 +595,14 @@ Deno.serve(async (req) => {
     const isCanceled = internalEvent.includes("cancel");
 
     const tk = order.tracking || {};
+    // Capture inbound transport-level client IP/UA as fallback when the gateway
+    // didn't include them in the payload — used downstream by Meta/TikTok CAPI.
+    const inboundIp = req.headers.get("cf-connecting-ip")
+      || req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+      || req.headers.get("x-real-ip")
+      || null;
+    const inboundUa = req.headers.get("user-agent") || null;
+
     const orderData: any = {
       workspace_id: workspaceId, gateway: order.gateway, gateway_order_id: order.external_order_id,
       gateway_integration_id: integrationId, customer_email: order.customer.email || null,
@@ -608,34 +618,50 @@ Deno.serve(async (req) => {
       utm_source: tk.utm_source || null, utm_medium: tk.utm_medium || null,
       utm_campaign: tk.utm_campaign || null, utm_content: tk.utm_content || null, utm_term: tk.utm_term || null,
       landing_page: tk.landing_page || null, referrer: tk.referrer || null,
+      // Persist for retro lookups (Etapa 1 added these columns + unique index).
+      ga_client_id: tk.ga_client_id || null,
+      client_ip: order.customer.ip || tk.ip || inboundIp,
+      user_agent: order.customer.user_agent || tk.user_agent || inboundUa,
     };
     if (isPaid) orderData.paid_at = new Date().toISOString();
     if (isRefund) orderData.refunded_at = new Date().toISOString();
     if (isCanceled) orderData.canceled_at = new Date().toISOString();
 
-    const { data: savedOrder } = await supabase.from("orders").insert(orderData).select("id").single();
+    // Idempotent upsert keyed on (workspace_id, gateway, gateway_order_id) —
+    // unique index added in Etapa 1. Webhook retries from the gateway no
+    // longer create duplicate `orders` rows.
+    const { data: savedOrder } = await supabase.from("orders")
+      .upsert(orderData, { onConflict: "workspace_id,gateway,gateway_order_id" })
+      .select("id").single();
 
-    // ── Payment ──
+    // ── Payment (idempotent on (workspace_id, gateway, gateway_payment_id))
     const paymentStatus = isPaid ? "paid"
       : isRefund ? "refunded"
       : isChargeback ? "chargeback"
       : (internalEvent.includes("fail") || internalEvent.includes("refused")) ? "failed"
       : "pending";
-    await supabase.from("payments").insert({
-      workspace_id: workspaceId, order_id: savedOrder?.id, gateway: order.gateway,
-      gateway_integration_id: integrationId, gateway_payment_id: order.external_payment_id,
-      payment_method: order.payment_method, status: paymentStatus,
-      amount: order.total_value, currency: order.currency, installments: order.installments,
-      paid_at: paymentStatus === "paid" ? new Date().toISOString() : null,
-      refunded_at: paymentStatus === "refunded" ? new Date().toISOString() : null,
-      chargeback_at: paymentStatus === "chargeback" ? new Date().toISOString() : null,
-      raw_payload_json: payload,
-    });
+    if (order.external_payment_id) {
+      await supabase.from("payments").upsert({
+        workspace_id: workspaceId, order_id: savedOrder?.id, gateway: order.gateway,
+        gateway_integration_id: integrationId, gateway_payment_id: order.external_payment_id,
+        payment_method: order.payment_method, status: paymentStatus,
+        amount: order.total_value, currency: order.currency, installments: order.installments,
+        paid_at: paymentStatus === "paid" ? new Date().toISOString() : null,
+        refunded_at: paymentStatus === "refunded" ? new Date().toISOString() : null,
+        chargeback_at: paymentStatus === "chargeback" ? new Date().toISOString() : null,
+        raw_payload_json: payload,
+      }, { onConflict: "workspace_id,gateway,gateway_payment_id" });
+    }
 
-    if (order.items?.length && savedOrder?.id) {
-      await supabase.from("order_items").insert(order.items.map((i) => ({
-        order_id: savedOrder.id, workspace_id: workspaceId, ...i,
-      })));
+    if (savedOrder?.id) {
+      // Replace order_items on every webhook retry so we never accumulate
+      // duplicate line items when the gateway reentries the same order.
+      await supabase.from("order_items").delete().eq("order_id", savedOrder.id);
+      if (order.items?.length) {
+        await supabase.from("order_items").insert(order.items.map((i) => ({
+          order_id: savedOrder.id, workspace_id: workspaceId, ...i,
+        })));
+      }
     }
 
     // ── Reconciliation (fallback fill) ──
@@ -702,15 +728,61 @@ Deno.serve(async (req) => {
       const evtName = marketingEvent || internalEvent;
       const browserEventId = (order.tracking?.event_id || "").trim();
       const persistedEventId = browserEventId || crypto.randomUUID();
+
+      // Pre-hash em/ph once for the event row so providers can read identifiers
+      // directly from `events.user_data_json` without hitting `identities` again.
+      const emailNorm = order.customer.email ? String(order.customer.email).trim().toLowerCase() : null;
+      const phoneDigits = order.customer.phone ? String(order.customer.phone).replace(/\D/g, "") : null;
+      const phoneE164 = phoneDigits
+        ? (phoneDigits.startsWith("55") ? phoneDigits : `55${phoneDigits}`)
+        : null;
+      const emailHash = emailNorm ? await sha256(emailNorm) : null;
+      const phoneHash = phoneE164 ? await sha256(phoneE164) : null;
+
       const { data: evt } = await supabase.from("events").insert({
         workspace_id: workspaceId, event_name: evtName, event_id: persistedEventId,
-        event_time: new Date().toISOString(), action_source: "system",
+        event_time: new Date().toISOString(), action_source: "website",
         source: `webhook_${provider}`, session_id: sessionId, identity_id: identityId,
         processing_status: META_EVENTS.has(evtName) ? "queued" : "internal",
         custom_data_json: {
           value: order.total_value, currency: order.currency, order_id: order.external_order_id,
+          transaction_id: order.external_order_id,
           payment_method: order.payment_method, internal_event: internalEvent,
           browser_event_id: browserEventId || null,
+          // Click IDs propagate to providers via the queue payload normalization.
+          gclid: order.tracking?.gclid || null,
+          gbraid: order.tracking?.gbraid || null,
+          wbraid: order.tracking?.wbraid || null,
+          fbclid: order.tracking?.fbclid || null,
+          ttclid: order.tracking?.ttclid || null,
+          ga_client_id: order.tracking?.ga_client_id || null,
+          utm_source: order.tracking?.utm_source || null,
+          utm_medium: order.tracking?.utm_medium || null,
+          utm_campaign: order.tracking?.utm_campaign || null,
+          utm_content: order.tracking?.utm_content || null,
+          utm_term: order.tracking?.utm_term || null,
+          items: order.items || [],
+        },
+        user_data_json: {
+          em: emailHash,
+          ph: phoneHash,
+          email_hash: emailHash,
+          phone_hash: phoneHash,
+          external_id: order.customer.document || null,
+          fbp: order.tracking?.fbp || null,
+          fbc: order.tracking?.fbc || null,
+          ga_client_id: order.tracking?.ga_client_id || null,
+          // Raw IP/UA — Meta/TikTok require raw values, NOT hashes.
+          client_ip_address: order.customer.ip
+            || order.tracking?.ip
+            || req.headers.get("cf-connecting-ip")
+            || req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+            || req.headers.get("x-real-ip")
+            || null,
+          client_user_agent: order.customer.user_agent
+            || order.tracking?.user_agent
+            || req.headers.get("user-agent")
+            || null,
         },
         deduplication_key: dedupKey,
       }).select("id").single();
