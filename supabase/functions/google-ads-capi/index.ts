@@ -195,7 +195,7 @@ async function sendToGoogleAds(
   accessToken: string,
   developerToken: string,
   conversions: GoogleConversionPayload[]
-): Promise<{ ok: boolean; status: number; response: any }> {
+): Promise<{ ok: boolean; status: number; response: any; failedIndexes: Set<number> }> {
   const url = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${customerId}:uploadClickConversions`;
 
   const headers: Record<string, string> = {
@@ -214,13 +214,36 @@ async function sendToGoogleAds(
     body: JSON.stringify({ conversions, partial_failure: true }),
   });
 
-  // Read as text first to handle non-JSON error pages
   const text = await res.text();
   let parsed: any;
   try { parsed = JSON.parse(text); } catch { parsed = { raw: text.slice(0, 500) }; }
 
-  const hasPartialFailure = !!parsed?.partialFailureError?.message;
-  return { ok: res.ok && !hasPartialFailure, status: res.status, response: parsed };
+  // Parse partial_failure_error to identify the indexes of failed conversions.
+  // Successful rows must NOT be retried — Google has already accepted them and
+  // a retry would create a duplicate conversion.
+  const failedIndexes = new Set<number>();
+  const pfe = parsed?.partialFailureError;
+  if (pfe?.details && Array.isArray(pfe.details)) {
+    for (const detail of pfe.details) {
+      const errs = detail?.errors || [];
+      for (const e of errs) {
+        const fieldPath = e?.location?.fieldPathElements || [];
+        for (const fp of fieldPath) {
+          if (fp?.fieldName === "conversions" && typeof fp?.index === "number") {
+            failedIndexes.add(fp.index);
+          }
+        }
+      }
+    }
+  }
+
+  const hasResults = Array.isArray(parsed?.results) && parsed.results.length > 0;
+  // ok=true when HTTP ok AND there is no top-level error AND no partialFailureError
+  // (or all rows succeeded). When some rows succeeded, we still return ok=false but
+  // the caller can use failedIndexes to mark only failures for retry.
+  const allFailed = pfe && failedIndexes.size === conversions.length;
+  const fullyOk = res.ok && !pfe && hasResults;
+  return { ok: fullyOk, status: res.status, response: parsed, failedIndexes };
 }
 
 Deno.serve(async (req) => {
