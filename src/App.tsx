@@ -1,10 +1,11 @@
 import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { ErrorBoundary } from "@/components/layout/ErrorBoundary";
+import { RouteErrorBoundary } from "@/components/layout/RouteErrorBoundary";
 import { LoadingSpinner, PageSkeleton } from "@/components/layout/LoadingSpinner";
 import { useAuth } from "@/hooks/use-auth";
 
