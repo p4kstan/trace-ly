@@ -1,5 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.103.0";
 import { installSafeConsole } from "../_shared/install-safe-console.ts";
+import {
+  decideDispatch,
+  type RegistryDispatchRow,
+  type DispatchDecision,
+} from "../_shared/destination-dispatch-gate.ts";
 
 installSafeConsole("process-events");
 
