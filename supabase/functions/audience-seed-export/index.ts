@@ -57,6 +57,12 @@ interface Body {
   min_order_value?: number;
   limit?: number;
   require_consent?: boolean;
+  /**
+   * dry_run/preview mode: returns ONLY counters and field-availability
+   * counts. NEVER returns hashes, NEVER writes an audit row marked
+   * `completed`. Safe for size estimation and consent-impact preview.
+   */
+  dry_run?: boolean;
 }
 
 const PAID_STATUSES = new Set([
