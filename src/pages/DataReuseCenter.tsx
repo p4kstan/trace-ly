@@ -137,16 +137,59 @@ const PROVIDER_GUIDE_LINKS: Record<Provider, string> = {
   tiktok: "/contas-conectadas",
 };
 
+interface KeysetCursor { created_at: string; id: string }
+interface KeysetSummary {
+  ok: boolean;
+  inspected?: number;
+  total_orders?: number;
+  next_cursor?: KeysetCursor | null;
+  summary?: Record<string, number>;
+}
+
 export default function DataReuseCenter() {
   const { data: workspace } = useWorkspace();
   const workspaceId = workspace?.id;
   const [limit, setLimit] = useState<number>(500);
   const [previewProvider, setPreviewProvider] = useState<Provider>("google_ads");
+  const [pages, setPages] = useState<OrderRow[]>([]);
+  const [cursor, setCursor] = useState<KeysetCursor | null>(null);
+  const [exhausted, setExhausted] = useState(false);
+  const [keysetSummary, setKeysetSummary] = useState<KeysetSummary | null>(null);
+  const [keysetMode, setKeysetMode] = useState<"keyset" | "fallback">("keyset");
+
+  // Reset pagination when workspace or limit changes.
+  useMemo(() => {
+    setPages([]);
+    setCursor(null);
+    setExhausted(false);
+    setKeysetSummary(null);
+  }, [workspaceId, limit]);
 
   const ordersQuery = useQuery({
     queryKey: ["data-reuse-orders", workspaceId, limit],
-    enabled: !!workspaceId,
+    enabled: !!workspaceId && pages.length === 0 && !exhausted,
     queryFn: async (): Promise<OrderRow[]> => {
+      // Try keyset RPC first — server-side aggregation, no PII.
+      try {
+        const { data: rpcData, error: rpcError } = await supabase.rpc(
+          "data_reuse_summary_keyset" as never,
+          { _workspace_id: workspaceId!, _limit: limit } as never,
+        );
+        if (!rpcError && rpcData) {
+          const s = rpcData as unknown as KeysetSummary;
+          if (s?.ok) {
+            setKeysetSummary(s);
+            setKeysetMode("keyset");
+            setCursor(s.next_cursor ?? null);
+            if (!s.next_cursor) setExhausted(true);
+          }
+        } else {
+          setKeysetMode("fallback");
+        }
+      } catch {
+        setKeysetMode("fallback");
+      }
+
       const { data, error } = await supabase
         .from("orders")
         .select("id,status,total_value,currency,created_at,customer_email,customer_phone,ads_consent_granted,gclid,gbraid,wbraid,fbclid,ttclid,msclkid")
@@ -154,9 +197,68 @@ export default function DataReuseCenter() {
         .order("created_at", { ascending: false })
         .limit(limit);
       if (error) throw error;
-      return (data ?? []) as OrderRow[];
+      const rows = (data ?? []) as OrderRow[];
+      setPages(rows);
+      if (rows.length < limit) setExhausted(true);
+      return rows;
     },
   });
+
+  async function loadMore() {
+    if (!workspaceId || exhausted) return;
+    // Try keyset advance — count-only summary update.
+    if (keysetMode === "keyset" && cursor) {
+      try {
+        const { data, error } = await supabase.rpc(
+          "data_reuse_summary_keyset" as never,
+          {
+            _workspace_id: workspaceId,
+            _limit: limit,
+            _cursor_created_at: cursor.created_at,
+            _cursor_id: cursor.id,
+          } as never,
+        );
+        if (!error && data) {
+          const s = data as unknown as KeysetSummary;
+          if (s?.ok) {
+            setKeysetSummary((prev) => {
+              if (!prev?.summary || !s.summary) return s;
+              const merged: Record<string, number> = { ...prev.summary };
+              for (const [k, v] of Object.entries(s.summary)) {
+                merged[k] = (merged[k] ?? 0) + (v ?? 0);
+              }
+              return {
+                ...prev,
+                inspected: (prev.inspected ?? 0) + (s.inspected ?? 0),
+                next_cursor: s.next_cursor ?? null,
+                summary: merged,
+              };
+            });
+            setCursor(s.next_cursor ?? null);
+            if (!s.next_cursor) setExhausted(true);
+          }
+        }
+      } catch {
+        /* ignore — UI will show no further advance */
+      }
+    }
+
+    // Advance row-level fallback so previews/coverage reflect more data.
+    const last = pages[pages.length - 1];
+    if (last) {
+      const { data } = await supabase
+        .from("orders")
+        .select("id,status,total_value,currency,created_at,customer_email,customer_phone,ads_consent_granted,gclid,gbraid,wbraid,fbclid,ttclid,msclkid")
+        .eq("workspace_id", workspaceId)
+        .lt("created_at", last.created_at)
+        .order("created_at", { ascending: false })
+        .limit(limit);
+      const rows = (data ?? []) as OrderRow[];
+      setPages((p) => [...p, ...rows]);
+      if (rows.length < limit) setExhausted(true);
+    }
+  }
+
 
   const destRegistryQuery = useQuery({
     queryKey: ["data-reuse-destination-registry", workspaceId],
