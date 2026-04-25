@@ -381,7 +381,7 @@ Deno.serve(async (req) => {
 
     // Group items by provider
     const metaBatches = new Map<string, any[]>();
-    const nonMetaBatches = new Map<string, { provider: string; workspaceId: string; items: any[] }>();
+    const nonMetaBatches = new Map<string, { provider: string; workspaceId: string; destination: string; items: any[] }>();
     const workspaceIds = new Set<string>();
 
     for (const item of queueItems) {
