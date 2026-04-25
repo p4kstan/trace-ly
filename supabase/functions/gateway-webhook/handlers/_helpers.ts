@@ -41,37 +41,74 @@ export async function hmacSHA256Hex(secret: string, message: string): Promise<st
 
 /**
  * Extracts tracking attributes from a `metadata` (or similar) bag passed by
- * the merchant's checkout. Accepts snake_case, camelCase and common aliases.
+ * the merchant's checkout. Accepts snake_case, camelCase and common aliases,
+ * and walks nested objects/strings (Stripe `metadata[utm_source]`, Hotmart
+ * `xcod`, Kiwify `src/sck`, etc.) before returning.
  */
 export function extractTrackingFromMetadata(meta: any): NormalizedTracking {
-  if (!meta || typeof meta !== "object") return {};
+  if (meta == null) return {};
+
+  // Flatten metadata: many gateways nest tracking under `metadata`,
+  // `custom_fields`, `properties`, `additional_info`, or send `metadata[utm_source]`
+  // bracket-string keys. We normalize all of these into a single flat dict.
+  const flat: Record<string, string> = {};
+  const visit = (obj: any, depth = 0) => {
+    if (obj == null || depth > 4) return;
+    if (Array.isArray(obj)) {
+      for (const item of obj) {
+        // Custom-fields style: [{ name: "utm_source", value: "google" }]
+        if (item && typeof item === "object") {
+          const k = item.name ?? item.key ?? item.field ?? item.id;
+          const v = item.value ?? item.val ?? item.content;
+          if (k != null && v != null) flat[String(k).toLowerCase()] = String(v);
+          else visit(item, depth + 1);
+        }
+      }
+      return;
+    }
+    if (typeof obj !== "object") return;
+    for (const [rawK, rawV] of Object.entries(obj)) {
+      // Strip bracket notation: "metadata[utm_source]" → "utm_source"
+      const k = String(rawK).replace(/^[a-z_]+\[/i, "").replace(/\]$/, "").toLowerCase();
+      if (rawV == null) continue;
+      if (typeof rawV === "object") visit(rawV, depth + 1);
+      else flat[k] = String(rawV);
+    }
+  };
+  visit(meta);
+
   const get = (...keys: string[]) => {
     for (const k of keys) {
-      const v = meta[k];
+      const v = flat[k.toLowerCase()];
       if (v != null && String(v).trim() !== "") return String(v).trim();
     }
     return undefined;
   };
+
   return {
-    gclid: get("gclid", "GCLID"),
+    gclid: get("gclid"),
     gbraid: get("gbraid"),
     wbraid: get("wbraid"),
     fbclid: get("fbclid"),
     fbp: get("fbp", "_fbp"),
     fbc: get("fbc", "_fbc"),
     ttclid: get("ttclid"),
-    utm_source: get("utm_source", "utmSource"),
-    utm_medium: get("utm_medium", "utmMedium"),
-    utm_campaign: get("utm_campaign", "utmCampaign"),
-    utm_content: get("utm_content", "utmContent"),
-    utm_term: get("utm_term", "utmTerm"),
-    landing_page: get("landing_page", "landingPage", "first_page"),
-    referrer: get("referrer"),
-    user_agent: get("user_agent", "userAgent", "ua"),
-    ip: get("ip", "client_ip", "clientIp"),
-    ga_client_id: get("ga_client_id", "client_id", "gaClientId"),
+    utm_source: get("utm_source", "utmsource", "src"),
+    utm_medium: get("utm_medium", "utmmedium"),
+    utm_campaign: get("utm_campaign", "utmcampaign", "xcod"),
+    utm_content: get("utm_content", "utmcontent", "sck"),
+    utm_term: get("utm_term", "utmterm"),
+    landing_page: get("landing_page", "landingpage", "first_page"),
+    referrer: get("referrer", "referer"),
+    user_agent: get("user_agent", "useragent", "ua"),
+    ip: get("ip", "client_ip", "clientip", "remote_addr"),
+    ga_client_id: get("ga_client_id", "client_id", "gaclientid", "ga_cid", "_ga"),
     // Browser event_id propagated through checkout metadata.
     // Critical for browser↔CAPI dedup (Meta/Google Ads).
-    event_id: get("event_id", "eventId", "trace_event_id", "browser_event_id"),
+    event_id: get(
+      "event_id", "eventid", "trace_event_id", "browser_event_id",
+      // Stripe `client_reference_id` is commonly used to carry our event_id.
+      "client_reference_id", "clientreferenceid",
+    ),
   };
 }
