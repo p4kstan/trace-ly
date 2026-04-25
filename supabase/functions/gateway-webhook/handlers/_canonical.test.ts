@@ -58,10 +58,16 @@ describe("inferStepFromExternalRef", () => {
       rootOrderCode: "EV-20260425-ABC",
     });
   });
-  it("parses key-root with non-numeric key", () => {
-    expect(inferStepFromExternalRef("tmt-EV-20260425-ABC")).toEqual({
-      stepKey: "tmt",
+  it("parses snake_case key-root (shipping_fee-EV-...)", () => {
+    expect(inferStepFromExternalRef("shipping_fee-EV-20260425-ABC")).toEqual({
+      stepKey: "shipping_fee",
       rootOrderCode: "EV-20260425-ABC",
+    });
+  });
+  it("does NOT mis-classify normal order codes (EV-20260425-XYZ stays root)", () => {
+    expect(inferStepFromExternalRef("EV-20260425-XYZ")).toEqual({
+      stepKey: null,
+      rootOrderCode: null,
     });
   });
   it("rejects pure-numeric prefix (pedido-123 is NOT a step)", () => {
