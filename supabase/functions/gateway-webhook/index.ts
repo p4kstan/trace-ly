@@ -728,15 +728,61 @@ Deno.serve(async (req) => {
       const evtName = marketingEvent || internalEvent;
       const browserEventId = (order.tracking?.event_id || "").trim();
       const persistedEventId = browserEventId || crypto.randomUUID();
+
+      // Pre-hash em/ph once for the event row so providers can read identifiers
+      // directly from `events.user_data_json` without hitting `identities` again.
+      const emailNorm = order.customer.email ? String(order.customer.email).trim().toLowerCase() : null;
+      const phoneDigits = order.customer.phone ? String(order.customer.phone).replace(/\D/g, "") : null;
+      const phoneE164 = phoneDigits
+        ? (phoneDigits.startsWith("55") ? phoneDigits : `55${phoneDigits}`)
+        : null;
+      const emailHash = emailNorm ? await sha256(emailNorm) : null;
+      const phoneHash = phoneE164 ? await sha256(phoneE164) : null;
+
       const { data: evt } = await supabase.from("events").insert({
         workspace_id: workspaceId, event_name: evtName, event_id: persistedEventId,
-        event_time: new Date().toISOString(), action_source: "system",
+        event_time: new Date().toISOString(), action_source: "website",
         source: `webhook_${provider}`, session_id: sessionId, identity_id: identityId,
         processing_status: META_EVENTS.has(evtName) ? "queued" : "internal",
         custom_data_json: {
           value: order.total_value, currency: order.currency, order_id: order.external_order_id,
+          transaction_id: order.external_order_id,
           payment_method: order.payment_method, internal_event: internalEvent,
           browser_event_id: browserEventId || null,
+          // Click IDs propagate to providers via the queue payload normalization.
+          gclid: order.tracking?.gclid || null,
+          gbraid: order.tracking?.gbraid || null,
+          wbraid: order.tracking?.wbraid || null,
+          fbclid: order.tracking?.fbclid || null,
+          ttclid: order.tracking?.ttclid || null,
+          ga_client_id: order.tracking?.ga_client_id || null,
+          utm_source: order.tracking?.utm_source || null,
+          utm_medium: order.tracking?.utm_medium || null,
+          utm_campaign: order.tracking?.utm_campaign || null,
+          utm_content: order.tracking?.utm_content || null,
+          utm_term: order.tracking?.utm_term || null,
+          items: order.items || [],
+        },
+        user_data_json: {
+          em: emailHash,
+          ph: phoneHash,
+          email_hash: emailHash,
+          phone_hash: phoneHash,
+          external_id: order.customer.document || null,
+          fbp: order.tracking?.fbp || null,
+          fbc: order.tracking?.fbc || null,
+          ga_client_id: order.tracking?.ga_client_id || null,
+          // Raw IP/UA — Meta/TikTok require raw values, NOT hashes.
+          client_ip_address: order.customer.ip
+            || order.tracking?.ip
+            || req.headers.get("cf-connecting-ip")
+            || req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+            || req.headers.get("x-real-ip")
+            || null,
+          client_user_agent: order.customer.user_agent
+            || order.tracking?.user_agent
+            || req.headers.get("user-agent")
+            || null,
         },
         deduplication_key: dedupKey,
       }).select("id").single();
