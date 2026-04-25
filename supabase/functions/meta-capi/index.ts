@@ -164,7 +164,7 @@ Deno.serve(async (req) => {
     // Get associated sessions for fbp/fbc
     const { data: sessions } = await supabase
       .from("sessions")
-      .select("id, identity_id, fbp, fbc, ip_hash, user_agent")
+      .select("id, identity_id, fbp, fbc, ip_hash, client_ip, user_agent")
       .in("identity_id", events.map(e => e.identity_id).filter(Boolean));
 
     const sessionMap = new Map(sessions?.map(s => [s.identity_id, s]) || []);
