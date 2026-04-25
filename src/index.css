@@ -59,6 +59,11 @@
     @apply border-border;
   }
 
+  html, body {
+    @apply max-w-full;
+    overflow-x: hidden;
+  }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', sans-serif;
@@ -67,9 +72,31 @@
       radial-gradient(ellipse 60% 40% at 80% 100%, hsl(265 80% 60% / 0.02) 0%, transparent 50%);
     background-attachment: fixed;
   }
+
+  /* Long technical strings (event_id, URLs, paths, credentials refs)
+     must wrap inside their container instead of forcing horizontal scroll. */
+  code, pre {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
 }
 
 @layer utilities {
+  /* === RESPONSIVE TEXT HELPERS === */
+  .break-anywhere {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  /* Compact uppercase label that wraps gracefully inside narrow stat cards
+     (e.g., "SEM CREDENTIAL_REF", "INFORMATIVOS"). */
+  .stat-label {
+    @apply text-[10px] uppercase tracking-wide text-muted-foreground leading-tight;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    hyphens: auto;
+  }
+
   /* === GLASS MORPHISM === */
   .glass-card {
     @apply backdrop-blur-xl border rounded-xl;

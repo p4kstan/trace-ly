@@ -218,7 +218,7 @@ export default function DestinationRegistry() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-sm">
             <Stat label="Ativos" value={summary.active} />
             <Stat label="Pausados" value={summary.paused} />
             <Stat label="Send off" value={summary.send_off} />
@@ -454,9 +454,9 @@ export default function DestinationRegistry() {
 function Stat({ label, value, tone }: { label: string; value: number; tone?: "warn" }) {
   const cls = tone === "warn" ? "text-warning" : "text-foreground";
   return (
-    <div className="rounded-md border border-border/50 bg-background p-3">
-      <div className={`text-xl font-semibold ${cls}`}>{value}</div>
-      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+    <div className="rounded-md border border-border/50 bg-background p-3 min-w-0">
+      <div className={`text-xl font-semibold tabular-nums ${cls}`}>{value}</div>
+      <div className="stat-label mt-0.5">{label}</div>
     </div>
   );
 }

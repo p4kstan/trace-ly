@@ -122,10 +122,10 @@ function toClickIdRecord(o: OrderRow): ClickIdRecord {
 
 function StatBlock({ label, value, hint }: { label: string; value: number | string; hint?: string }) {
   return (
-    <div className="rounded-md border border-border/50 bg-muted/20 p-3">
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="text-xl font-semibold mt-0.5">{value}</div>
-      {hint && <div className="text-[11px] text-muted-foreground mt-0.5">{hint}</div>}
+    <div className="rounded-md border border-border/50 bg-muted/20 p-3 min-w-0">
+      <div className="stat-label">{label}</div>
+      <div className="text-xl font-semibold tabular-nums mt-0.5 break-anywhere">{value}</div>
+      {hint && <div className="text-[11px] text-muted-foreground mt-0.5 break-anywhere">{hint}</div>}
     </div>
   );
 }
