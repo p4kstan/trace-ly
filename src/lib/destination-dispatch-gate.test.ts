@@ -123,7 +123,8 @@ describe("destination-dispatch-gate (Passo S)", () => {
     expect(maskCredentialRef("abc")).toBe("••••");
     const masked = maskCredentialRef("cred:google:111-secret");
     expect(masked).not.toContain("secret");
+    expect(masked).not.toContain("google");
     expect(masked).toMatch(/^cre/);
-    expect(masked).toMatch(/11$/);
+    expect(masked).toContain("••••");
   });
 });

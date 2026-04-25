@@ -186,6 +186,18 @@ export const GO_LIVE_CHECKS: CertificationCheck[] = [
     status: "enforced",
     link: { to: "/data-reuse-center", label: "Abrir Data Reuse Center" },
   },
+  {
+    id: "destination-registry-admin-s",
+    scope: "all",
+    area: "dedup",
+    title: "Registry admin UI + dispatch gate + keyset + multi-rule (Passo S)",
+    description:
+      "Página `/destination-registry` (role-gated owner/admin) edita `ad_conversion_destinations` com `credential_ref` mascarado. RPC `data_reuse_summary_keyset` paga via cursor `(created_at,id)` no Data Reuse Center com botão `Carregar mais`. `simulateRulesForScope` itera todas as automation_rules aplicáveis e agrupa por outcome. `decideDispatch` respeita `send_enabled`/`status`/`consent_gate_required`/`test_mode_default` por destination_id e cai em fallback compatível quando registry está vazio — sem chamadas externas reais.",
+    enforcedBy:
+      "src/pages/DestinationRegistry.tsx + src/lib/destination-dispatch-gate.ts + src/lib/automation-rule-simulator.ts + supabase/migrations (data_reuse_summary_keyset)",
+    status: "enforced",
+    link: { to: "/destination-registry", label: "Abrir Registry de destinos" },
+  },
 ];
 
 export interface CertificationSummary {

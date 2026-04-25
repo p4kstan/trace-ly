@@ -169,7 +169,11 @@ export function simulateRulesForScope(
     applicable++;
     const result = simulateRule(rule, ctx);
     by_outcome[result.outcome]++;
-    if (result.outcome === "blocked" || result.outcome === "auto_blocked") {
+    if (
+      result.outcome === "blocked" ||
+      result.outcome === "auto_blocked" ||
+      result.outcome === "needs_review"
+    ) {
       for (const r of result.reasons) blocked_reasons.add(r);
     }
     entries.push({

@@ -31,6 +31,10 @@ const REQUIRED_CONTROLS: Array<{ key: string; matcher: RegExp }> = [
   { key: "destination-registry-r", matcher: /ad_conversion_destinations|destination registry|list_ad_conversion_destinations/i },
   { key: "data-reuse-rpc-r",       matcher: /data_reuse_summary|RPC.*paginação|paginação server-side/i },
   { key: "rule-simulator-r",       matcher: /simulateRule|automation_rules reais/i },
+  { key: "registry-admin-s",       matcher: /\/destination-registry|Registry admin|maskCredentialRef/ },
+  { key: "keyset-pagination-s",    matcher: /data_reuse_summary_keyset|keyset|Carregar mais/i },
+  { key: "multi-rule-simulator-s", matcher: /simulateRulesForScope|Multi-?rule simulator|todas as automation_rules/i },
+  { key: "dispatch-gate-s",        matcher: /destination-dispatch-gate|decideDispatch|dispatch gate/i },
 ];
 
 function expectAllMentioned(label: string, body: string) {

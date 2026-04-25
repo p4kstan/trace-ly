@@ -34,6 +34,7 @@ const QUICK_LINKS = [
   { to: "/audit-logs", label: "Audit Log Viewer" },
   { to: "/pii-release-report", label: "Relatório PII" },
   { to: "/data-reuse-center", label: "Data Reuse Center" },
+  { to: "/destination-registry", label: "Registry de destinos (Passo S)" },
 ];
 
 function ContractCard({ c }: { c: GatewayAdapterContract }) {

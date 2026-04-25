@@ -47,7 +47,12 @@ import {
   buildDestinationDescriptors,
   type RegistryRow,
 } from "@/lib/ad-destination-registry";
-import { simulateRule, type AutomationRuleRow } from "@/lib/automation-rule-simulator";
+import {
+  simulateRule,
+  simulateRulesForScope,
+  type AutomationRuleRow,
+} from "@/lib/automation-rule-simulator";
+import { Button } from "@/components/ui/button";
 
 /**
  * Data Reuse Center — Passo P + Q.
@@ -132,16 +137,59 @@ const PROVIDER_GUIDE_LINKS: Record<Provider, string> = {
   tiktok: "/contas-conectadas",
 };
 
+interface KeysetCursor { created_at: string; id: string }
+interface KeysetSummary {
+  ok: boolean;
+  inspected?: number;
+  total_orders?: number;
+  next_cursor?: KeysetCursor | null;
+  summary?: Record<string, number>;
+}
+
 export default function DataReuseCenter() {
   const { data: workspace } = useWorkspace();
   const workspaceId = workspace?.id;
   const [limit, setLimit] = useState<number>(500);
   const [previewProvider, setPreviewProvider] = useState<Provider>("google_ads");
+  const [pages, setPages] = useState<OrderRow[]>([]);
+  const [cursor, setCursor] = useState<KeysetCursor | null>(null);
+  const [exhausted, setExhausted] = useState(false);
+  const [keysetSummary, setKeysetSummary] = useState<KeysetSummary | null>(null);
+  const [keysetMode, setKeysetMode] = useState<"keyset" | "fallback">("keyset");
+
+  // Reset pagination when workspace or limit changes.
+  useMemo(() => {
+    setPages([]);
+    setCursor(null);
+    setExhausted(false);
+    setKeysetSummary(null);
+  }, [workspaceId, limit]);
 
   const ordersQuery = useQuery({
     queryKey: ["data-reuse-orders", workspaceId, limit],
-    enabled: !!workspaceId,
+    enabled: !!workspaceId && pages.length === 0 && !exhausted,
     queryFn: async (): Promise<OrderRow[]> => {
+      // Try keyset RPC first — server-side aggregation, no PII.
+      try {
+        const { data: rpcData, error: rpcError } = await supabase.rpc(
+          "data_reuse_summary_keyset" as never,
+          { _workspace_id: workspaceId!, _limit: limit } as never,
+        );
+        if (!rpcError && rpcData) {
+          const s = rpcData as unknown as KeysetSummary;
+          if (s?.ok) {
+            setKeysetSummary(s);
+            setKeysetMode("keyset");
+            setCursor(s.next_cursor ?? null);
+            if (!s.next_cursor) setExhausted(true);
+          }
+        } else {
+          setKeysetMode("fallback");
+        }
+      } catch {
+        setKeysetMode("fallback");
+      }
+
       const { data, error } = await supabase
         .from("orders")
         .select("id,status,total_value,currency,created_at,customer_email,customer_phone,ads_consent_granted,gclid,gbraid,wbraid,fbclid,ttclid,msclkid")
@@ -149,9 +197,68 @@ export default function DataReuseCenter() {
         .order("created_at", { ascending: false })
         .limit(limit);
       if (error) throw error;
-      return (data ?? []) as OrderRow[];
+      const rows = (data ?? []) as OrderRow[];
+      setPages(rows);
+      if (rows.length < limit) setExhausted(true);
+      return rows;
     },
   });
+
+  async function loadMore() {
+    if (!workspaceId || exhausted) return;
+    // Try keyset advance — count-only summary update.
+    if (keysetMode === "keyset" && cursor) {
+      try {
+        const { data, error } = await supabase.rpc(
+          "data_reuse_summary_keyset" as never,
+          {
+            _workspace_id: workspaceId,
+            _limit: limit,
+            _cursor_created_at: cursor.created_at,
+            _cursor_id: cursor.id,
+          } as never,
+        );
+        if (!error && data) {
+          const s = data as unknown as KeysetSummary;
+          if (s?.ok) {
+            setKeysetSummary((prev) => {
+              if (!prev?.summary || !s.summary) return s;
+              const merged: Record<string, number> = { ...prev.summary };
+              for (const [k, v] of Object.entries(s.summary)) {
+                merged[k] = (merged[k] ?? 0) + (v ?? 0);
+              }
+              return {
+                ...prev,
+                inspected: (prev.inspected ?? 0) + (s.inspected ?? 0),
+                next_cursor: s.next_cursor ?? null,
+                summary: merged,
+              };
+            });
+            setCursor(s.next_cursor ?? null);
+            if (!s.next_cursor) setExhausted(true);
+          }
+        }
+      } catch {
+        /* ignore — UI will show no further advance */
+      }
+    }
+
+    // Advance row-level fallback so previews/coverage reflect more data.
+    const last = pages[pages.length - 1];
+    if (last) {
+      const { data } = await supabase
+        .from("orders")
+        .select("id,status,total_value,currency,created_at,customer_email,customer_phone,ads_consent_granted,gclid,gbraid,wbraid,fbclid,ttclid,msclkid")
+        .eq("workspace_id", workspaceId)
+        .lt("created_at", last.created_at)
+        .order("created_at", { ascending: false })
+        .limit(limit);
+      const rows = (data ?? []) as OrderRow[];
+      setPages((p) => [...p, ...rows]);
+      if (rows.length < limit) setExhausted(true);
+    }
+  }
+
 
   const destRegistryQuery = useQuery({
     queryKey: ["data-reuse-destination-registry", workspaceId],
@@ -184,22 +291,16 @@ export default function DataReuseCenter() {
     queryFn: async (): Promise<AutomationRuleRow[]> => {
       const { data, error } = await supabase
         .from("automation_rules")
-        .select("id,enabled,execution_mode,guardrails_json,action_json")
+        .select("id,name,enabled,execution_mode,guardrails_json,action_json,workspace_id,customer_id,campaign_id")
         .eq("workspace_id", workspaceId!)
-        .limit(10);
+        .limit(50);
       if (error) return [];
       return (data ?? []) as unknown as AutomationRuleRow[];
     },
   });
 
-  const records = useMemo(
-    () => (ordersQuery.data ?? []).map(toRecord),
-    [ordersQuery.data],
-  );
-  const clickIdRecords = useMemo(
-    () => (ordersQuery.data ?? []).map(toClickIdRecord),
-    [ordersQuery.data],
-  );
+  const records = useMemo(() => pages.map(toRecord), [pages]);
+  const clickIdRecords = useMemo(() => pages.map(toClickIdRecord), [pages]);
   const coverage = useMemo(() => buildCoverageReport({ records }), [records]);
   const clickCoverage = useMemo(() => buildClickIdCoverage(clickIdRecords), [clickIdRecords]);
 
@@ -240,6 +341,25 @@ export default function DataReuseCenter() {
       ]),
     [destinationDescriptors],
   );
+
+  // Multi-rule simulator (Passo S) — iterate ALL applicable automation_rules
+  // for the workspace and aggregate by outcome. Auto stays blocked unless
+  // guardrails.auto_enabled=true AND execution_mode=auto on the row.
+  const multiRuleReport = useMemo(() => {
+    const rules = automationRulesQuery.data ?? [];
+    return simulateRulesForScope(
+      rules,
+      {},
+      {
+        kind: "budget",
+        target_id: "data-reuse-center:budget-preview",
+        current_value: 100,
+        proposed_value: 110,
+        recent_conversions: coverage.paid,
+        hours_since_last_change: 48,
+      },
+    );
+  }, [automationRulesQuery.data, coverage.paid]);
 
   const simulation = useMemo(() => {
     const recentConv = coverage.paid;
@@ -298,7 +418,14 @@ export default function DataReuseCenter() {
             público hash-only e click IDs disponíveis.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="text-[10px]">
+            modo: {keysetMode === "keyset" ? "RPC keyset" : "fallback client"}
+          </Badge>
+          <Badge variant="outline" className="text-[10px]">
+            janela: {pages.length}{" "}
+            {keysetSummary?.total_orders ? `/ ${keysetSummary.total_orders}` : ""}
+          </Badge>
           <span className="text-xs text-muted-foreground">Amostra</span>
           <Select value={String(limit)} onValueChange={(v) => setLimit(Number(v))}>
             <SelectTrigger className="w-[140px] h-9">
@@ -312,6 +439,14 @@ export default function DataReuseCenter() {
               ))}
             </SelectContent>
           </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadMore}
+            disabled={exhausted || ordersQuery.isFetching}
+          >
+            {exhausted ? "Janela completa" : "Carregar mais"}
+          </Button>
         </div>
       </div>
 
@@ -578,6 +713,76 @@ export default function DataReuseCenter() {
                   </div>
                 </div>
               ))}
+            </CardContent>
+          </Card>
+
+          {/* MULTI-RULE REPORT (Passo S) */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Cog className="h-4 w-4 text-primary" /> Multi-rule simulator (Passo S)
+              </CardTitle>
+              <CardDescription>
+                Itera todas as <code>automation_rules</code> aplicáveis ao workspace e agrupa por
+                regra/outcome. Auto continua bloqueado sem <code>guardrails.auto_enabled=true</code>{" "}
+                e <code>execution_mode=auto</code>.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <StatBlock label="Inspecionadas" value={multiRuleReport.inspected_rules} />
+                <StatBlock label="Aplicáveis" value={multiRuleReport.applicable_rules} />
+                <StatBlock label="Permitidas" value={multiRuleReport.by_outcome.allowed} />
+                <StatBlock
+                  label="Bloqueadas"
+                  value={
+                    multiRuleReport.by_outcome.blocked +
+                    multiRuleReport.by_outcome.auto_blocked
+                  }
+                />
+              </div>
+              {multiRuleReport.empty ? (
+                <p className="text-sm text-muted-foreground">
+                  Nenhuma <code>automation_rule</code> cadastrada — usando simulação sintética acima.
+                </p>
+              ) : (
+                <ul className="mt-2 space-y-1.5">
+                  {multiRuleReport.entries.map((e) => (
+                    <li
+                      key={e.rule_id}
+                      className="rounded border border-border/40 px-3 py-2 flex items-start justify-between gap-2"
+                    >
+                      <div>
+                        <div className="font-medium text-sm">
+                          {e.rule_name ?? e.rule_id}
+                        </div>
+                        {e.result.reasons.length > 0 && (
+                          <div className="text-[11px] text-muted-foreground">
+                            {e.result.reasons.join(" · ")}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <Badge
+                          variant={
+                            e.result.outcome === "allowed" ? "default" :
+                            e.result.outcome === "needs_review" ? "secondary" :
+                            "destructive"
+                          }
+                          className="text-[10px]"
+                        >
+                          {e.result.outcome}
+                        </Badge>
+                        {e.is_auto_attempt && (
+                          <Badge variant="outline" className="text-[10px]">
+                            tentativa auto
+                          </Badge>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
