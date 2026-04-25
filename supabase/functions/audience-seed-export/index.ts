@@ -131,6 +131,7 @@ Deno.serve(async (req) => {
     const limit = Math.min(Math.max(Number(body.limit) || 5000, 1), 50000);
     const requireConsent = body.require_consent !== false; // default TRUE
     const destinationCustomerId = body.destination_customer_id?.toString().slice(0, 100) || null;
+    const dryRun = body.dry_run === true;
 
     const service = createClient(
       Deno.env.get("SUPABASE_URL")!,
