@@ -218,7 +218,7 @@ export default function DestinationRegistry() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-sm">
             <Stat label="Ativos" value={summary.active} />
             <Stat label="Pausados" value={summary.paused} />
             <Stat label="Send off" value={summary.send_off} />
