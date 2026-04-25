@@ -435,8 +435,17 @@ async function dispatchToProvider(
 async function processNonMetaBatch(
   provider: string, workspaceId: string, destinationId: string, items: any[],
   destCache: Map<string, any>,
-  stats: { delivered: number; failed: number; deadLettered: number; skipped?: number }
+  stats: { delivered: number; failed: number; deadLettered: number; skipped?: number },
+  globalTestMode = false,
 ) {
+  // Passo T — destination dispatch gate. Empty registry ⇒ legacy fallback.
+  const gate = await gateItems(provider, workspaceId, destinationId, items, globalTestMode);
+  if (gate.blocked.length > 0) {
+    await recordBlockedDecisions(provider, destinationId, gate.blocked, stats);
+  }
+  items = gate.allowed;
+  if (items.length === 0) return;
+
   const cacheKey = `${workspaceId}::${provider}`;
   let destinations = destCache.get(cacheKey);
   if (!destinations) {
@@ -449,8 +458,6 @@ async function processNonMetaBatch(
     for (const item of items) await handleFailure(item, `No active ${provider} destination configured`, stats);
     return;
   }
-  // Dispatch ONLY to the destination this batch was reserved for. Prevents
-  // sending the same conversion to every connected account.
   const dest = destinations.find((d: any) =>
     d.destination_id === destinationId || d.id === destinationId,
   ) || (destinationId === "default" ? destinations[0] : null);
