@@ -541,6 +541,8 @@ export function buildDynamicGtmContainer(cfg: DynamicGtmConfig): string {
   dlVar(state, "DLV - ecommerce.items", "ecommerce.items");
   dlVar(state, "DLV - ecommerce.transaction_id", "ecommerce.transaction_id");
   dlVar(state, "DLV - value", "value");
+  // Browser↔CAPI dedup id (preserved by SDK + checkout journey).
+  dlVar(state, "DLV - event_id", "event_id");
 
   // Triggers explícitos (NÃO usar built-in IDs que não estão declarados — quebra import)
   const initTrigId = nextId();
