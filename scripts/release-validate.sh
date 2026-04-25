@@ -99,6 +99,34 @@ grep -q "queue_health_alerts" src/pages/RetryObservability.tsx \
   || fail "RetryObservability must surface queue_health_alerts"
 ok "internal alerts wired"
 
+# Passo H — Auditable ack RPC + retention monitor + fail-closed option.
+log "4f/7  Passo H controls (ack RPC, retention monitor, fail-closed)"
+grep -q "acknowledge_queue_health_alert" src/pages/RetryObservability.tsx \
+  || fail "RetryObservability must call acknowledge_queue_health_alert RPC"
+grep -q "monitor === true" supabase/functions/retention-job/index.ts \
+  || grep -q '"monitor"' supabase/functions/retention-job/index.ts \
+  || fail "retention-job must support monitor mode (dry-run alerting)"
+grep -q "failClosed" supabase/functions/_shared/rate-limit.ts \
+  || fail "rate-limit helper must support failClosed option"
+grep -q "fail_closed" supabase/functions/webhook-replay-test/index.ts \
+  || fail "webhook-replay-test must allow fail_closed override"
+grep -q "sample" supabase/functions/queue-health/index.ts \
+  || fail "queue-health must report sample truncation"
+ok "Passo H controls wired"
+
+# Passo H — PII audit on rate-limit module.
+log "4g/7  Rate-limit PII audit (no raw IP / UA / email / phone / cpf / cnpj)"
+RL_FILE="supabase/functions/_shared/rate-limit.ts"
+# Forbidden tokens MUST NOT appear as RPC argument names in the helper.
+for tok in "_ip\b" "_raw_ip" "_user_agent" "_email" "_phone" "_cpf" "_cnpj" "_document"; do
+  if grep -nE "$tok" "$RL_FILE" >/dev/null 2>&1; then
+    fail "rate-limit helper references forbidden token: $tok"
+  fi
+done
+# It MUST hash the IP and only ever pass _ip_hash.
+grep -q "_ip_hash" "$RL_FILE" || fail "rate-limit helper must pass _ip_hash"
+ok "rate-limit helper is PII-safe"
+
 # ─── 5. Critical routes ─────────────────────────────────────────────────
 log "5/7  Critical UI routes wired"
 for route in "/canonical-audit" "/retry-observability" "/go-live-checklist"; do
