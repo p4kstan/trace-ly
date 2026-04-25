@@ -344,8 +344,11 @@ O CapiTrack:
 3. Gera \`event_id = purchase:<order_id>\` — **mesmo padrão da thank-you**.
 4. Faz upsert idempotente em \`orders\` / \`payments\` (UNIQUE em \`workspace_id+external_id\`).
 5. Correlaciona com a sessão original pelo \`session_id\` (se você passou no link)
-   ou pelos UTMs.
-6. Dispara para Meta CAPI / Google Ads CAPI / TikTok / GA4 — deduplicando contra
+   ou pelos UTMs — herdando \`fbp\`/\`fbc\`/\`ga_client_id\`/\`landing_page\`/\`referrer\`/\`user_agent\`
+   já capturados no passo 2/3 e armazenados em \`tracking_sources\`.
+6. Captura \`client_ip\` automaticamente do header da requisição do gateway
+   (X-Forwarded-For / CF-Connecting-IP) — você não precisa enviar.
+7. Dispara para Meta CAPI / Google Ads CAPI / TikTok / GA4 — deduplicando contra
    o evento browser pelo \`event_id\`.
 
 ## 5. Mapear order_id/transaction_id de forma estável
@@ -371,17 +374,21 @@ O CapiTrack:
 2. **Webhook**: confirme em /webhook-logs do CapiTrack que o ${m.label} chegou com
    status \`processed\`, \`signature_valid=true\`, \`order_id\` correto.
 3. **Browser** (se thank-you no seu domínio): confirme em /event-logs que aparece
-   também a entrada com source=web, mesmo \`event_id = purchase:<order_id>\`.
+   também a entrada com source=web, mesmo \`event_id = purchase:<order_id>\`,
+   trazendo \`fbp\`, \`fbc\`, \`ga_client_id\`, \`user_agent\`, \`landing_page\`, \`referrer\`.
 4. **Dedup**: em /destinations confirme que Meta/Google receberam **1** Purchase
-   por \`event_id\` (não 2).
+   por \`event_id\` (não 2) — e que \`request_json\` raiz traz os signals enriquecidos.
 5. F5 na thank-you NÃO duplica.
 6. Reentrega manual do webhook NÃO duplica.
-7. UTMs / gclid / fbclid aparecem persistidos no \`order\` mostrado em /orders.
+7. UTMs / gclid / fbclid / msclkid aparecem persistidos no \`order\` mostrado em /orders.
+8. \`client_ip\` aparece no \`event_deliveries.request_json\` (capturado server-side, nunca do browser).
 
 ## Não faça
 - Não dispare Purchase apenas na thank-you (cliente fecha aba e some).
 - Não use \`<external_id>:Purchase\` como event_id — agora é \`purchase:<order_id>\`.
 - Não monte URL de webhook no formato antigo \`/gateway-webhook/${m.providerSlug}\`.
-- Não logue PII.
-- Não normalize click IDs.`;
+- Não logue PII (CPF/e-mail/telefone/endereço/QR-PIX).
+- Não normalize click IDs (nunca \`.toLowerCase()\` em gclid/fbclid/msclkid/etc).
+- Não envie \`client_ip\` do browser — sempre server-side.
+- Não envie e-mail/telefone em texto puro para ads — sempre SHA-256 server-to-server.`;
 }
