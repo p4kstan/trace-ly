@@ -384,7 +384,7 @@ fi
 ok "Passo M controls wired"
 
 # ─── 11. Passo N — Edge auth, fast-path docs, external alerts opt-in ─────
-log "11/11 Passo N controls (edge auth, fast-path guides, external alerts opt-in)"
+log "11/12 Passo N controls (edge auth, fast-path guides, external alerts opt-in)"
 [ -f supabase/functions/_shared/edge-auth.ts ] || fail "MISSING _shared/edge-auth.ts"
 [ -f supabase/functions/_shared/edge-auth.test.ts ] || fail "MISSING edge-auth.test.ts"
 [ -f src/lib/gateway-fast-path-guides.ts ] || fail "MISSING gateway-fast-path-guides.ts"
