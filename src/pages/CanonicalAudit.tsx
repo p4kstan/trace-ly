@@ -446,11 +446,11 @@ function DiagCard({
   const ToneIcon = value === 0 ? CheckCircle2 : Icon;
   return (
     <Card className={`border ${cls}`}>
-      <CardContent className="pt-4 flex items-center gap-3">
+      <CardContent className="pt-4 flex items-center gap-3 min-w-0">
         <ToneIcon className="w-5 h-5 shrink-0" />
-        <div>
-          <div className="text-xl font-bold leading-tight">{value}</div>
-          <div className="text-xs text-muted-foreground">{label}</div>
+        <div className="min-w-0">
+          <div className="text-xl font-bold leading-tight tabular-nums">{value}</div>
+          <div className="text-xs text-muted-foreground break-anywhere leading-tight">{label}</div>
         </div>
       </CardContent>
     </Card>
