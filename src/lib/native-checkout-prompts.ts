@@ -467,12 +467,19 @@ export async function maybeFireStepPurchase(opts: {
 > 🔒 **Logs sem PII**: registre apenas \`root_order_code, step_key, event_id, value, source,
 > provider, status\`. Nunca CPF, e-mail, telefone, endereço, PIX copia-e-cola ou QR code.`);
 
-  // Função compartilhada — central de Purchase idempotente
-  sections.push(`### 4.0b \`maybeFirePurchase()\` — idempotência atômica (CRÍTICO)
-Crie no backend uma função compartilhada chamada por **todas** as fontes (webhook, check-status, reconcile, frontend). Garante "exactly-once" via UPDATE atômico:
+  // Função compartilhada — central de Purchase do PEDIDO PRINCIPAL idempotente
+  sections.push(`### 4.0b \`maybeFirePurchase()\` — idempotência atômica do PEDIDO PRINCIPAL (CRÍTICO)
+Crie no backend uma função compartilhada chamada por **todas** as fontes do pedido principal
+(webhook, check-status, reconcile, frontend). Garante "exactly-once" via UPDATE atômico.
+
+> Para **cada pagamento adicional** descoberto na auditoria (taxa, upsell, seguro, prioridade,
+> TMT etc.), use a função genérica \`maybeFireStepPurchase({ rootOrderCode, stepKey,
+> stepOrderCode, source })\` mostrada na seção 4.0a — ela aceita **N etapas** sem alterar código.
 
 \`\`\`ts
 // supabase/functions/_shared/fire-purchase.ts (ou backend equivalente)
+// Específico para o PEDIDO PRINCIPAL (root). Para etapas adicionais, use
+// maybeFireStepPurchase({ rootOrderCode, stepKey, stepOrderCode, source }).
 export async function maybeFirePurchase(orderCode: string, source: string) {
   // 1) UPDATE atômico: só prossegue se purchase_tracked_at AINDA é NULL
   const { data, error } = await supabase
@@ -490,10 +497,8 @@ export async function maybeFirePurchase(orderCode: string, source: string) {
     return { fired: false, reason: "already_tracked" };
   }
 
-  // 2) Monta event_id no NOVO PADRÃO
-  const eventId = data.is_tmt
-    ? \`purchase:\${orderCode}:tmt\`
-    : \`purchase:\${orderCode}\`;
+  // 2) event_id do PRINCIPAL (root). Etapas adicionais NÃO passam por aqui.
+  const eventId = \`purchase:\${orderCode}\`;
 
   // 3) Dispara para CapiTrack (server-side) com TODOS os metadados técnicos
   const r = await fetch("${cfg.endpoint}", {
@@ -540,8 +545,10 @@ export async function maybeFirePurchase(orderCode: string, source: string) {
 }
 \`\`\`
 
-> ⚠️ \`event_id\` segue o padrão **\`purchase:<orderCode>\`** (TMT/upsell = \`purchase:<orderCode>:tmt\`).
-> Não use mais \`<externalId>:Purchase\`. \`transaction_id\`/\`gateway_order_id\` são preservados em campos separados.`);
+> ⚠️ \`event_id\` do principal = **\`purchase:<root_order_code>\`**. Etapas adicionais
+> (taxa/upsell/seguro/prioridade/TMT/etc.) = **\`purchase:<root_order_code>:step:<step_key>\`**
+> via \`maybeFireStepPurchase\`. Não use mais \`<externalId>:Purchase\` nem event_id cru
+> (\`EV-...\`). \`transaction_id\`/\`gateway_order_id\` são preservados em campos separados.`);
 
   if (hasCard) {
     sections.push(`### 4a. CARTÃO (síncrono — chama maybeFirePurchase no backend)
