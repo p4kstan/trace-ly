@@ -177,7 +177,7 @@ export const GO_LIVE_CHECKS: CertificationCheck[] = [
   {
     id: "destination-registry-r",
     scope: "all",
-    area: "destinations",
+    area: "dedup",
     title: "Destination registry normalizado + RPC paginada (Passo R)",
     description:
       "Tabela `ad_conversion_destinations` com RLS (leitura por workspace, escrita só owner/admin), RPC `list_ad_conversion_destinations` sem segredos, RPC `data_reuse_summary` paginada server-side (limite 1..10000) e simulador lendo `automation_rules` reais via `simulateRule()`. Auto continua bloqueado a menos que `guardrails.auto_enabled=true`.",
