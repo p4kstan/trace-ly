@@ -21,6 +21,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.103.0";
 import { getRegisteredHandler, getHandler } from "./handlers/_registry.ts";
 import type { NormalizedCustomer, NormalizedOrder } from "./handlers/_types.ts";
 import { sha256, str } from "./handlers/_helpers.ts";
+import { buildCanonicalEventIdentity } from "./handlers/_canonical.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
