@@ -327,7 +327,25 @@ Deno.serve(async (req) => {
 
     const results: RouteResult[] = [];
     const queueRows: any[] = [];
-    const normalizedPayload = normalizeEventToQueuePayload(event);
+
+    // ── Enrichment: pull session (raw IP, UA, ga_client_id, click IDs) and
+    //    identity (email_hash, phone_hash, external_id) so downstream providers
+    //    receive full match-rate signals even when the event came in "dry".
+    const [sessRes, identRes] = await Promise.all([
+      event.session_id
+        ? supabase.from("sessions")
+            .select("id, ga_client_id, client_ip, ip_hash, user_agent, fbp, fbc, gclid, gbraid, wbraid, fbclid, ttclid, msclkid, utm_source, utm_medium, utm_campaign, utm_content, utm_term, landing_page, referrer")
+            .eq("id", event.session_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      event.identity_id
+        ? supabase.from("identities")
+            .select("id, email_hash, phone_hash, external_id")
+            .eq("id", event.identity_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+    const enrichment = { session: sessRes.data || {}, identity: identRes.data || {} };
+
+    const normalizedPayload = normalizeEventToQueuePayload(event, enrichment);
 
     // ── DEDUP RULE (Purchase/Lead): same order_id + event_name within 24h
     // is recorded in `duplicate_detections`. If the SAME source already sent
