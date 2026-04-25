@@ -393,9 +393,12 @@ Deno.serve(async (req) => {
         if (!metaBatches.has(key)) metaBatches.set(key, []);
         metaBatches.get(key)!.push(item);
       } else {
-        const key = `${provider}::${item.workspace_id}`;
+        // Group by provider + workspace + destination so each batch
+        // dispatches ONLY to its target account (no cross-account fan-out).
+        const dest = item.destination || "default";
+        const key = `${provider}::${item.workspace_id}::${dest}`;
         if (!nonMetaBatches.has(key)) {
-          nonMetaBatches.set(key, { provider, workspaceId: item.workspace_id, items: [] });
+          nonMetaBatches.set(key, { provider, workspaceId: item.workspace_id, destination: dest, items: [] });
         }
         nonMetaBatches.get(key)!.items.push(item);
       }
