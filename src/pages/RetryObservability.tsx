@@ -191,7 +191,7 @@ export default function RetryObservability() {
       <QueueHealthBanner workspaceId={workspace?.id} />
       <InternalAlertsPanel workspaceId={workspace?.id} />
 
-
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiCard label="Em retry" value={kpis.retryCount} tone={kpis.retryCount > 0 ? "warn" : "ok"} />
         <KpiCard label="Parados > 1h" value={kpis.stuck1h} tone={kpis.stuck1h > 0 ? "danger" : "ok"} />
         <KpiCard label="Dead-letter" value={kpis.dlCount} tone={kpis.dlCount > 0 ? "danger" : "ok"} />
