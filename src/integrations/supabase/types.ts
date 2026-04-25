@@ -713,6 +713,77 @@ export type Database = {
         }
         Relationships: []
       }
+      campaign_metrics_snapshots: {
+        Row: {
+          account_id: string | null
+          campaign_id: string
+          clicks: number
+          conversions: number
+          cpa_cents: number | null
+          created_at: string
+          ctr: number | null
+          cvr: number | null
+          date_end: string
+          date_start: string
+          id: string
+          impressions: number
+          provider: string
+          raw_metrics: Json
+          revenue_cents: number
+          roas: number | null
+          spend_cents: number
+          workspace_id: string
+        }
+        Insert: {
+          account_id?: string | null
+          campaign_id: string
+          clicks?: number
+          conversions?: number
+          cpa_cents?: number | null
+          created_at?: string
+          ctr?: number | null
+          cvr?: number | null
+          date_end: string
+          date_start: string
+          id?: string
+          impressions?: number
+          provider: string
+          raw_metrics?: Json
+          revenue_cents?: number
+          roas?: number | null
+          spend_cents?: number
+          workspace_id: string
+        }
+        Update: {
+          account_id?: string | null
+          campaign_id?: string
+          clicks?: number
+          conversions?: number
+          cpa_cents?: number | null
+          created_at?: string
+          ctr?: number | null
+          cvr?: number | null
+          date_end?: string
+          date_start?: string
+          id?: string
+          impressions?: number
+          provider?: string
+          raw_metrics?: Json
+          revenue_cents?: number
+          roas?: number | null
+          spend_cents?: number
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_metrics_snapshots_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversions: {
         Row: {
           attributed_campaign: string | null
@@ -4963,6 +5034,515 @@ export type Database = {
           },
         ]
       }
+      traffic_agent_action_logs: {
+        Row: {
+          action_id: string | null
+          created_at: string
+          id: string
+          level: string
+          message: string
+          metadata: Json
+          workspace_id: string
+        }
+        Insert: {
+          action_id?: string | null
+          created_at?: string
+          id?: string
+          level?: string
+          message: string
+          metadata?: Json
+          workspace_id: string
+        }
+        Update: {
+          action_id?: string | null
+          created_at?: string
+          id?: string
+          level?: string
+          message?: string
+          metadata?: Json
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "traffic_agent_action_logs_action_id_fkey"
+            columns: ["action_id"]
+            isOneToOne: false
+            referencedRelation: "traffic_agent_actions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "traffic_agent_action_logs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      traffic_agent_actions: {
+        Row: {
+          account_id: string | null
+          action_type: string
+          approval_status: string
+          campaign_id: string | null
+          created_at: string
+          entity_id: string | null
+          executed_at: string | null
+          execution_status: string
+          guardrail_decision: Json
+          id: string
+          mode: string
+          proposed_payload: Json
+          provider: string
+          recommendation_id: string | null
+          rollback_payload: Json
+          simulated_result: Json
+          workspace_id: string
+        }
+        Insert: {
+          account_id?: string | null
+          action_type: string
+          approval_status?: string
+          campaign_id?: string | null
+          created_at?: string
+          entity_id?: string | null
+          executed_at?: string | null
+          execution_status?: string
+          guardrail_decision?: Json
+          id?: string
+          mode?: string
+          proposed_payload?: Json
+          provider: string
+          recommendation_id?: string | null
+          rollback_payload?: Json
+          simulated_result?: Json
+          workspace_id: string
+        }
+        Update: {
+          account_id?: string | null
+          action_type?: string
+          approval_status?: string
+          campaign_id?: string | null
+          created_at?: string
+          entity_id?: string | null
+          executed_at?: string | null
+          execution_status?: string
+          guardrail_decision?: Json
+          id?: string
+          mode?: string
+          proposed_payload?: Json
+          provider?: string
+          recommendation_id?: string | null
+          rollback_payload?: Json
+          simulated_result?: Json
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "traffic_agent_actions_recommendation_id_fkey"
+            columns: ["recommendation_id"]
+            isOneToOne: false
+            referencedRelation: "traffic_agent_recommendations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "traffic_agent_actions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      traffic_agent_guardrails: {
+        Row: {
+          active: boolean
+          allow_live_mutations: boolean
+          cooldown_hours: number
+          created_at: string
+          human_approval_required: boolean
+          id: string
+          max_actions_per_day: number
+          max_bid_change_percent: number
+          max_budget_change_percent: number
+          max_daily_budget_cents: number | null
+          min_conversions: number
+          min_spend_cents: number
+          mode: string
+          rollback_required: boolean
+          target_cpa_cents: number | null
+          target_roas: number | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          active?: boolean
+          allow_live_mutations?: boolean
+          cooldown_hours?: number
+          created_at?: string
+          human_approval_required?: boolean
+          id?: string
+          max_actions_per_day?: number
+          max_bid_change_percent?: number
+          max_budget_change_percent?: number
+          max_daily_budget_cents?: number | null
+          min_conversions?: number
+          min_spend_cents?: number
+          mode?: string
+          rollback_required?: boolean
+          target_cpa_cents?: number | null
+          target_roas?: number | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          active?: boolean
+          allow_live_mutations?: boolean
+          cooldown_hours?: number
+          created_at?: string
+          human_approval_required?: boolean
+          id?: string
+          max_actions_per_day?: number
+          max_bid_change_percent?: number
+          max_budget_change_percent?: number
+          max_daily_budget_cents?: number | null
+          min_conversions?: number
+          min_spend_cents?: number
+          mode?: string
+          rollback_required?: boolean
+          target_cpa_cents?: number | null
+          target_roas?: number | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "traffic_agent_guardrails_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      traffic_agent_knowledge_chunks: {
+        Row: {
+          chunk_index: number
+          content: string
+          content_hash: string
+          created_at: string
+          document_id: string
+          embedding: Json | null
+          id: string
+          metadata: Json
+          search_vector: unknown
+          workspace_id: string
+        }
+        Insert: {
+          chunk_index: number
+          content: string
+          content_hash: string
+          created_at?: string
+          document_id: string
+          embedding?: Json | null
+          id?: string
+          metadata?: Json
+          search_vector?: unknown
+          workspace_id: string
+        }
+        Update: {
+          chunk_index?: number
+          content?: string
+          content_hash?: string
+          created_at?: string
+          document_id?: string
+          embedding?: Json | null
+          id?: string
+          metadata?: Json
+          search_vector?: unknown
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "traffic_agent_knowledge_chunks_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "traffic_agent_knowledge_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "traffic_agent_knowledge_chunks_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      traffic_agent_knowledge_documents: {
+        Row: {
+          active: boolean
+          content_hash: string
+          created_at: string
+          created_by: string | null
+          id: string
+          metadata: Json
+          provider: string | null
+          source_type: string
+          title: string
+          workspace_id: string
+        }
+        Insert: {
+          active?: boolean
+          content_hash: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          metadata?: Json
+          provider?: string | null
+          source_type?: string
+          title: string
+          workspace_id: string
+        }
+        Update: {
+          active?: boolean
+          content_hash?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          metadata?: Json
+          provider?: string | null
+          source_type?: string
+          title?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "traffic_agent_knowledge_documents_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      traffic_agent_mcp_tool_calls: {
+        Row: {
+          arguments_redacted: Json
+          created_at: string
+          duration_ms: number | null
+          id: string
+          result_summary: Json
+          run_id: string | null
+          status: string
+          tool_name: string
+          workspace_id: string
+        }
+        Insert: {
+          arguments_redacted?: Json
+          created_at?: string
+          duration_ms?: number | null
+          id?: string
+          result_summary?: Json
+          run_id?: string | null
+          status?: string
+          tool_name: string
+          workspace_id: string
+        }
+        Update: {
+          arguments_redacted?: Json
+          created_at?: string
+          duration_ms?: number | null
+          id?: string
+          result_summary?: Json
+          run_id?: string | null
+          status?: string
+          tool_name?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "traffic_agent_mcp_tool_calls_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "traffic_agent_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "traffic_agent_mcp_tool_calls_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      traffic_agent_memory: {
+        Row: {
+          confidence: number
+          created_at: string
+          id: string
+          key: string
+          last_seen_at: string
+          memory_type: string
+          value_json: Json
+          workspace_id: string
+        }
+        Insert: {
+          confidence?: number
+          created_at?: string
+          id?: string
+          key: string
+          last_seen_at?: string
+          memory_type: string
+          value_json?: Json
+          workspace_id: string
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          id?: string
+          key?: string
+          last_seen_at?: string
+          memory_type?: string
+          value_json?: Json
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "traffic_agent_memory_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      traffic_agent_recommendations: {
+        Row: {
+          account_id: string | null
+          action_type: string
+          campaign_id: string | null
+          confidence: number
+          created_at: string
+          entity_id: string | null
+          entity_type: string
+          evidence_json: Json
+          expected_impact: Json
+          id: string
+          priority: number
+          provider: string
+          rag_refs: Json
+          rationale: string
+          run_id: string | null
+          status: string
+          workspace_id: string
+        }
+        Insert: {
+          account_id?: string | null
+          action_type: string
+          campaign_id?: string | null
+          confidence?: number
+          created_at?: string
+          entity_id?: string | null
+          entity_type: string
+          evidence_json?: Json
+          expected_impact?: Json
+          id?: string
+          priority?: number
+          provider: string
+          rag_refs?: Json
+          rationale?: string
+          run_id?: string | null
+          status?: string
+          workspace_id: string
+        }
+        Update: {
+          account_id?: string | null
+          action_type?: string
+          campaign_id?: string | null
+          confidence?: number
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string
+          evidence_json?: Json
+          expected_impact?: Json
+          id?: string
+          priority?: number
+          provider?: string
+          rag_refs?: Json
+          rationale?: string
+          run_id?: string | null
+          status?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "traffic_agent_recommendations_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "traffic_agent_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "traffic_agent_recommendations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      traffic_agent_runs: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          error: string | null
+          finished_at: string | null
+          id: string
+          input_window: Json
+          mode: string
+          started_at: string | null
+          status: string
+          summary: Json
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          input_window?: Json
+          mode?: string
+          started_at?: string | null
+          status?: string
+          summary?: Json
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          input_window?: Json
+          mode?: string
+          started_at?: string | null
+          status?: string
+          summary?: Json
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "traffic_agent_runs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       webhook_logs: {
         Row: {
           error_message: string | null
@@ -5255,6 +5835,35 @@ export type Database = {
           workspace_id: string
         }[]
       }
+      get_or_create_traffic_agent_guardrails: {
+        Args: { _workspace_id: string }
+        Returns: {
+          active: boolean
+          allow_live_mutations: boolean
+          cooldown_hours: number
+          created_at: string
+          human_approval_required: boolean
+          id: string
+          max_actions_per_day: number
+          max_bid_change_percent: number
+          max_budget_change_percent: number
+          max_daily_budget_cents: number | null
+          min_conversions: number
+          min_spend_cents: number
+          mode: string
+          rollback_required: boolean
+          target_cpa_cents: number | null
+          target_roas: number | null
+          updated_at: string
+          workspace_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "traffic_agent_guardrails"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       increment_workspace_usage: {
         Args: { _workspace_id: string }
         Returns: Json
@@ -5306,6 +5915,34 @@ export type Database = {
           reasons: Json
           test_mode: boolean
         }[]
+      }
+      list_traffic_agent_recommendations: {
+        Args: { _limit?: number; _status?: string; _workspace_id: string }
+        Returns: {
+          account_id: string | null
+          action_type: string
+          campaign_id: string | null
+          confidence: number
+          created_at: string
+          entity_id: string | null
+          entity_type: string
+          evidence_json: Json
+          expected_impact: Json
+          id: string
+          priority: number
+          provider: string
+          rag_refs: Json
+          rationale: string
+          run_id: string | null
+          status: string
+          workspace_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "traffic_agent_recommendations"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       rate_limit_hit: {
         Args: {
