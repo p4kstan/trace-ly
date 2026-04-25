@@ -198,6 +198,18 @@ export const GO_LIVE_CHECKS: CertificationCheck[] = [
     status: "enforced",
     link: { to: "/destination-registry", label: "Abrir Registry de destinos" },
   },
+  {
+    id: "dispatch-gate-wired-t",
+    scope: "all",
+    area: "dedup",
+    title: "Dispatch gate ligado ao process-events + dispatch-test (Passo T)",
+    description:
+      "process-events chama decideDispatch() antes de qualquer chamada externa: send_enabled=false, status≠active, consent_gate_required sem consentimento e test_mode_default sem caller test_mode bloqueiam o envio e gravam decisão em event_deliveries (request_json.dispatch_decision='blocked', sem PII/segredos). Painel 'Testar dispatch' em /destination-registry usa a Edge Function dispatch-test (verify_jwt, RLS) que NUNCA envia para provedor real.",
+    enforcedBy:
+      "supabase/functions/process-events/index.ts + supabase/functions/dispatch-test/index.ts + supabase/functions/_shared/destination-dispatch-gate.ts",
+    status: "enforced",
+    link: { to: "/destination-registry", label: "Abrir Registry + Testar dispatch" },
+  },
 ];
 
 export interface CertificationSummary {

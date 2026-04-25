@@ -26,7 +26,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Send, ShieldAlert, KeyRound, Trash2, Pencil, Info } from "lucide-react";
+import { Plus, Send, ShieldAlert, KeyRound, Trash2, Pencil, Info, FlaskConical, History, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { maskCredentialRef, type RegistryDispatchRow } from "@/lib/destination-dispatch-gate";
 
@@ -349,6 +349,12 @@ export default function DestinationRegistry() {
         </CardContent>
       </Card>
 
+      {/* Passo T — Test Dispatch (read-only simulator) */}
+      <TestDispatchPanel workspaceId={workspaceId} rows={rows} />
+
+      {/* Passo T — Decision audit (no PII / no secrets) */}
+      <DecisionAuditPanel workspaceId={workspaceId} />
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
@@ -475,5 +481,207 @@ function SwitchField({
       </div>
       <Switch checked={checked} onCheckedChange={onChange} />
     </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// Passo T — Test Dispatch panel (read-only). Calls dispatch-test
+// edge function which NEVER sends events to providers.
+// ════════════════════════════════════════════════════════════════
+function TestDispatchPanel({ workspaceId, rows }: { workspaceId?: string; rows: RegistryFullRow[] }) {
+  const [provider, setProvider] = useState("google_ads");
+  const [destinationId, setDestinationId] = useState<string>("");
+  const [eventName, setEventName] = useState("purchase");
+  const [consent, setConsent] = useState(true);
+  const [testMode, setTestMode] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  const providerRows = rows.filter((r) => r.provider === provider);
+
+  async function run() {
+    if (!workspaceId) return;
+    setLoading(true);
+    setResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("dispatch-test", {
+        body: {
+          workspace_id: workspaceId,
+          provider,
+          destination_id: destinationId || undefined,
+          event_name: eventName || undefined,
+          consent_granted: consent,
+          test_mode: testMode,
+        },
+      });
+      if (error) throw error;
+      setResult(data);
+    } catch (e: any) {
+      toast.error(`Falha: ${e.message ?? e}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <FlaskConical className="h-4 w-4 text-primary" /> Testar dispatch (dry-run)
+        </CardTitle>
+        <CardDescription>
+          Simula a decisão do <code>destination-dispatch-gate</code> sem enviar nada para Google/Meta/TikTok/GA4.
+          Credenciais nunca aparecem.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+          <div className="space-y-1">
+            <Label className="text-xs">Provider</Label>
+            <Select value={provider} onValueChange={setProvider}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="google_ads">google_ads</SelectItem>
+                <SelectItem value="meta">meta</SelectItem>
+                <SelectItem value="tiktok">tiktok</SelectItem>
+                <SelectItem value="ga4">ga4</SelectItem>
+                <SelectItem value="microsoft">microsoft</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Destination (opcional)</Label>
+            <Select value={destinationId || "all"} onValueChange={(v) => setDestinationId(v === "all" ? "" : v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">— todos —</SelectItem>
+                {providerRows.map((r) => (
+                  <SelectItem key={r.destination_id} value={r.destination_id}>{r.destination_id}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Event name</Label>
+            <Input value={eventName} onChange={(e) => setEventName(e.target.value)} placeholder="purchase" />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label className="flex items-center gap-2 text-xs">
+              <Switch checked={consent} onCheckedChange={setConsent} /> consent_granted
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <Switch checked={testMode} onCheckedChange={setTestMode} /> test_mode
+            </label>
+          </div>
+        </div>
+        <Button onClick={run} disabled={loading || !workspaceId} size="sm" className="gap-2">
+          <FlaskConical className="h-3.5 w-3.5" /> {loading ? "Avaliando…" : "Simular dispatch"}
+        </Button>
+        {result?.decision && (
+          <div className="rounded-md border bg-muted/20 p-3 text-xs space-y-2">
+            <div className="flex items-center gap-2">
+              {result.decision.fallback ? (
+                <Badge variant="outline">fallback (registry vazio)</Badge>
+              ) : result.decision.targets.length > 0 ? (
+                <Badge variant="default" className="gap-1"><CheckCircle2 className="h-3 w-3" /> {result.decision.targets.length} permitido(s)</Badge>
+              ) : (
+                <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" /> bloqueado</Badge>
+              )}
+              <span className="text-muted-foreground">linhas avaliadas: {result.decision.matched_registry_rows}</span>
+              <span className="text-muted-foreground">— dispatched: {String(result.dispatched)}</span>
+            </div>
+            {result.decision.targets.length > 0 && (
+              <div>
+                <div className="font-semibold">Targets:</div>
+                {result.decision.targets.map((t: any) => (
+                  <div key={t.destination_id} className="font-mono">
+                    ✓ {t.destination_id} — credential: {t.credential_ref} {t.test_mode && <Badge variant="outline" className="text-[9px] ml-1">test_mode</Badge>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {result.decision.skipped.length > 0 && (
+              <div>
+                <div className="font-semibold">Bloqueados:</div>
+                {result.decision.skipped.map((s: any) => (
+                  <div key={s.destination_id} className="font-mono">
+                    ✗ {s.destination_id} — {s.reasons.join(", ")}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// Passo T — Decision audit (event_deliveries with dispatch_decision).
+// Lists last 20 gate decisions (no PII, no credentials).
+// ════════════════════════════════════════════════════════════════
+function DecisionAuditPanel({ workspaceId }: { workspaceId?: string }) {
+  const auditQuery = useQuery({
+    queryKey: ["dispatch-audit", workspaceId],
+    enabled: !!workspaceId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("event_deliveries")
+        .select("id,event_id,provider,destination,status,last_attempt_at,request_json,error_message")
+        .eq("workspace_id", workspaceId!)
+        .eq("status", "skipped")
+        .order("last_attempt_at", { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <History className="h-4 w-4 text-primary" /> Auditoria de decisões de dispatch
+        </CardTitle>
+        <CardDescription>
+          Últimas 20 decisões registradas pelo gate. Mostra apenas event_id / provider / destination_id / motivos —
+          nunca PII e nunca segredos.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {!auditQuery.data?.length ? (
+          <div className="text-xs text-muted-foreground">Nenhuma decisão de bloqueio recente.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs">Quando</TableHead>
+                  <TableHead className="text-xs">Provider</TableHead>
+                  <TableHead className="text-xs">Destination</TableHead>
+                  <TableHead className="text-xs">Status</TableHead>
+                  <TableHead className="text-xs">Motivos</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {auditQuery.data.map((row: any) => {
+                  const reasons = (row.request_json?.reasons ?? []) as string[];
+                  return (
+                    <TableRow key={row.id}>
+                      <TableCell className="text-[10px] font-mono">{row.last_attempt_at?.slice(0, 19)}</TableCell>
+                      <TableCell className="text-xs font-mono">{row.provider}</TableCell>
+                      <TableCell className="text-xs font-mono">{row.destination}</TableCell>
+                      <TableCell><Badge variant="outline" className="text-[10px]">{row.status}</Badge></TableCell>
+                      <TableCell className="text-xs font-mono">{reasons.join(", ") || "—"}</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

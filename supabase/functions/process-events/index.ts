@@ -1,5 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.103.0";
 import { installSafeConsole } from "../_shared/install-safe-console.ts";
+import {
+  decideDispatch,
+  type RegistryDispatchRow,
+  type DispatchDecision,
+} from "../_shared/destination-dispatch-gate.ts";
 
 installSafeConsole("process-events");
 
@@ -108,6 +113,113 @@ async function processInParallel<T>(items: T[], concurrency: number, fn: (item: 
 }
 
 // ══════════════════════════════════════════════════════════════
+// DESTINATION DISPATCH GATE (Passo T)
+// Loads ad_conversion_destinations registry per workspace+provider and
+// applies decideDispatch() BEFORE any external call. Empty registry ⇒
+// fallback to legacy heuristic dispatcher (no regression).
+// ══════════════════════════════════════════════════════════════
+
+const registryCache = new Map<string, RegistryDispatchRow[]>();
+
+async function loadRegistry(workspaceId: string, provider: string): Promise<RegistryDispatchRow[]> {
+  const key = `${workspaceId}::${provider}`;
+  const hit = registryCache.get(key);
+  if (hit) return hit;
+  const { data } = await supabase
+    .from("ad_conversion_destinations")
+    .select("id,provider,destination_id,account_id,conversion_action_id,event_name,credential_ref,status,consent_gate_required,send_enabled,test_mode_default")
+    .eq("workspace_id", workspaceId)
+    .eq("provider", provider);
+  const rows: RegistryDispatchRow[] = (data ?? []) as never;
+  registryCache.set(key, rows);
+  return rows;
+}
+
+/** Per-item gate. Returns the decision and list of items still allowed. */
+async function gateItems(
+  provider: string,
+  workspaceId: string,
+  destinationId: string,
+  items: any[],
+  globalTestMode: boolean,
+): Promise<{ allowed: any[]; blocked: Array<{ item: any; decision: DispatchDecision; reasons: string[] }>; usedFallback: boolean }> {
+  const registry = await loadRegistry(workspaceId, provider);
+  // Restrict to the destination_id this batch was reserved for.
+  const scoped = registry.filter((r) =>
+    destinationId === "default" || destinationId === r.destination_id || destinationId === r.account_id,
+  );
+  const effective = scoped.length > 0 ? scoped : registry;
+
+  const allowed: any[] = [];
+  const blocked: Array<{ item: any; decision: DispatchDecision; reasons: string[] }> = [];
+  let usedFallback = false;
+
+  for (const item of items) {
+    const p = item.payload_json || {};
+    const consent = p.ads_consent_granted === true || p.consent_granted === true || p.order?.ads_consent_granted === true;
+    const itemTestMode = globalTestMode || p.test_mode === true || p.dry_run === true;
+    const decision = decideDispatch(effective, {
+      provider,
+      event_name: p.marketing_event || p.event_name || null,
+      consent_granted: consent,
+      test_mode: itemTestMode,
+    });
+    if (decision.fallback) {
+      usedFallback = true;
+      // No registry rows for provider: preserve legacy behaviour.
+      allowed.push(item);
+      continue;
+    }
+    // If at least one target survives, allow the item; record skipped destinations
+    // (other than the one we're currently dispatching to) only as audit.
+    if (decision.targets.length > 0) {
+      allowed.push(item);
+    } else {
+      const reasons = decision.skipped.flatMap((s) => s.reasons);
+      blocked.push({ item, decision, reasons });
+    }
+  }
+  return { allowed, blocked, usedFallback };
+}
+
+async function recordBlockedDecisions(
+  provider: string,
+  destinationId: string,
+  blocked: Array<{ item: any; decision: DispatchDecision; reasons: string[] }>,
+  stats: { skipped?: number },
+) {
+  if (blocked.length === 0) return;
+  // Mark queue rows as `skipped` and write a no-PII decision row to
+  // event_deliveries. NEVER include payload PII or credentials.
+  const ids = blocked.map((b) => b.item.id);
+  await supabase.from("event_queue").update({
+    status: "skipped",
+    last_error: `dispatch_gate_blocked: ${blocked[0].reasons.join(",")}`,
+    updated_at: new Date().toISOString(),
+  }).in("id", ids);
+
+  const deliveries = blocked.map((b) => ({
+    event_id: b.item.event_id || crypto.randomUUID(),
+    workspace_id: b.item.workspace_id,
+    provider,
+    destination: destinationId,
+    status: "skipped",
+    attempt_count: 1,
+    last_attempt_at: new Date().toISOString(),
+    request_json: {
+      dispatch_decision: "blocked",
+      reasons: b.reasons,
+      matched_registry_rows: b.decision.matched_registry_rows,
+      // No PII, no credentials. destination_id is configuration, not secret.
+    },
+    response_json: null,
+    error_message: `dispatch_gate_blocked: ${b.reasons.join(",")}`,
+  }));
+  await supabase.from("event_deliveries").insert(deliveries);
+  stats.skipped = (stats.skipped || 0) + blocked.length;
+}
+
+// ══════════════════════════════════════════════════════════════
 // META CAPI
 // ══════════════════════════════════════════════════════════════
 
@@ -184,11 +296,21 @@ async function sendBatchToMeta(pixelId: string, accessToken: string, testEventCo
 
 async function processMetaBatch(
   pixelKey: string, items: any[], pixelCache: Map<string, any>,
-  stats: { delivered: number; failed: number; deadLettered: number; skipped?: number }
+  stats: { delivered: number; failed: number; deadLettered: number; skipped?: number },
+  globalTestMode = false,
 ) {
+  const [workspaceId, pixelId] = pixelKey.split("::");
+
+  // Passo T — destination dispatch gate (Meta). Empty registry ⇒ legacy behaviour.
+  const gate = await gateItems("meta", workspaceId, pixelId, items, globalTestMode);
+  if (gate.blocked.length > 0) {
+    await recordBlockedDecisions("meta", pixelId, gate.blocked, stats);
+  }
+  items = gate.allowed;
+  if (items.length === 0) return;
+
   let pixel = pixelCache.get(pixelKey);
   if (!pixel) {
-    const [workspaceId, pixelId] = pixelKey.split("::");
     const { data } = await supabase.from("meta_pixels")
       .select("pixel_id, access_token_encrypted, test_event_code")
       .eq("pixel_id", pixelId).eq("workspace_id", workspaceId).eq("is_active", true).single();
@@ -313,8 +435,17 @@ async function dispatchToProvider(
 async function processNonMetaBatch(
   provider: string, workspaceId: string, destinationId: string, items: any[],
   destCache: Map<string, any>,
-  stats: { delivered: number; failed: number; deadLettered: number; skipped?: number }
+  stats: { delivered: number; failed: number; deadLettered: number; skipped?: number },
+  globalTestMode = false,
 ) {
+  // Passo T — destination dispatch gate. Empty registry ⇒ legacy fallback.
+  const gate = await gateItems(provider, workspaceId, destinationId, items, globalTestMode);
+  if (gate.blocked.length > 0) {
+    await recordBlockedDecisions(provider, destinationId, gate.blocked, stats);
+  }
+  items = gate.allowed;
+  if (items.length === 0) return;
+
   const cacheKey = `${workspaceId}::${provider}`;
   let destinations = destCache.get(cacheKey);
   if (!destinations) {
@@ -327,8 +458,6 @@ async function processNonMetaBatch(
     for (const item of items) await handleFailure(item, `No active ${provider} destination configured`, stats);
     return;
   }
-  // Dispatch ONLY to the destination this batch was reserved for. Prevents
-  // sending the same conversion to every connected account.
   const dest = destinations.find((d: any) =>
     d.destination_id === destinationId || d.id === destinationId,
   ) || (destinationId === "default" ? destinations[0] : null);
@@ -383,7 +512,8 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const { workspace_id, limit = 200 } = body;
+    const { workspace_id, limit = 200, test_mode = false, dry_run = false } = body;
+    const globalTestMode = test_mode === true || dry_run === true;
 
     let query = supabase.from("event_queue")
       .select("*")
@@ -443,10 +573,10 @@ Deno.serve(async (req) => {
 
     await Promise.all([
       processInParallel(metaEntries, CONCURRENCY, async ([pixelKey, items]) => {
-        await processMetaBatch(pixelKey, items, pixelCache, stats);
+        await processMetaBatch(pixelKey, items, pixelCache, stats, globalTestMode);
       }),
       processInParallel(nonMetaEntries, CONCURRENCY, async ({ provider, workspaceId, destination, items }) => {
-        await processNonMetaBatch(provider, workspaceId, destination, items, destCache, stats);
+        await processNonMetaBatch(provider, workspaceId, destination, items, destCache, stats, globalTestMode);
       }),
     ]);
 
