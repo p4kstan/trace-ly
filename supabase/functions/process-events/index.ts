@@ -296,11 +296,21 @@ async function sendBatchToMeta(pixelId: string, accessToken: string, testEventCo
 
 async function processMetaBatch(
   pixelKey: string, items: any[], pixelCache: Map<string, any>,
-  stats: { delivered: number; failed: number; deadLettered: number; skipped?: number }
+  stats: { delivered: number; failed: number; deadLettered: number; skipped?: number },
+  globalTestMode = false,
 ) {
+  const [workspaceId, pixelId] = pixelKey.split("::");
+
+  // Passo T — destination dispatch gate (Meta). Empty registry ⇒ legacy behaviour.
+  const gate = await gateItems("meta", workspaceId, pixelId, items, globalTestMode);
+  if (gate.blocked.length > 0) {
+    await recordBlockedDecisions("meta", pixelId, gate.blocked, stats);
+  }
+  items = gate.allowed;
+  if (items.length === 0) return;
+
   let pixel = pixelCache.get(pixelKey);
   if (!pixel) {
-    const [workspaceId, pixelId] = pixelKey.split("::");
     const { data } = await supabase.from("meta_pixels")
       .select("pixel_id, access_token_encrypted, test_event_code")
       .eq("pixel_id", pixelId).eq("workspace_id", workspaceId).eq("is_active", true).single();
