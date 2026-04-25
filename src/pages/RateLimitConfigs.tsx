@@ -15,6 +15,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useWorkspace } from "@/hooks/use-tracking-data";
+import { useWorkspaceRole, canEditRateLimitConfigs } from "@/hooks/use-workspace-role";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -51,6 +52,8 @@ function validBounds(window_seconds: number, max_hits: number): string | null {
 
 export default function RateLimitConfigs() {
   const { data: workspace } = useWorkspace();
+  const { data: role } = useWorkspaceRole(workspace?.id);
+  const canEdit = canEditRateLimitConfigs(role ?? null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
