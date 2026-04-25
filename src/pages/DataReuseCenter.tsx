@@ -544,7 +544,10 @@ export default function DataReuseCenter() {
                 <Cog className="h-4 w-4 text-primary" /> Simulador de automações (dry-run)
               </CardTitle>
               <CardDescription>
-                Recomendações de orçamento/lance/CPA. <strong>Auto bloqueado por padrão</strong> via guardrails.
+                Recomendações de orçamento/lance/CPA. <strong>Auto bloqueado por padrão</strong> via guardrails.{" "}
+                <Badge variant="outline" className="ml-1 text-[10px]">
+                  fonte: {simulationSource === "real_rule" ? "automation_rules" : "sintético"}
+                </Badge>
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
