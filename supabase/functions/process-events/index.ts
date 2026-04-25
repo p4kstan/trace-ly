@@ -440,11 +440,11 @@ async function processMetaBatch(
 ) {
   const [workspaceId, pixelId] = pixelKey.split("::");
 
-  // Passo T — destination dispatch gate (Meta). Empty registry ⇒ legacy behaviour.
+  // Passo T+U — destination dispatch gate (Meta). Empty registry ⇒ legacy behaviour.
+  // test_mode/dry_run items are diverted to recordDryRun and NEVER reach the network.
   const gate = await gateItems("meta", workspaceId, pixelId, items, globalTestMode);
-  if (gate.blocked.length > 0) {
-    await recordBlockedDecisions("meta", pixelId, gate.blocked, stats);
-  }
+  if (gate.dryRun.length > 0) await recordDryRun("meta", pixelId, gate.dryRun, stats);
+  if (gate.blocked.length > 0) await recordBlockedDecisions("meta", pixelId, gate.blocked, stats);
   items = gate.allowed;
   if (items.length === 0) return;
 
