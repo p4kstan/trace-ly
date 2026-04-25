@@ -88,12 +88,11 @@ describe("AuditLogViewer.redactValue", () => {
   });
 
   it("truncates extremely long strings to avoid leaking blobs", () => {
-    // Use non-hex chars so HEX_TOKEN_RE doesn't fire — we want to exercise
-    // the length-truncation branch specifically.
+    // Use non-hex chars and a key that is NOT in PII_KEY_RE.
     const big = "z".repeat(500);
-    const out = redactValue({ description: big }) as { description: string };
-    expect(out.description.length).toBeLessThanOrEqual(241);
-    expect(out.description.endsWith("…")).toBe(true);
+    const out = redactValue({ note: big }) as { note: string };
+    expect(out.note.length).toBeLessThanOrEqual(241);
+    expect(out.note.endsWith("…")).toBe(true);
   });
 
   it("preserves null / numbers / booleans verbatim", () => {
