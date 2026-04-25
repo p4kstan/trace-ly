@@ -119,7 +119,9 @@ async function verifySignature(
       || req.headers.get("x-signature")
       || req.headers.get("x-hub-signature-256")
       || "";
-    if (!sig) return { valid: true, reason: "no_signature_header" };
+    // When a secret IS configured, we MUST require a signature header.
+    // Silently accepting unsigned requests would defeat the whole purpose.
+    if (!sig) return { valid: false, reason: "missing_signature_header_with_secret_configured" };
     const sigBytes = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(rawBody)));
     const computed = Array.from(sigBytes).map((b) => b.toString(16).padStart(2, "0")).join("");
     const normalized = sig.replace(/^sha256=/, "");
