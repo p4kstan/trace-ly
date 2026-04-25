@@ -375,10 +375,13 @@
 
     if (data) {
       var userFields = ['email', 'phone', 'first_name', 'last_name', 'city', 'state', 'zip', 'country', 'external_id', 'name'];
+      // Keys consumed at the top level — must NOT leak into custom_data.
+      var reservedKeys = ['event_id', 'eventId', 'trace_event_id', 'browser_event_id', 'value', 'currency'];
       var customData = {};
       for (var key in data) {
         if (key === 'value') event.value = Number(data[key]);
         else if (key === 'currency') event.currency = String(data[key]);
+        else if (reservedKeys.indexOf(key) !== -1) continue;
         else if (userFields.indexOf(key) !== -1) userData[key] = data[key];
         else customData[key] = data[key];
       }
