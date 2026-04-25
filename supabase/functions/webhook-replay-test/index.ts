@@ -23,6 +23,9 @@
 // ─────────────────────────────────────────────────────────────────────────
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.103.0";
+import { installSafeConsole } from "../_shared/install-safe-console.ts";
+
+installSafeConsole("webhook-replay-test");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -31,6 +34,26 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+// ── Ad-hoc in-memory rate limit ─────────────────────────────────────────
+// Backend has no shared rate-limiter primitive yet; this is best-effort and
+// per-instance only. Window: 60s, max 30 replays per (workspace|user|ip) key.
+// Test harness only — production webhooks are NOT rate-limited here.
+const RL_WINDOW_MS = 60_000;
+const RL_MAX = 30;
+const rlBuckets = new Map<string, number[]>();
+function rateLimitHit(key: string): { ok: boolean; retryAfter: number } {
+  const now = Date.now();
+  const arr = (rlBuckets.get(key) || []).filter((t) => now - t < RL_WINDOW_MS);
+  if (arr.length >= RL_MAX) {
+    const retryAfter = Math.ceil((RL_WINDOW_MS - (now - arr[0])) / 1000);
+    rlBuckets.set(key, arr);
+    return { ok: false, retryAfter: Math.max(retryAfter, 1) };
+  }
+  arr.push(now);
+  rlBuckets.set(key, arr);
+  return { ok: true, retryAfter: 0 };
+}
 
 const FORBIDDEN_PII_KEYS = [
   "email", "phone", "telephone", "cpf", "cnpj", "document",
