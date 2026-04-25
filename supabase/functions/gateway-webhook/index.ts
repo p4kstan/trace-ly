@@ -595,6 +595,14 @@ Deno.serve(async (req) => {
     const isCanceled = internalEvent.includes("cancel");
 
     const tk = order.tracking || {};
+    // Capture inbound transport-level client IP/UA as fallback when the gateway
+    // didn't include them in the payload — used downstream by Meta/TikTok CAPI.
+    const inboundIp = req.headers.get("cf-connecting-ip")
+      || req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+      || req.headers.get("x-real-ip")
+      || null;
+    const inboundUa = req.headers.get("user-agent") || null;
+
     const orderData: any = {
       workspace_id: workspaceId, gateway: order.gateway, gateway_order_id: order.external_order_id,
       gateway_integration_id: integrationId, customer_email: order.customer.email || null,
@@ -610,34 +618,50 @@ Deno.serve(async (req) => {
       utm_source: tk.utm_source || null, utm_medium: tk.utm_medium || null,
       utm_campaign: tk.utm_campaign || null, utm_content: tk.utm_content || null, utm_term: tk.utm_term || null,
       landing_page: tk.landing_page || null, referrer: tk.referrer || null,
+      // Persist for retro lookups (Etapa 1 added these columns + unique index).
+      ga_client_id: tk.ga_client_id || null,
+      client_ip: order.customer.ip || tk.ip || inboundIp,
+      user_agent: order.customer.user_agent || tk.user_agent || inboundUa,
     };
     if (isPaid) orderData.paid_at = new Date().toISOString();
     if (isRefund) orderData.refunded_at = new Date().toISOString();
     if (isCanceled) orderData.canceled_at = new Date().toISOString();
 
-    const { data: savedOrder } = await supabase.from("orders").insert(orderData).select("id").single();
+    // Idempotent upsert keyed on (workspace_id, gateway, gateway_order_id) —
+    // unique index added in Etapa 1. Webhook retries from the gateway no
+    // longer create duplicate `orders` rows.
+    const { data: savedOrder } = await supabase.from("orders")
+      .upsert(orderData, { onConflict: "workspace_id,gateway,gateway_order_id" })
+      .select("id").single();
 
-    // ── Payment ──
+    // ── Payment (idempotent on (workspace_id, gateway, gateway_payment_id))
     const paymentStatus = isPaid ? "paid"
       : isRefund ? "refunded"
       : isChargeback ? "chargeback"
       : (internalEvent.includes("fail") || internalEvent.includes("refused")) ? "failed"
       : "pending";
-    await supabase.from("payments").insert({
-      workspace_id: workspaceId, order_id: savedOrder?.id, gateway: order.gateway,
-      gateway_integration_id: integrationId, gateway_payment_id: order.external_payment_id,
-      payment_method: order.payment_method, status: paymentStatus,
-      amount: order.total_value, currency: order.currency, installments: order.installments,
-      paid_at: paymentStatus === "paid" ? new Date().toISOString() : null,
-      refunded_at: paymentStatus === "refunded" ? new Date().toISOString() : null,
-      chargeback_at: paymentStatus === "chargeback" ? new Date().toISOString() : null,
-      raw_payload_json: payload,
-    });
+    if (order.external_payment_id) {
+      await supabase.from("payments").upsert({
+        workspace_id: workspaceId, order_id: savedOrder?.id, gateway: order.gateway,
+        gateway_integration_id: integrationId, gateway_payment_id: order.external_payment_id,
+        payment_method: order.payment_method, status: paymentStatus,
+        amount: order.total_value, currency: order.currency, installments: order.installments,
+        paid_at: paymentStatus === "paid" ? new Date().toISOString() : null,
+        refunded_at: paymentStatus === "refunded" ? new Date().toISOString() : null,
+        chargeback_at: paymentStatus === "chargeback" ? new Date().toISOString() : null,
+        raw_payload_json: payload,
+      }, { onConflict: "workspace_id,gateway,gateway_payment_id" });
+    }
 
-    if (order.items?.length && savedOrder?.id) {
-      await supabase.from("order_items").insert(order.items.map((i) => ({
-        order_id: savedOrder.id, workspace_id: workspaceId, ...i,
-      })));
+    if (savedOrder?.id) {
+      // Replace order_items on every webhook retry so we never accumulate
+      // duplicate line items when the gateway reentries the same order.
+      await supabase.from("order_items").delete().eq("order_id", savedOrder.id);
+      if (order.items?.length) {
+        await supabase.from("order_items").insert(order.items.map((i) => ({
+          order_id: savedOrder.id, workspace_id: workspaceId, ...i,
+        })));
+      }
     }
 
     // ── Reconciliation (fallback fill) ──
