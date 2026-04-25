@@ -31,13 +31,13 @@ describe("sanitizeForLog", () => {
       access_token: "secret-token-123",
       api_key: "sk_live_xxx",
       cookie: "session=abc",
-      not_secret: "ok",
+      label: "ok",
     }) as any;
     expect(out.authorization).toBe("[REDACTED]");
     expect(out.access_token).toBe("[REDACTED]");
     expect(out.api_key).toBe("[REDACTED]");
     expect(out.cookie).toBe("[REDACTED]");
-    expect(out.not_secret).toBe("ok");
+    expect(out.label).toBe("ok");
   });
 
   it("masks PII patterns inside string values regardless of key", () => {
