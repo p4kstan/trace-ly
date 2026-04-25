@@ -151,7 +151,74 @@ Deno.serve(async (req) => {
       return json({ error: "Forbidden: not a member of this workspace" }, 403);
     }
 
-    // ── Create audit row up-front (status=running) ──
+    // ── DRY-RUN / PREVIEW MODE ──
+    // Returns only counts. Never returns hashes. Never writes a
+    // `completed` audit row. Logs counters only (no PII).
+    if (dryRun) {
+      const sinceIso = new Date(Date.now() - sinceDays * 86400_000).toISOString();
+      let q = service
+        .from("orders")
+        .select("identity_id, total, status, ads_consent_granted", { count: "exact", head: false })
+        .eq("workspace_id", workspaceId)
+        .gte("created_at", sinceIso)
+        .gte("total", minValue)
+        .not("identity_id", "is", null)
+        .limit(Math.min(limit * 2, 5000));
+      if (requireConsent) q = q.eq("ads_consent_granted", true);
+      const { data: orders, error: ordersErr, count: totalMatched } = await q;
+      if (ordersErr) {
+        console.error("dry_run orders query failed", ordersErr.message);
+        return json({ error: "preview query failed" }, 500);
+      }
+      const seen = new Set<string>();
+      let paidUnique = 0;
+      for (const o of orders || []) {
+        const status = String((o as any).status || "");
+        if (!PAID_STATUSES.has(status) && !PAID_STATUSES.has(status.toLowerCase())) continue;
+        const id = (o as any).identity_id as string | null;
+        if (!id || seen.has(id)) continue;
+        seen.add(id); paidUnique++;
+        if (paidUnique >= limit) break;
+      }
+      // Sample identity field availability — counts only, no values.
+      const idIds = Array.from(seen).slice(0, Math.min(paidUnique, 1000));
+      let withEmail = 0, withPhone = 0, withExternalId = 0;
+      if (idIds.length > 0) {
+        const { data: idents } = await service
+          .from("identities")
+          .select("email, email_hash, phone, phone_hash, external_id")
+          .eq("workspace_id", workspaceId)
+          .in("id", idIds);
+        for (const i of (idents || []) as any[]) {
+          if (i.email_hash || i.email) withEmail++;
+          if (i.phone_hash || i.phone) withPhone++;
+          if (i.external_id) withExternalId++;
+        }
+      }
+      console.log(JSON.stringify({
+        evt: "audience_seed_export.preview",
+        workspace_id: workspaceId, platform,
+        rows_eligible: paidUnique, sample_inspected: idIds.length,
+        with_email: withEmail, with_phone: withPhone, with_external_id: withExternalId,
+        since_days: sinceDays, require_consent: requireConsent,
+      }));
+      return json({
+        dry_run: true,
+        platform,
+        rows_eligible: paidUnique,
+        orders_matched: typeof totalMatched === "number" ? totalMatched : (orders?.length ?? 0),
+        sample_inspected: idIds.length,
+        field_availability: {
+          email_or_email_hash: withEmail,
+          phone_or_phone_hash: withPhone,
+          external_id: withExternalId,
+        },
+        filters: { since_days: sinceDays, min_order_value: minValue, limit, require_consent: requireConsent },
+        note: "preview only — no hashes, no PII, no export written",
+      });
+    }
+
+
     const { data: jobRow, error: jobErr } = await service
       .from("audience_seed_exports")
       .insert({
