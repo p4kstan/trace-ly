@@ -26,7 +26,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Send, ShieldAlert, KeyRound, Trash2, Pencil, Info } from "lucide-react";
+import { Plus, Send, ShieldAlert, KeyRound, Trash2, Pencil, Info, FlaskConical, History, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { maskCredentialRef, type RegistryDispatchRow } from "@/lib/destination-dispatch-gate";
 
