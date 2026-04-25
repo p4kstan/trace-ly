@@ -11,6 +11,21 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Loader2, Shield, ShieldOff, Brain, Search, FileText } from "lucide-react";
 
+function safeStringify(value: unknown): string {
+  try {
+    const seen = new WeakSet();
+    return JSON.stringify(value ?? {}, (_k, v) => {
+      if (typeof v === "object" && v !== null) {
+        if (seen.has(v)) return "[circular]";
+        seen.add(v);
+      }
+      return v;
+    }, 2) ?? "{}";
+  } catch {
+    return "[unserializable]";
+  }
+}
+
 export default function TrafficAgent() {
   const { data: workspace } = useWorkspace();
   const wid = workspace?.id;
@@ -20,25 +35,40 @@ export default function TrafficAgent() {
   const [logs, setLogs] = useState<any[]>([]);
   const [guardrails, setGuardrails] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [docTitle, setDocTitle] = useState("");
   const [docContent, setDocContent] = useState("");
 
-  useEffect(() => { if (wid) refresh(); }, [wid]);
+  useEffect(() => {
+    if (!wid) return;
+    refresh().catch((e) => setRefreshError(e?.message ?? "Falha ao carregar"));
+  }, [wid]);
 
   async function refresh() {
     if (!wid) return;
-    const [{ data: r }, { data: rs }, { data: d }, { data: l }, { data: g }] = await Promise.all([
-      supabase.rpc("list_traffic_agent_recommendations" as any, { _workspace_id: wid, _limit: 50 }),
-      supabase.from("traffic_agent_runs" as any).select("*").eq("workspace_id", wid).order("started_at", { ascending: false }).limit(10),
-      supabase.from("traffic_agent_knowledge_documents" as any).select("*").eq("workspace_id", wid).order("created_at", { ascending: false }).limit(20),
-      supabase.from("traffic_agent_action_logs" as any).select("*").eq("workspace_id", wid).order("created_at", { ascending: false }).limit(20),
-      supabase.rpc("get_or_create_traffic_agent_guardrails" as any, { _workspace_id: wid }),
-    ]);
-    setRecs((r as any[]) ?? []); setRuns((rs as any[]) ?? []);
-    setDocs((d as any[]) ?? []); setLogs((l as any[]) ?? []);
-    setGuardrails(g);
+    setRefreshing(true);
+    setRefreshError(null);
+    try {
+      const [r1, r2, r3, r4, r5] = await Promise.all([
+        supabase.rpc("list_traffic_agent_recommendations" as any, { _workspace_id: wid, _limit: 50 }),
+        supabase.from("traffic_agent_runs" as any).select("*").eq("workspace_id", wid).order("started_at", { ascending: false }).limit(10),
+        supabase.from("traffic_agent_knowledge_documents" as any).select("*").eq("workspace_id", wid).order("created_at", { ascending: false }).limit(20),
+        supabase.from("traffic_agent_action_logs" as any).select("*").eq("workspace_id", wid).order("created_at", { ascending: false }).limit(20),
+        supabase.rpc("get_or_create_traffic_agent_guardrails" as any, { _workspace_id: wid }),
+      ]);
+      setRecs(Array.isArray(r1.data) ? r1.data : []);
+      setRuns(Array.isArray(r2.data) ? r2.data : []);
+      setDocs(Array.isArray(r3.data) ? r3.data : []);
+      setLogs(Array.isArray(r4.data) ? r4.data : []);
+      setGuardrails(r5.data ?? null);
+    } catch (e: any) {
+      setRefreshError(e?.message ?? "Falha ao carregar dados");
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   async function runEvaluate() {
