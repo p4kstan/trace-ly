@@ -230,5 +230,74 @@ if grep -nE 'crypto\.randomUUID\(\)|uuidv4\(\)' supabase/functions/gateway-webho
 fi
 ok "_canonical.ts deterministic"
 
+# ─── 8. Passo K — RLS audit, safe export dry-run, redaction tests ───────
+log "8/8  Passo K controls (RLS audit, dry_run export, redaction tests, SLA split)"
+
+# 8a. RLS audit — only when DB is reachable. Critical tables MUST have RLS.
+if [ -n "${PGHOST:-}" ]; then
+  RLS_TABLES=(
+    "event_queue"
+    "queue_health_alerts"
+    "rate_limit_configs"
+    "rate_limit_buckets"
+    "audit_logs"
+    "audience_seed_exports"
+    "dead_letter_events"
+    "automation_actions"
+  )
+  for t in "${RLS_TABLES[@]}"; do
+    enabled=$(psql -tAc "SELECT relrowsecurity FROM pg_class WHERE relname='$t' AND relnamespace='public'::regnamespace LIMIT 1;" 2>/dev/null || echo "")
+    if [ -z "$enabled" ]; then
+      info "RLS audit: table $t not present (skipped)"
+      continue
+    fi
+    if [ "$enabled" = "t" ]; then
+      pol_count=$(psql -tAc "SELECT count(*) FROM pg_policies WHERE schemaname='public' AND tablename='$t';" 2>/dev/null || echo "0")
+      [ "$pol_count" -ge 1 ] || fail "RLS audit: $t has RLS but ZERO policies"
+      ok "RLS audit: $t enabled with $pol_count policies"
+    else
+      fail "RLS audit: $t exists but RLS is DISABLED"
+    fi
+  done
+else
+  info "RLS audit skipped — PGHOST not set"
+fi
+
+# 8b. audience-seed-export must support dry_run mode (preview only, no hashes).
+grep -q "dry_run" supabase/functions/audience-seed-export/index.ts \
+  || fail "audience-seed-export must accept dry_run flag"
+grep -q "audience_seed_export.preview" supabase/functions/audience-seed-export/index.ts \
+  || fail "audience-seed-export dry_run must log preview event (no PII)"
+# Dry-run path MUST NOT return hashes.
+if awk '/if \(dryRun\)/,/^    }$/' supabase/functions/audience-seed-export/index.ts | grep -qE '\bhashes\s*:\s*\[' ; then
+  fail "audience-seed-export dry_run path must NOT return hashes"
+fi
+ok "audience-seed-export dry_run mode wired and PII-safe"
+
+# 8c. Redaction tests present and exercised by vitest.
+[ -f src/pages/AuditLogViewer.test.ts ] || fail "MISSING src/pages/AuditLogViewer.test.ts"
+for kw in email phone cpf cnpj jwt token cookie pix; do
+  grep -qiE "$kw" src/pages/AuditLogViewer.test.ts || fail "AuditLogViewer.test.ts must cover '$kw'"
+done
+[ -f supabase/functions/queue-health/dedup-window.test.ts ] || fail "MISSING dedup-window.test.ts"
+ok "redaction + dedup-window tests present"
+
+# 8d. AuditLogViewer must NOT render raw audit_logs payloads (no JSON.stringify
+# on metadata_json without going through redactValue).
+if grep -nE 'JSON\.stringify\(.*metadata_json' src/pages/AuditLogViewer.tsx >/dev/null 2>&1; then
+  fail "AuditLogViewer must redact metadata_json before display (no raw stringify)"
+fi
+grep -q "redactValue" src/pages/AuditLogViewer.tsx \
+  || fail "AuditLogViewer must use redactValue helper"
+ok "AuditLogViewer redacts metadata before render"
+
+# 8e. SLA panel must distinguish open / acknowledged / resolved.
+grep -q "openCount" src/pages/RetryObservability.tsx || fail "SLA panel must split openCount"
+grep -q "ackCount" src/pages/RetryObservability.tsx || fail "SLA panel must split ackCount"
+grep -q "maxAgeBySeverity" src/pages/RetryObservability.tsx || fail "SLA panel must show max age per severity"
+grep -q "sem alertas internos" src/pages/RetryObservability.tsx \
+  || fail "SLA panel must show explicit empty state"
+ok "SLA panel split by status + per-severity max age"
+
 echo ""
 ok "RELEASE VALIDATION PASSED"

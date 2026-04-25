@@ -545,37 +545,47 @@ function RetentionCronDiagnostics() {
   );
 }
 
-/** Alert SLA panel: counts how many open/acknowledged alerts are aging
- *  beyond 1h / 24h, grouped by provider/destination. Read-only, no PII,
- *  no external dispatch. */
+/** Alert SLA panel: separates alerts by status (open / acknowledged /
+ *  resolved-24h) and shows max age per severity, plus per-tuple aging.
+ *  Read-only, no PII, no external dispatch. */
 function AlertSlaPanel({ workspaceId }: { workspaceId: string | undefined }) {
   const { data } = useQuery({
     queryKey: ["alert-sla", workspaceId],
     enabled: !!workspaceId,
     refetchInterval: 60_000,
     queryFn: async () => {
+      // Pull recent alerts across all statuses; resolved limited to last 24h
+      // to keep payload small without losing recent history.
+      const since24hIso = new Date(Date.now() - 24 * 60 * 60_000).toISOString();
       const { data, error } = await supabase
         .from("queue_health_alerts")
-        .select("provider, destination, status, created_at, last_seen_at")
+        .select("provider, destination, status, severity, created_at, last_seen_at, resolved_at")
         .eq("workspace_id", workspaceId!)
-        .in("status", ["open", "acknowledged"])
+        .or(`status.in.(open,acknowledged),and(status.eq.resolved,resolved_at.gte.${since24hIso})`)
         .order("last_seen_at", { ascending: false })
-        .limit(500);
+        .limit(1000);
       if (error) throw error;
       return (data || []) as Array<{
         provider: string; destination: string; status: string;
-        created_at: string; last_seen_at: string;
+        severity: string | null;
+        created_at: string; last_seen_at: string; resolved_at: string | null;
       }>;
     },
   });
 
   const summary = useMemo(() => {
     const rows = data || [];
-    let over1h = 0;
-    let over24h = 0;
+    let openCount = 0, ackCount = 0, resolved24h = 0;
+    let over1h = 0, over24h = 0;
     const byTuple = new Map<string, { provider: string; destination: string; over1h: number; over24h: number; total: number }>();
+    const maxAgeBySeverity: Record<string, number> = {};
     for (const r of rows) {
       const age = Date.now() - new Date(r.created_at).getTime();
+      if (r.status === "open") openCount++;
+      else if (r.status === "acknowledged") ackCount++;
+      else if (r.status === "resolved") { resolved24h++; continue; } // resolved rows don't age
+      const sev = r.severity || "info";
+      if (age > (maxAgeBySeverity[sev] || 0)) maxAgeBySeverity[sev] = age;
       const key = `${r.provider}|${r.destination}`;
       const e = byTuple.get(key) || { provider: r.provider, destination: r.destination, over1h: 0, over24h: 0, total: 0 };
       e.total++;
@@ -584,9 +594,9 @@ function AlertSlaPanel({ workspaceId }: { workspaceId: string | undefined }) {
       byTuple.set(key, e);
     }
     return {
-      total: rows.length,
-      over1h,
-      over24h,
+      openCount, ackCount, resolved24h,
+      activeTotal: openCount + ackCount,
+      over1h, over24h, maxAgeBySeverity,
       tuples: Array.from(byTuple.values())
         .filter((t) => t.over1h > 0)
         .sort((a, b) => b.over24h - a.over24h || b.over1h - a.over1h)
@@ -595,7 +605,18 @@ function AlertSlaPanel({ workspaceId }: { workspaceId: string | undefined }) {
   }, [data]);
 
   if (!data) return null;
-  if (summary.total === 0) return null;
+
+  // Empty-state: explicitly indicate "sem alerta" (no alert) so operators
+  // can confirm the system is healthy at a glance.
+  if (summary.activeTotal === 0 && summary.resolved24h === 0) {
+    return (
+      <Card className="border-success/40 bg-success/5">
+        <CardContent className="pt-4 text-xs text-success flex items-center gap-2">
+          <Shield className="w-4 h-4" /> SLA de alertas: <b>sem alertas internos</b> (nenhum aberto, reconhecido ou resolvido nas últimas 24h).
+        </CardContent>
+      </Card>
+    );
+  }
 
   const tone = summary.over24h > 0
     ? "border-destructive/40 bg-destructive/5 text-destructive"
@@ -612,11 +633,21 @@ function AlertSlaPanel({ workspaceId }: { workspaceId: string | undefined }) {
       </CardHeader>
       <CardContent className="text-xs space-y-3">
         <div className="flex flex-wrap items-center gap-4">
-          <span>abertos/ack ativos: <b>{summary.total}</b></span>
+          <span>open: <b>{summary.openCount}</b></span>
+          <span>acknowledged: <b>{summary.ackCount}</b></span>
+          <span>resolved (24h): <b>{summary.resolved24h}</b></span>
           <span>aging &gt; 1h: <b>{summary.over1h}</b></span>
           <span>aging &gt; 24h: <b>{summary.over24h}</b></span>
           <span className="opacity-70">sem dispatch externo</span>
         </div>
+        {Object.keys(summary.maxAgeBySeverity).length > 0 && (
+          <div className="flex flex-wrap items-center gap-3 opacity-90">
+            <span className="font-semibold">idade máxima por severidade:</span>
+            {Object.entries(summary.maxAgeBySeverity).map(([sev, ms]) => (
+              <span key={sev}><Badge variant="outline">{sev}</Badge> <b>{ageLabel(ms)}</b></span>
+            ))}
+          </div>
+        )}
         {summary.tuples.length > 0 && (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -645,3 +676,4 @@ function AlertSlaPanel({ workspaceId }: { workspaceId: string | undefined }) {
     </Card>
   );
 }
+
