@@ -418,7 +418,14 @@ export default function DataReuseCenter() {
             público hash-only e click IDs disponíveis.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="text-[10px]">
+            modo: {keysetMode === "keyset" ? "RPC keyset" : "fallback client"}
+          </Badge>
+          <Badge variant="outline" className="text-[10px]">
+            janela: {pages.length}{" "}
+            {keysetSummary?.total_orders ? `/ ${keysetSummary.total_orders}` : ""}
+          </Badge>
           <span className="text-xs text-muted-foreground">Amostra</span>
           <Select value={String(limit)} onValueChange={(v) => setLimit(Number(v))}>
             <SelectTrigger className="w-[140px] h-9">
@@ -432,6 +439,14 @@ export default function DataReuseCenter() {
               ))}
             </SelectContent>
           </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadMore}
+            disabled={exhausted || ordersQuery.isFetching}
+          >
+            {exhausted ? "Janela completa" : "Carregar mais"}
+          </Button>
         </div>
       </div>
 
