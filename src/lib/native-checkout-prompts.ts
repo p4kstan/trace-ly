@@ -250,8 +250,102 @@ function purchaseBlock(cfg: NativeCheckoutConfig): string {
 
   const sections: string[] = [];
 
+  // Bloco fixo: regra de checkout em duas etapas (Main + TMT/taxa/upsell)
+  sections.push(`### 4.0a Checkout em DUAS ETAPAS — Pedido Principal + TMT/Taxa/Upsell (CRÍTICO)
+Quando o checkout cobra **duas transações legítimas** no mesmo fluxo (pedido principal + taxa
+operacional/TMT/upsell de uma segunda tela), as duas precisam virar Purchase **separados,
+deduplicáveis e correlacionáveis**. Erros comuns que QUEBRAM atribuição:
+
+- ❌ Enviar a TMT com \`event_id\` cru tipo \`EV-20260425-XXXX\` (sem prefixo).
+- ❌ Usar o orderCode da PRÓPRIA TMT como event_id principal (\`purchase:<orderCodeTMT>\`)
+  em vez de referenciar o pedido pai.
+- ❌ TMT chegar no \`/track\` sem \`gclid/msclkid/fbp/utm_*/session_id\` (gateway criou a taxa
+  com metadata vazia e o backend não buscou o pedido pai).
+- ❌ TMT enviar \`value\` somando o valor do pedido principal (infla a receita reportada).
+
+**Regras obrigatórias:**
+
+1. **\`event_id\` da TMT = \`purchase:<orderCodePrincipal>:tmt\`** — referencia o pedido **pai**,
+   nunca o orderCode da própria TMT. Se a TMT não conhece o pai, use \`externalReference =
+   "tmt-<orderCodePrincipal>"\` ao criar a cobrança no gateway.
+2. **\`parent_order_code\`**: a transação TMT precisa ter coluna/atributo \`parent_order_code\`
+   derivado de \`externalReference\` (\`tmt-<orderCode>\` → \`<orderCode>\`) ou do estado salvo no
+   checkout. **Persista no banco.**
+3. **\`value\` da TMT**: somente o valor da própria taxa. **NÃO** somar/repetir o valor do
+   pedido principal (cada Purchase reporta seu próprio value para os ads).
+4. **Herança de metadata**: a TMT herda do pedido pai TODOS os campos de atribuição:
+   \`gclid, gbraid, wbraid, fbclid, ttclid, msclkid, fbp, fbc, ga_client_id, session_id,
+   utm_source, utm_medium, utm_campaign, utm_content, utm_term, landing_page, referrer,
+   user_agent\` e \`client_ip\` quando disponível. Se o gateway criou a TMT com metadata
+   nula, o **webhook / check-pix-status / reconcile** deve buscar o pedido pai pelo
+   \`externalReference = tmt-<orderCodePrincipal>\` e completar os campos **antes** de
+   chamar \`/track\`.
+5. **Idempotência separada**: main e TMT podem coexistir, mas cada um precisa de trava
+   atômica própria — \`purchase_tracked_at\` para o pedido principal, \`tmt_tracked_at\`
+   (ou tabela \`event_id_sent\`) para a TMT. Reentrega de webhook, polling, reconcile
+   e F5 na thank-you **não podem** duplicar nenhum dos dois.
+6. **Fallback browser-side** (se existir): use exatamente \`purchase:<orderCodePrincipal>\`
+   para o main e \`purchase:<orderCodePrincipal>:tmt\` para a TMT — **nunca** event_id cru.
+
+\`\`\`ts
+// supabase/functions/_shared/fire-purchase-tmt.ts
+export async function maybeFireTmtPurchase(parentOrderCode: string, source: string) {
+  // 1) Carrega o pedido PAI para herdar metadata de atribuição
+  const { data: parent } = await supabase
+    .from("orders").select("*").eq("order_code", parentOrderCode).maybeSingle();
+  if (!parent) { console.log({ source, parentOrderCode, skipped: "parent_not_found" }); return; }
+
+  // 2) Carrega a transação TMT (lookup por parent_order_code)
+  const { data: tmt, error } = await supabase
+    .from("orders")
+    .update({ tmt_tracked_at: new Date().toISOString(), tmt_tracked_source: source })
+    .eq("parent_order_code", parentOrderCode)
+    .is("tmt_tracked_at", null)
+    .select("*").maybeSingle();
+  if (error) throw error;
+  if (!tmt) { console.log({ source, parentOrderCode, skipped: "tmt_already_tracked" }); return; }
+
+  // 3) event_id REFERENCIA o pedido pai + sufixo :tmt — NÃO usar orderCode da própria TMT
+  const eventId = \`purchase:\${parentOrderCode}:tmt\`;
+
+  await fetch("${cfg.endpoint}", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": "${cfg.publicKey || "<PUBLIC_KEY>"}" },
+    body: JSON.stringify({
+      event_name: "Purchase",
+      event_id: eventId,
+      order_id: tmt.order_code,                  // orderCode da TMT
+      parent_order_id: parentOrderCode,          // referência ao principal
+      transaction_id: tmt.gateway_transaction_id,
+      value: tmt.total,                          // ⚠️ SOMENTE o valor da TMT
+      currency: tmt.currency || "BRL",
+      payment_status: "paid",
+      action_source: source === "frontend" ? "website" : "system_generated",
+      // Metadata HERDADA do pedido pai (case-sensitive, sem normalização):
+      gclid: parent.gclid, gbraid: parent.gbraid, wbraid: parent.wbraid,
+      fbclid: parent.fbclid, ttclid: parent.ttclid, msclkid: parent.msclkid,
+      fbp: parent.fbp, fbc: parent.fbc,
+      ga_client_id: parent.ga_client_id, client_id: parent.ga_client_id,
+      session_id: parent.session_id,
+      utm_source: parent.utm_source, utm_medium: parent.utm_medium,
+      utm_campaign: parent.utm_campaign, utm_content: parent.utm_content,
+      utm_term: parent.utm_term,
+      landing_page: parent.landing_page, referrer: parent.referrer,
+      user_agent: parent.user_agent, client_ip: parent.client_ip,
+      // PII hashada server-side pelo CapiTrack:
+      email: parent.customer_email, phone: parent.customer_phone,
+    }),
+  });
+
+  console.log({ source, parentOrderCode, eventId, fired: true, value: tmt.total });
+}
+\`\`\`
+
+> 🔒 **Logs sem PII**: registre apenas \`orderCode, parent_order_code, event_id, value, source,
+> provider, status\`. Nunca CPF, e-mail, telefone, endereço, PIX copia-e-cola ou QR code.`);
+
   // Função compartilhada — central de Purchase idempotente
-  sections.push(`### 4.0 \`maybeFirePurchase()\` — idempotência atômica (CRÍTICO)
+  sections.push(`### 4.0b \`maybeFirePurchase()\` — idempotência atômica (CRÍTICO)
 Crie no backend uma função compartilhada chamada por **todas** as fontes (webhook, check-status, reconcile, frontend). Garante "exactly-once" via UPDATE atômico:
 
 \`\`\`ts
