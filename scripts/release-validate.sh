@@ -57,10 +57,18 @@ REQ_FNS=(
   "automation-rule-evaluate"
   "audience-seed-export"
   "webhook-replay-test"
+  "queue-health"
 )
 for fn in "${REQ_FNS[@]}"; do
   [ -f "supabase/functions/$fn/index.ts" ] && ok "edge fn $fn present" || fail "MISSING edge function $fn"
 done
+
+# Safe-logger must be installed in every critical edge function.
+log "4b/7  installSafeConsole wired in critical functions"
+for fn in gateway-webhook process-events event-router automation-rule-evaluate audience-seed-export webhook-replay-test queue-health; do
+  grep -q "installSafeConsole" "supabase/functions/$fn/index.ts" || fail "MISSING installSafeConsole in $fn"
+done
+ok "safe-console installed in all critical functions"
 
 # ─── 5. Critical routes ─────────────────────────────────────────────────
 log "5/7  Critical UI routes wired"
