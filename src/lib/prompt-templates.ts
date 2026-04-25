@@ -580,12 +580,21 @@ ${cfg.gateway !== "none" ? `1. Faça 1 compra/conversão real
 7. Se for PIX nativo: confirme \`purchase_tracked_source\` no pedido — uma das três:
    \`pix-webhook\`, \`check-pix-status\`, ou \`reconcile-pix\`. Apenas UMA delas vence a corrida.
 8. \`msclkid\` e \`ga_client_id\` aparecem persistidos quando existirem na sessão original.
+9. **Checkout em duas etapas (Pedido principal + TMT/taxa/upsell)** — se aplicável:
+   - [ ] Existem **DOIS** Purchase distintos: \`purchase:<orderCode>\` e \`purchase:<orderCode>:tmt\`.
+   - [ ] **NÃO** existe Purchase com event_id cru tipo \`EV-...\` (sem prefixo \`purchase:\`).
+   - [ ] **NÃO** existe Purchase com event_id \`purchase:<orderCodeTMT>\` (TMT usando próprio orderCode).
+   - [ ] A TMT carrega \`gclid/msclkid/utm_*/fbp/session_id\` IDÊNTICOS ao do pedido principal.
+   - [ ] \`value\` da TMT = APENAS o valor da taxa (não somado ao do pedido principal).
+   - [ ] Falha em Google Ads com \`UNPARSEABLE_GCLID\` para gclid de teste sintético é
+         **esperada** — não indica bug; confirma apenas que o gclid foi preservado.
 
 - [ ] Eventos no CapiTrack com mesmo event_id = purchase:<order_id>
 - [ ] Meta Events Manager mostra 1 Purchase (não 2)
 - [ ] Google Ads Conversões mostra 1 (não 2)
 - [ ] F5 na thank-you não duplica
-- [ ] Reentrega manual de webhook não duplica` : "Sem gateway — pular."}
+- [ ] Reentrega manual de webhook não duplica
+- [ ] (Se aplicável) Pedido principal e TMT aparecem como 2 Purchases separados, sem duplicatas` : "Sem gateway — pular."}
 
 ═══════════════════════════════════════════════
 TESTE 4: PII HASHEADO
