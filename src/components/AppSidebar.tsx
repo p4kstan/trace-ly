@@ -86,6 +86,7 @@ const logsItems = [
   { title: "Rate-limit", url: "/rate-limit-configs", icon: Shield },
   { title: "Audit Log", url: "/audit-logs", icon: ScrollText },
   { title: "Relatório PII", url: "/pii-release-report", icon: Shield },
+  { title: "Relatório de Release", url: "/release-report", icon: ShieldCheck },
   { title: "Saúde do Sistema", url: "/system-diagnostic", icon: HeartPulse },
 ];
 
