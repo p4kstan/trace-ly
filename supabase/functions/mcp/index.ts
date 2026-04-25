@@ -384,7 +384,27 @@ Deno.serve(async (req) => {
         return json({ error: "Insufficient permissions" }, 403);
 
       const startTime = Date.now();
-      const isWrite = toolDef.permissions.includes("write");
+      const isWrite = toolDef.permissions.includes("write") || toolDef.permissions.includes("admin");
+
+      // 🔒 Write/admin tools require an explicit per-call confirmation flag.
+      // This prevents an LLM from silently executing destructive actions.
+      if (isWrite && body.confirm_write_access !== true) {
+        await supabase.from("mcp_logs").insert({
+          workspace_id: validated.workspace_id,
+          token_id: validated.id,
+          tool: toolName,
+          request_json: body.params || {},
+          response_json: { blocked: "confirm_write_access required" },
+          duration_ms: 0,
+          status: "blocked",
+        });
+        return json({
+          error: "confirm_write_access required",
+          message: "Write/admin tools require { confirm_write_access: true } in the request body. This guard prevents accidental mutations from automated agents.",
+          tool: toolName,
+        }, 403);
+      }
+
       const result = isWrite
         ? await executeWriteTool(
             { supabase, workspaceId: validated.workspace_id, tokenId: validated.id },

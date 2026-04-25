@@ -41,6 +41,59 @@ interface Rule {
   enabled: boolean;
   condition_json: any;
   action_json: any;
+  execution_mode?: string | null;
+  guardrails_json?: any;
+}
+
+// ── Guardrail defaults (per-rule overrides via guardrails_json) ─────────
+// Hard upper-bounds the system will never exceed even if a rule asks for more.
+const GUARD_DEFAULTS = {
+  dry_run: true,                 // default to dry_run unless explicitly set to false
+  max_items: 25,                 // hard cap on items mutated per evaluation
+  hard_max_items: 100,           // absolute ceiling (cannot be raised by rule)
+  bid_min_brl: 0.10,             // never set CPC below R$ 0.10
+  bid_max_brl: 50.0,             // never set CPC above R$ 50.00
+  bid_change_max_pct: 0.50,      // single change cannot move bid more than ±50%
+  budget_min_brl: 5.0,
+  budget_max_brl: 5000.0,
+  budget_change_max_pct: 0.50,
+};
+
+function resolveGuardrails(rule: Rule) {
+  const g = (rule.guardrails_json || {}) as Record<string, unknown>;
+  const num = (k: string, d: number, max?: number) => {
+    const v = Number(g[k]);
+    if (!Number.isFinite(v) || v <= 0) return d;
+    return max != null ? Math.min(v, max) : v;
+  };
+  // execution_mode column wins; falls back to guardrails_json.dry_run
+  const mode = (rule.execution_mode || "").toLowerCase();
+  const dryRun =
+    mode === "dry_run" ? true :
+    mode === "live" ? false :
+    g.dry_run === false ? false : true; // safe default
+
+  return {
+    dry_run: dryRun,
+    max_items: num("max_items", GUARD_DEFAULTS.max_items, GUARD_DEFAULTS.hard_max_items),
+    bid_min_brl: num("bid_min_brl", GUARD_DEFAULTS.bid_min_brl),
+    bid_max_brl: num("bid_max_brl", GUARD_DEFAULTS.bid_max_brl),
+    bid_change_max_pct: num("bid_change_max_pct", GUARD_DEFAULTS.bid_change_max_pct, 1.0),
+    budget_min_brl: num("budget_min_brl", GUARD_DEFAULTS.budget_min_brl),
+    budget_max_brl: num("budget_max_brl", GUARD_DEFAULTS.budget_max_brl),
+    budget_change_max_pct: num("budget_change_max_pct", GUARD_DEFAULTS.budget_change_max_pct, 1.0),
+  };
+}
+
+function clampBidMicros(currentMicros: number, factor: number, g: ReturnType<typeof resolveGuardrails>) {
+  // 1) limit movement
+  const safeFactor = Math.max(1 - g.bid_change_max_pct, Math.min(1 + g.bid_change_max_pct, factor));
+  let next = currentMicros * safeFactor;
+  // 2) clamp to absolute min/max
+  const minMicros = g.bid_min_brl * 1_000_000;
+  const maxMicros = g.bid_max_brl * 1_000_000;
+  next = Math.max(minMicros, Math.min(maxMicros, next));
+  return { micros: Math.round(next), applied_factor: safeFactor };
 }
 
 Deno.serve(async (req) => {
@@ -222,33 +275,72 @@ Deno.serve(async (req) => {
       }
     };
 
-    const matched = [...agg.values()].filter((it) => it.clicks >= minClicks && cmp(metricFn(it), threshold));
+    const matchedAll = [...agg.values()].filter((it) => it.clicks >= minClicks && cmp(metricFn(it), threshold));
+
+    // ── Apply guardrails: dry_run flag, max_items cap, body-level overrides
+    const guard = resolveGuardrails(rule);
+    // Optional ad-hoc override via request body: { force_dry_run: true }
+    const reqBody = (await req.clone().json().catch(() => ({}))) as Record<string, unknown>;
+    const forceDryRun = reqBody.force_dry_run === true || guard.dry_run;
+    const matched = matchedAll.slice(0, guard.max_items);
+    const cappedBy = matchedAll.length > matched.length ? (matchedAll.length - matched.length) : 0;
 
     // Execute action per matched item
-    let executed = 0, skipped = 0;
+    let executed = 0, skipped = 0, dryRunCount = 0;
     const log: any[] = [];
     for (const it of matched) {
       const [agId, critOrTerm] = it.id.split(":");
       try {
         let body: Record<string, unknown> | null = null;
+        let safeNote: Record<string, unknown> = {};
+
         if (action.type === "pause_keyword" && scope === "keyword") {
           body = { action: "update_keyword_status", workspace_id: rule.workspace_id, customer_id: rule.customer_id, ad_group_criterion_id: critOrTerm, ad_group_id: agId, status: "PAUSED" };
         } else if (action.type === "pause_ad_group" && (scope === "ad_group" || scope === "keyword")) {
           body = { action: "update_ad_group_status", workspace_id: rule.workspace_id, customer_id: rule.customer_id, ad_group_id: agId, status: "PAUSED" };
         } else if ((action.type === "decrease_bid" || action.type === "increase_bid") && scope === "keyword") {
-          // Need current bid — for simplicity, use a fixed micros from action.cpc_brl or refuse
-          const factor = Number(action.factor) || (action.type === "decrease_bid" ? 0.8 : 1.2);
-          // Fetch current bid
+          const rawFactor = Number(action.factor) || (action.type === "decrease_bid" ? 0.8 : 1.2);
           const q = `SELECT ad_group_criterion.cpc_bid_micros FROM ad_group_criterion WHERE ad_group_criterion.criterion_id = ${critOrTerm} AND ad_group.id = ${agId}`;
           const br = await fetch(`${apiBase}/googleAds:search`, { method: "POST", headers, body: JSON.stringify({ query: q }) });
           const bj = await br.json();
           const cur = Number(bj.results?.[0]?.adGroupCriterion?.cpcBidMicros || 0);
           if (!cur) { skipped++; log.push({ id: it.id, name: it.name, skipped: "no current bid" }); continue; }
-          body = { action: "update_keyword_bid", workspace_id: rule.workspace_id, customer_id: rule.customer_id, ad_group_criterion_id: critOrTerm, ad_group_id: agId, cpc_bid_micros: Math.round(cur * factor) };
+
+          // 🔒 clamp factor + clamp absolute bid range
+          const { micros: nextMicros, applied_factor } = clampBidMicros(cur, rawFactor, guard);
+          if (nextMicros === cur) {
+            skipped++;
+            log.push({ id: it.id, name: it.name, skipped: "guardrail: no-op after clamp", current_bid: cur / 1e6 });
+            continue;
+          }
+          safeNote = {
+            requested_factor: rawFactor,
+            applied_factor,
+            current_bid_brl: cur / 1e6,
+            new_bid_brl: nextMicros / 1e6,
+            clamps: { bid_min: guard.bid_min_brl, bid_max: guard.bid_max_brl, max_pct: guard.bid_change_max_pct },
+          };
+          body = { action: "update_keyword_bid", workspace_id: rule.workspace_id, customer_id: rule.customer_id, ad_group_criterion_id: critOrTerm, ad_group_id: agId, cpc_bid_micros: nextMicros };
         } else if (action.type === "negate_search_term" && scope === "search_term") {
           body = { action: "add_negative_keyword", workspace_id: rule.workspace_id, customer_id: rule.customer_id, campaign_id: rule.campaign_id, keyword_text: it.name, match_type: action.match_type || "PHRASE", level: "campaign" };
         }
         if (!body) { skipped++; log.push({ id: it.id, name: it.name, skipped: "scope/action mismatch" }); continue; }
+
+        // ── DRY RUN PATH: never call mutate, only audit ──
+        if (forceDryRun) {
+          dryRunCount++;
+          await service.from("automation_actions").insert({
+            workspace_id: rule.workspace_id, customer_id: rule.customer_id,
+            trigger: "automation_rule",
+            action: action.type,
+            target_type: scope,
+            target_id: it.id,
+            status: "dry_run",
+            metadata_json: { rule_id, metric, value: metricFn(it), threshold, would_send: body, guardrails: guard, ...safeNote },
+          } as never);
+          log.push({ id: it.id, name: it.name, value: metricFn(it), dry_run: action.type, ...safeNote });
+          continue;
+        }
 
         const ar = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/google-ads-mutate`, {
           method: "POST",
@@ -262,16 +354,15 @@ Deno.serve(async (req) => {
         const ok = ar.ok;
         if (ok) {
           executed++;
-          log.push({ id: it.id, name: it.name, value: metricFn(it), executed: action.type });
-          // Also write to automation_actions audit log
+          log.push({ id: it.id, name: it.name, value: metricFn(it), executed: action.type, ...safeNote });
           await service.from("automation_actions").insert({
             workspace_id: rule.workspace_id, customer_id: rule.customer_id,
             trigger: "automation_rule",
             action: action.type,
             target_type: scope,
             target_id: it.id,
-            status: "executed",
-            metadata_json: { rule_id, metric, value: metricFn(it), threshold },
+            status: "success",
+            metadata_json: { rule_id, metric, value: metricFn(it), threshold, guardrails: guard, ...safeNote },
           } as never);
         } else {
           const errJ = await ar.json().catch(() => ({}));
@@ -291,8 +382,17 @@ Deno.serve(async (req) => {
       trigger_count: matched.length > 0 ? executed : 0,
     } as never).eq("id", rule_id);
 
-    // Fire-and-forget notifications (don't block response)
-    const notifyPayload = { matched: matched.length, executed, skipped, items: log };
+    const notifyPayload = {
+      matched: matchedAll.length,
+      evaluated: matched.length,
+      executed,
+      skipped,
+      dry_run: dryRunCount,
+      capped_by_max_items: cappedBy,
+      mode: forceDryRun ? "dry_run" : "live",
+      guardrails: guard,
+      items: log,
+    };
     try {
       fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-rule-notify`, {
         method: "POST",
