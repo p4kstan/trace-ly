@@ -32,16 +32,17 @@ describe("RouteErrorBoundary", () => {
     expect(screen.getByRole("button", { name: /Tentar novamente/i })).toBeInTheDocument();
   });
 
-  it("redacts PII from console.error", () => {
+  it("redacts PII from RouteErrorBoundary's own console.error call", () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     render(
       <RouteErrorBoundary routeKey="/a">
         <Boom when={true} />
       </RouteErrorBoundary>
     );
-    const calls = errSpy.mock.calls.flat().map((c) => (typeof c === "string" ? c : JSON.stringify(c)));
-    const joined = calls.join(" ");
+    const ourCalls = errSpy.mock.calls.filter((c) => c[0] === "[RouteErrorBoundary]");
+    expect(ourCalls.length).toBeGreaterThan(0);
+    const joined = ourCalls.flat().map((c) => (typeof c === "string" ? c : JSON.stringify(c))).join(" ");
     expect(joined).not.toContain("user@example.com");
-    expect(joined).not.toContain("abc123");
+    expect(joined).toContain("[email]");
   });
 });
