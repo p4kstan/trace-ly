@@ -419,16 +419,19 @@ ${PASSO_M_HARDENING_BLOCK}
 // IA em recommendation por padrão.
 // ──────────────────────────────────────────────────────────────────────────
 export const PASSO_M_HARDENING_BLOCK = `
-## 🔐 Controles de release endurecidos (Passo M — sincronizado)
+## 🔐 Controles de release endurecidos (Passo M+N+O — sincronizado)
 Aplique TODOS no projeto-alvo:
 - **test_mode / replay seguro**: \`webhook-replay-test\` exige owner/admin, valida bounds, NÃO grava \`event_deliveries\` reais e usa rate-limit DB-backed sem IP cru. Nunca exponha \`CRON_SECRET\` no frontend.
+- **webhook-auth (Passo N)**: gateway-webhook EXIGE assinatura HMAC válida em produção (Stripe/Yampi/Shopify/Paddle/QuantumPay/genéricos com secret configurado). Sem assinatura ⇒ 401. \`event-replay\` e \`webhook-replay-test\` exigem JWT + workspace admin via \`requireUserJwt\`/\`requireWorkspaceAccess\`.
 - **Rate-limit persistente**: SHA-256 do IP antes de qualquer RPC; bounds \`window 10-3600s\` e \`max_hits 1-10000\`. UI em \`/rate-limit-configs\` é role-gated (owner/admin).
 - **Queue health + alertas internos**: backlog/falhas em \`queue_health_alerts\` com \`open → acknowledged → resolved\` auditados em \`audit_logs\` (sem PII). Auto-resolve quando condição limpa.
+- **Alertas externos opt-in (Passo N)**: canais Slack/email/webhook ficam \`enabled=false\` + \`mode=dry_run\` por padrão. Nenhum dispatch real até toggle explícito do owner. Preview gerado por \`buildAlertPreview\` nunca contém workspace/user IDs.
 - **Retention dry-run**: \`retention-job\` por padrão é monitor; execução destrutiva só manual via \`X-Cron-Secret\`. Cron NUNCA roda \`execute=1\` automático.
 - **RLS auditado**: tabelas sensíveis (\`event_queue\`, \`queue_health_alerts\`, \`rate_limit_configs\`, \`audit_logs\`, \`audience_seed_exports\`, \`dead_letter_events\`, \`automation_actions\`) têm RLS + policies não-permissivas.
 - **Export hash-only + consentimento**: audience export aceita \`dry_run\` (apenas counts), e o export real exige \`require_consent !== false\` e devolve apenas hashes SHA-256.
 - **Multi-destination**: cada Purchase pode espelhar para Meta/Google/TikTok/GA4 com dedup 4-col \`(workspace, event_id, provider, destination)\`.
 - **IA em recommendation por padrão**: ações automatizadas só com guardrails explícitos; IA sugere, humano confirma — auto apenas com \`execution_mode='auto'\` + \`guardrails_json\`.
+- **Fast-path por gateway (Passo N+O)**: WooCommerce/Braip/CartPanda/PerfectPay seguem \`gateway-fast-path-guides.ts\` — webhook canônico \`?provider=generic\`, secret HMAC obrigatório, propagação de \`root_order_code\`/\`step_key\`/\`external_reference\`. Docs em \`/gateway-docs\`.
 - **PII report + audit viewer**: confira em \`/pii-release-report\` e \`/audit-logs\` (com redaction client-side de email/CPF/CNPJ/JWT/IP).
-- **Relatório operacional**: status consolidado em \`/release-report\`.
+- **Relatório operacional**: status consolidado em \`/release-report\` (inclui marcador \`RLS semantic audit\` quando indisponível por falta de PGHOST em CI). Painel de RLS em \`/rls-warnings\`.
 `;
