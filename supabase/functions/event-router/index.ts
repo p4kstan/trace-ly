@@ -403,7 +403,7 @@ Deno.serve(async (req) => {
           provider: dest.provider,
           destination: dest.id,
           payload_json: { ...normalizedPayload, mapped_event_name: mappedEvent.mapped_event_name, destination: dest },
-          status: "pending",
+          status: "queued",
           attempt_count: 0,
           max_attempts: 8,
           next_retry_at: new Date().toISOString(),
