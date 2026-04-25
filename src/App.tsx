@@ -141,6 +141,7 @@ function ProtectedRoutes() {
           <Route path="/data-reuse-center" element={<DataReuseCenter />} />
           <Route path="/destination-registry" element={<DestinationRegistry />} />
           <Route path="/traffic-agent" element={<TrafficAgent />} />
+          <Route path="/mcp-settings" element={<McpSettings />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
         </RouteErrorBoundary>
