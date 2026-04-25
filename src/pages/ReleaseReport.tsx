@@ -244,9 +244,9 @@ function Stat({
 }) {
   const cls =
     tone === "ok"
-      ? "text-emerald-500"
+      ? "text-primary"
       : tone === "warn"
-        ? "text-amber-500"
+        ? "text-muted-foreground"
         : "text-foreground";
   return (
     <div className="rounded-md border border-border/50 bg-background p-3">
