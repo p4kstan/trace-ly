@@ -161,7 +161,7 @@ async function sendBatchToMeta(pixelId: string, accessToken: string, testEventCo
 
 async function processMetaBatch(
   pixelKey: string, items: any[], pixelCache: Map<string, any>,
-  stats: { delivered: number; failed: number; deadLettered: number }
+  stats: { delivered: number; failed: number; deadLettered: number; skipped?: number }
 ) {
   let pixel = pixelCache.get(pixelKey);
   if (!pixel) {
@@ -228,7 +228,7 @@ const PROVIDER_FUNCTIONS: Record<string, string> = {
 
 async function dispatchToProvider(
   provider: string, items: any[], destination: any,
-  stats: { delivered: number; failed: number; deadLettered: number }
+  stats: { delivered: number; failed: number; deadLettered: number; skipped?: number }
 ) {
   const fnName = PROVIDER_FUNCTIONS[provider];
   if (!fnName) {
@@ -290,7 +290,7 @@ async function dispatchToProvider(
 async function processNonMetaBatch(
   provider: string, workspaceId: string, items: any[],
   destCache: Map<string, any>,
-  stats: { delivered: number; failed: number; deadLettered: number }
+  stats: { delivered: number; failed: number; deadLettered: number; skipped?: number }
 ) {
   const cacheKey = `${workspaceId}::${provider}`;
   let destinations = destCache.get(cacheKey);
@@ -315,7 +315,7 @@ async function processNonMetaBatch(
 
 async function recordMetrics(
   workspaceIds: Set<string>,
-  stats: { delivered: number; failed: number; deadLettered: number },
+  stats: { delivered: number; failed: number; deadLettered: number; skipped?: number },
   durationMs: number,
   totalItems: number,
 ) {
