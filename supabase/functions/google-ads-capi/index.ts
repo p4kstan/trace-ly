@@ -386,6 +386,62 @@ Deno.serve(async (req) => {
     const fullyOk = result.ok;
     const partial = !fullyOk && deliveredCount > 0;
 
+    // Enriched request_json: promote ALL technical signals to root so the
+    // /debugger and /tracking-debug pages can audit propagation without
+    // having to dig into nested payload_json. PII (raw email/phone/document)
+    // is NEVER stored — only hashes/aliases that already exist in payload.
+    const fp: any = firstPayload || {};
+    const fpSession: any = fp.session || {};
+    const fpOrder: any = fp.order || {};
+    const fpUser: any = fp.user || {};
+    const fpCustom: any = fp.custom_data || {};
+    const enrichedRoot: Record<string, unknown> = {
+      // delivery metadata
+      customer_id: finalCustomerId,
+      batch_size: conversions.length,
+      conversion_label: conversionLabel,
+      external_transaction_id: externalTxId,
+      dedup_key: dedupKey,
+      delivered_count: deliveredCount,
+      failed_count: failedCount,
+      failed_indexes: Array.from(result.failedIndexes),
+      // event identifiers
+      event_id: fp.event_id || items[0]?.event_id || null,
+      event_name: fp.event_name || items[0]?.event_name || null,
+      order_id: externalTxId,
+      transaction_id: externalTxId,
+      session_id: fpSession.session_id || fp.session_id || null,
+      // monetary
+      value: fpOrder.total_value ?? fpCustom.value ?? null,
+      currency: fpOrder.currency || fpCustom.currency || null,
+      // click IDs / cookies / fingerprints (raw values, NOT PII)
+      gclid: fpSession.gclid || fpCustom.gclid || null,
+      gbraid: fpSession.gbraid || fpCustom.gbraid || null,
+      wbraid: fpSession.wbraid || fpCustom.wbraid || null,
+      fbclid: fpSession.fbclid || fpCustom.fbclid || null,
+      ttclid: fpSession.ttclid || fpCustom.ttclid || null,
+      msclkid: fpSession.msclkid || fpCustom.msclkid || null,
+      fbp: fpSession.fbp || null,
+      fbc: fpSession.fbc || null,
+      ga_client_id: fpSession.ga_client_id || fpSession.client_id || null,
+      // server-side signals (raw IP/UA — needed by Meta CAPI; safe to log)
+      client_ip: fpSession.ip || null,
+      user_agent: fpSession.user_agent || null,
+      client_user_agent: fpSession.user_agent || null,
+      // attribution
+      utm_source: fpSession.utm_source || fpCustom.utm_source || null,
+      utm_medium: fpSession.utm_medium || fpCustom.utm_medium || null,
+      utm_campaign: fpSession.utm_campaign || fpCustom.utm_campaign || null,
+      utm_content: fpSession.utm_content || fpCustom.utm_content || null,
+      utm_term: fpSession.utm_term || fpCustom.utm_term || null,
+      landing_page: fpSession.landing_page || null,
+      referrer: fpSession.referrer || null,
+      // hashed identifiers ONLY (never raw email/phone)
+      em_hash: fpUser.email_hash || null,
+      ph_hash: fpUser.phone_hash || null,
+      external_id_hash: fpUser.external_id || null,
+    };
+
     await supabase.from("event_deliveries").insert({
       event_id: items[0]?.event_id || crypto.randomUUID(),
       workspace_id: wsId,
@@ -394,16 +450,7 @@ Deno.serve(async (req) => {
       status: fullyOk ? "delivered" : (partial ? "partial" : "failed"),
       attempt_count: 1,
       last_attempt_at: new Date().toISOString(),
-      request_json: {
-        customer_id: finalCustomerId,
-        batch_size: conversions.length,
-        conversion_label: conversionLabel,
-        external_transaction_id: externalTxId,
-        dedup_key: dedupKey,
-        delivered_count: deliveredCount,
-        failed_count: failedCount,
-        failed_indexes: Array.from(result.failedIndexes),
-      },
+      request_json: enrichedRoot,
       response_json: result.response,
       error_message: fullyOk ? null : JSON.stringify(result.response).slice(0, 1000),
     });
