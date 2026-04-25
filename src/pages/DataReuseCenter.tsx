@@ -248,8 +248,19 @@ export default function DataReuseCenter() {
       { kind: "bid",    current: 1.0, proposed: 1.20 },
       { kind: "cpa",    current: 50,  proposed: 70 },
     ];
-    return samples.map((s) =>
-      simulateAutomationChange({
+    const realRule = (automationRulesQuery.data ?? [])[0];
+    return samples.map((s) => {
+      if (realRule) {
+        return simulateRule(realRule, {
+          kind: s.kind,
+          target_id: `rule:${realRule.id}:${s.kind}`,
+          current_value: s.current,
+          proposed_value: s.proposed,
+          recent_conversions: recentConv,
+          hours_since_last_change: 48,
+        });
+      }
+      return simulateAutomationChange({
         kind: s.kind,
         target_id: `sample:${s.kind}`,
         current_value: s.current,
@@ -257,9 +268,12 @@ export default function DataReuseCenter() {
         recent_conversions: recentConv,
         hours_since_last_change: 48,
         execution_mode: "recommendation",
-      }),
-    );
-  }, [coverage.paid]);
+      });
+    });
+  }, [coverage.paid, automationRulesQuery.data]);
+
+  const simulationSource: "real_rule" | "synthetic" =
+    (automationRulesQuery.data ?? []).length > 0 ? "real_rule" : "synthetic";
 
   function destinationCount(provider: Provider): number {
     if (provider === "google_ads") return destinationsByProvider["google_ads"] ?? destinationsByProvider["google"] ?? 0;
