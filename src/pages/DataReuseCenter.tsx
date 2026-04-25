@@ -153,7 +153,19 @@ export default function DataReuseCenter() {
     },
   });
 
-  const destQuery = useQuery({
+  const destRegistryQuery = useQuery({
+    queryKey: ["data-reuse-destination-registry", workspaceId],
+    enabled: !!workspaceId,
+    queryFn: async (): Promise<RegistryRow[]> => {
+      const { data, error } = await supabase.rpc("list_ad_conversion_destinations", {
+        _workspace_id: workspaceId!,
+      });
+      if (error) return [];
+      return (data ?? []) as RegistryRow[];
+    },
+  });
+
+  const destFallbackQuery = useQuery({
     queryKey: ["data-reuse-destinations", workspaceId],
     enabled: !!workspaceId,
     queryFn: async (): Promise<Array<{ provider: string | null; status?: string | null }>> => {
@@ -163,6 +175,20 @@ export default function DataReuseCenter() {
         .eq("workspace_id", workspaceId!);
       if (error) return [];
       return (data ?? []) as Array<{ provider: string | null; status?: string | null }>;
+    },
+  });
+
+  const automationRulesQuery = useQuery({
+    queryKey: ["data-reuse-automation-rules", workspaceId],
+    enabled: !!workspaceId,
+    queryFn: async (): Promise<AutomationRuleRow[]> => {
+      const { data, error } = await supabase
+        .from("automation_rules")
+        .select("id,enabled,execution_mode,guardrails_json,action_json")
+        .eq("workspace_id", workspaceId!)
+        .limit(10);
+      if (error) return [];
+      return (data ?? []) as unknown as AutomationRuleRow[];
     },
   });
 
@@ -186,28 +212,23 @@ export default function DataReuseCenter() {
     [previewProvider, records],
   );
 
+  const { descriptors: destinationDescriptors, source: registrySource } = useMemo(
+    () =>
+      buildDestinationDescriptors({
+        registry: destRegistryQuery.data ?? null,
+        fallback: destFallbackQuery.data ?? null,
+      }),
+    [destRegistryQuery.data, destFallbackQuery.data],
+  );
+
   const destinationsByProvider = useMemo(() => {
     const out: Record<string, number> = {};
-    for (const d of destQuery.data ?? []) {
-      const p = (d.provider ?? "unknown").toLowerCase();
+    for (const d of destinationDescriptors) {
+      const p = d.provider;
       out[p] = (out[p] ?? 0) + 1;
     }
     return out;
-  }, [destQuery.data]);
-
-  const destinationDescriptors: DestinationDescriptor[] = useMemo(() => {
-    return (destQuery.data ?? []).map((d, idx) => ({
-      destination_id: `${(d.provider ?? "unknown").toLowerCase()}:#${idx + 1}`,
-      provider: (d.provider ?? "unknown").toLowerCase(),
-      account_id: null,
-      conversion_action_id: null,
-      event_name: "purchase",
-      credential_ref: d.provider ? `cred:${d.provider}` : null,
-      consent_gate: true,
-      status: d.status ?? "unknown",
-      last_success_at: null,
-    }));
-  }, [destQuery.data]);
+  }, [destinationDescriptors]);
 
   const consistencyReport = useMemo(
     () =>
