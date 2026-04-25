@@ -32,14 +32,31 @@ type Row = {
 };
 
 // ── Mini-router + processor ────────────────────────────────────────────
+// Models the TWO-layer dedup contract used in production:
+//   1. event_queue UNIQUE INDEX is PARTIAL: only blocks while status is
+//      queued/processing/retry. Delivered/dead-letter rows do NOT block.
+//   2. tracked_events UNIQUE INDEX is FULL on (workspace_id, event_id,
+//      provider, destination). Once a destination is `delivered` there,
+//      the gateway/router MUST refuse to re-enqueue it. This is what
+//      prevents double-spend on Ads after a sibling destination fails.
 class Router {
   rows: Row[] = [];
   delivered: Row[] = [];
+  // tracked_events shadow — full 4-col unique, status terminal once delivered.
+  tracked = new Map<string, "reserved" | "delivered" | "dead_letter">();
   private id = 0;
 
+  private trackedKey(i: { workspace_id: string; event_id: string; provider: string; destination: string }) {
+    return `${i.workspace_id}|${i.event_id}|${i.provider}|${i.destination}`;
+  }
+
   enqueue(input: { workspace_id: string; event_id: string; provider: string; destination: string }): Row | null {
-    // Simulates: ON CONFLICT (workspace_id, event_id, provider, destination)
-    // DO NOTHING WHERE status IN (queued, processing, retry).
+    // Layer 2: tracked_events — refuse if already delivered (idempotency).
+    const tk = this.trackedKey(input);
+    const tState = this.tracked.get(tk);
+    if (tState === "delivered") return null;
+
+    // Layer 1: event_queue partial unique on active statuses.
     const dup = this.rows.find(r =>
       r.workspace_id === input.workspace_id &&
       r.event_id === input.event_id &&
@@ -57,6 +74,7 @@ class Router {
       next_retry_at: Date.now(),
     };
     this.rows.push(row);
+    this.tracked.set(tk, "reserved");
     return row;
   }
 
@@ -66,7 +84,6 @@ class Router {
     const due = this.rows.filter(r =>
       (r.status === "queued" || r.status === "retry") && r.next_retry_at <= Date.now()
     );
-    // Group key — mirrors process-events grouping
     const groups = new Map<string, Row[]>();
     for (const r of due) {
       const key = `${r.provider}::${r.workspace_id}::${r.destination}`;
@@ -77,16 +94,18 @@ class Router {
     for (const [, group] of groups) {
       for (const r of group) {
         const result = dispatcher(r);
+        const tk = this.trackedKey(r);
         if (result === "ok") {
           r.status = "delivered";
           this.delivered.push(r);
+          this.tracked.set(tk, "delivered");
         } else {
           r.attempt_count++;
           if (r.attempt_count >= r.max_attempts) {
             r.status = "dead_letter";
+            this.tracked.set(tk, "dead_letter");
           } else {
             r.status = "retry";
-            // exponential backoff: 30s * 4^n
             r.next_retry_at = Date.now() + 30_000 * Math.pow(4, r.attempt_count);
           }
         }
