@@ -26,7 +26,6 @@ function makeOrder(overrides: Partial<NormalizedOrder> = {}): NormalizedOrder {
     external_order_id: "EV-20260425-XYZ",
     external_payment_id: null,
     status: "paid",
-    payment_status: "paid",
     total_value: 100,
     currency: "BRL",
     customer: {},
@@ -223,7 +222,7 @@ describe("buildCanonicalEventIdentity — idempotency scenarios", () => {
 describe("buildCanonicalEventIdentity — fallback (non-paid)", () => {
   it("non-paid event returns deterministic <event>:<ref>:<provider> — never UUID", () => {
     const r = buildCanonicalEventIdentity({
-      order: makeOrder({ status: "pending", payment_status: "pending" }),
+      order: makeOrder({ status: "pending" }),
       eventName: "InitiateCheckout",
       internalEvent: "checkout_started",
       provider: "meta",
@@ -238,7 +237,7 @@ describe("buildCanonicalEventIdentity — fallback (non-paid)", () => {
   });
 
   it("two replays of the same non-paid event share the same id", () => {
-    const order = makeOrder({ status: "pending", payment_status: "pending" });
+    const order = makeOrder({ status: "pending" });
     const a = buildCanonicalEventIdentity({
       order, eventName: "AddToCart", internalEvent: "cart_updated",
       provider: "google_ads", externalEventId: null,
