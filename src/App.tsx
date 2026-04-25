@@ -60,6 +60,7 @@ const CanonicalAudit = lazy(() => import("@/pages/CanonicalAudit"));
 const RetryObservability = lazy(() => import("@/pages/RetryObservability"));
 const GoLiveChecklist = lazy(() => import("@/pages/GoLiveChecklist"));
 const RateLimitConfigs = lazy(() => import("@/pages/RateLimitConfigs"));
+const AuditLogViewer = lazy(() => import("@/pages/AuditLogViewer"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -121,6 +122,7 @@ function ProtectedRoutes() {
           <Route path="/retry-observability" element={<RetryObservability />} />
           <Route path="/go-live-checklist" element={<GoLiveChecklist />} />
           <Route path="/rate-limit-configs" element={<RateLimitConfigs />} />
+          <Route path="/audit-logs" element={<AuditLogViewer />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>

@@ -84,6 +84,7 @@ const logsItems = [
   { title: "Retries & Dead-letter", url: "/retry-observability", icon: HeartPulse },
   { title: "Checklist Go-live", url: "/go-live-checklist", icon: Shield },
   { title: "Rate-limit", url: "/rate-limit-configs", icon: Shield },
+  { title: "Audit Log", url: "/audit-logs", icon: ScrollText },
   { title: "Saúde do Sistema", url: "/system-diagnostic", icon: HeartPulse },
 ];
 
