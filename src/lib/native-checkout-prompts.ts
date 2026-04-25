@@ -609,21 +609,33 @@ Se houver \`workspace_id\` ou \`api_key\` exigidos pelo backend, **não invente*
 ${cfg.methods.map(m => `- **${PAYMENT_META[m].label}**: ${PAYMENT_META[m].hint}`).join("\n")}
 
 ## ⚠️ Regras críticas (Fluxo Final Validado — 04/2026)
-1. **\`event_id\` = \`purchase:<orderCode>\`** (NÃO use mais \`<externalId>:Purchase\`).
-   Para TMT/upsell/pagamento separado: \`purchase:<orderCode>:tmt\`.
+1. **\`event_id\` = \`purchase:<orderCode>\`** (NÃO use mais \`<externalId>:Purchase\` nem event_id cru tipo \`EV-...\`).
+   Para TMT/upsell/segunda tela: **\`purchase:<orderCodePrincipal>:tmt\`** — referencia o
+   pedido **pai**, nunca o orderCode da própria TMT.
    \`transaction_id\` e \`gateway_order_id\` são campos **separados** no payload.
-2. **Idempotência via \`purchase_tracked_at\`**: UPDATE atômico com \`WHERE purchase_tracked_at IS NULL\`.
-   Todas as fontes (webhook, check-status, reconcile, frontend) chamam o MESMO \`maybeFirePurchase\`.
-3. **PIX exige 3 fontes**: \`pix-webhook\` + \`check-pix-status\` + \`reconcile-pix-payments\` (cron 2-5min).
-4. **Click IDs case-sensitive**: \`gclid/gbraid/wbraid/fbclid/ttclid/msclkid\` apenas \`.trim()\`.
-5. **Trava de status pago**: Purchase só dispara quando \`status ∈ {paid, approved, confirmed, succeeded, captured, pix_paid, order_paid}\`.
-6. **Metadados obrigatórios persistidos no pedido**:
-   \`gclid, gbraid, wbraid, fbclid, fbp, fbc, ttclid, msclkid, ga_client_id, session_id,
-    utm_source, utm_medium, utm_campaign, utm_content, utm_term, landing_page, referrer,
-    user_agent, client_ip\`.
-7. **Sem PII em logs**: nada de CPF/e-mail/telefone/endereço/QR/PIX em \`console.log\`.
-   E-mail/telefone/documento são hasheados pelo CapiTrack antes de chegar nas plataformas
-   de ads (você apenas envia em texto cru via HTTPS server-to-server).
+2. **Checkout em duas etapas (Main + TMT)**: as duas cobranças são legítimas e viram
+   Purchase **separados**. Cada um precisa de event_id único, trava atômica própria
+   (\`purchase_tracked_at\` para main, \`tmt_tracked_at\` para TMT) e value isolado
+   (a TMT envia **só** o valor da taxa — nunca somar o do pedido principal).
+3. **Herança de metadata na TMT**: gclid, gbraid, wbraid, fbclid, ttclid, msclkid, fbp,
+   fbc, ga_client_id, session_id, utm_*, landing_page, referrer, user_agent e client_ip
+   da TMT vêm do **pedido pai** (lookup via \`externalReference = tmt-<orderCodePrincipal>\`
+   ou \`parent_order_code\`). Se a TMT chegar com metadata vazia, o backend **completa
+   antes** de chamar \`/track\`.
+4. **Idempotência via trava atômica**: UPDATE com \`WHERE purchase_tracked_at IS NULL\`
+   (main) e \`WHERE tmt_tracked_at IS NULL\` (TMT). Todas as fontes (webhook, check-status,
+   reconcile, frontend) chamam o MESMO \`maybeFirePurchase\` / \`maybeFireTmtPurchase\`.
+5. **PIX exige 3 fontes** (para main E para TMT): \`pix-webhook\` + \`check-pix-status\`
+   + \`reconcile-pix-payments\` (cron 2-5min).
+6. **Click IDs case-sensitive**: \`gclid/gbraid/wbraid/fbclid/ttclid/msclkid\` apenas \`.trim()\`.
+7. **Trava de status pago**: Purchase só dispara quando \`status ∈ {paid, approved, confirmed, succeeded, captured, pix_paid, order_paid}\`.
+8. **Browser-side fallback**: se existir disparo browser-side na thank-you, ele DEVE usar
+   exatamente \`purchase:<orderCodePrincipal>\` (main) e \`purchase:<orderCodePrincipal>:tmt\`
+   (TMT) — **nunca** event_id cru sem prefixo. Mesmo event_id que o server-side.
+9. **Sem PII em logs**: nada de CPF/e-mail/telefone/endereço/QR/PIX/payload sensível em
+   \`console.log\`. Logue apenas \`orderCode, parent_order_code, event_id, value, source,
+   provider, status\`. E-mail/telefone/documento são hasheados pelo CapiTrack antes de
+   chegarem nas plataformas de ads.
 
 ## Validação (faça uma compra teste em cada método)
 1. Abra o site com \`?gclid=TESTE-CaseSensitive_123&utm_source=google&utm_term=palavra-chave\`.
@@ -637,14 +649,28 @@ ${cfg.methods.map(m => `- **${PAYMENT_META[m].label}**: ${PAYMENT_META[m].hint}`
 5. **F5 na página de obrigado** NÃO duplica (frontend não dispara — backend já tracked).
 6. **Reentregar webhook do mesmo pedido** NÃO duplica (\`purchase_tracked_at\` bloqueia).
 7. \`msclkid\` e \`ga_client_id\` aparecem persistidos no payload quando existirem.
-8. Confirme no painel CapiTrack /event-logs que a request \`Purchase\` chegou com:
+8. **Checkout em duas etapas (se aplicável)** — após pagar pedido + TMT:
+   - [ ] Existem **DOIS** Purchase em \`/event-logs\`: \`purchase:<orderCode>\` e \`purchase:<orderCode>:tmt\`.
+   - [ ] **NÃO** existe nenhum Purchase com event_id cru tipo \`EV-...\` (sem prefixo).
+   - [ ] **NÃO** existe Purchase com event_id \`purchase:<orderCodeTMT>\` (TMT usando próprio orderCode).
+   - [ ] A TMT carrega \`gclid/msclkid/utm_*/fbp/session_id\` **idênticos** ao do pedido principal.
+   - [ ] O \`value\` da TMT é APENAS a taxa (não somado ao do pedido principal).
+   - [ ] \`event_deliveries\`: 1 linha por provider para o main + 1 linha por provider para a TMT.
+   - [ ] Falha eventual em Google Ads com \`UNPARSEABLE_GCLID\` para gclid de teste sintético
+         (\`TESTE-CaseSensitive_123\`) é **esperada** e **não indica bug** — apenas confirma
+         que o engine recebeu/preservou o gclid corretamente.
+9. Confirme no painel CapiTrack /event-logs que a request \`Purchase\` chegou com:
    \`event_id\` correto, \`order_id\`, \`transaction_id\`, \`session_id\`, \`gclid\` (case preservado),
    \`fbp\`, \`user_agent\`, \`client_ip\`.
 
 ## Não faça
 - Não use mais \`<externalId>:Purchase\` como event_id padrão.
+- Não envie event_id cru tipo \`EV-...\` (sem prefixo \`purchase:\`).
+- Não use o orderCode da TMT como event_id principal — sempre referencie o pedido pai com sufixo \`:tmt\`.
+- Não dispare a TMT sem antes herdar metadata de atribuição do pedido pai.
+- Não some o valor do pedido principal no \`value\` da TMT.
 - Não monte URL de webhook no formato antigo \`/gateway-webhook/<gateway>\` — use a query \`?provider=\`.
 - Não dispare Purchase em status pendente.
-- Não logue PII em texto puro.
+- Não logue PII em texto puro (CPF, e-mail, telefone, endereço, QR/PIX copia-e-cola).
 - Não remova chamadas existentes ao ${g.label}; só **adicione** as camadas acima.`;
 }
