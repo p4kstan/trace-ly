@@ -8,9 +8,16 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
-    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    include: [
+      "src/**/*.{test,spec}.{ts,tsx}",
+      "supabase/functions/**/*.{test,spec}.ts",
+    ],
   },
   resolve: {
-    alias: { "@": path.resolve(__dirname, "./src") },
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+    // Allow Deno-style explicit `.ts` imports inside supabase/functions
+    extensions: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".json"],
   },
 });
