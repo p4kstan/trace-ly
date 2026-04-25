@@ -112,21 +112,27 @@ async function getRoutingRules(workspaceId: string, eventName: string) {
  * pelos dispatchers downstream (google-ads-capi, ga4-events, meta-capi, tiktok-events),
  * que originalmente foram escritos pra consumir items vindos do gateway-webhook.
  */
-function normalizeEventToQueuePayload(event: any) {
+function normalizeEventToQueuePayload(event: any, enrichment?: { session?: any; identity?: any }) {
   const ud = event.user_data_json || {};
   const cd = event.custom_data_json || {};
+  const sess = enrichment?.session || {};
+  const ident = enrichment?.identity || {};
 
   return {
     event_name: event.event_name,
+    // Prefer browser-supplied event_id (for browser↔CAPI dedup); fall back to DB UUID.
     event_id: event.event_id || event.id,
+    browser_event_id: event.event_id || null,
     event_time: event.event_time,
     event_source_url: event.event_source_url,
+    action_source: event.action_source || "website",
     customer: {
       email: ud.email || null,
-      email_hash: ud.email_hash || null,
+      // em/ph aliases supported across providers
+      email_hash: ud.email_hash || ud.em || ident.email_hash || null,
       phone: ud.phone || null,
-      phone_hash: ud.phone_hash || null,
-      external_id: ud.external_id || null,
+      phone_hash: ud.phone_hash || ud.ph || ident.phone_hash || null,
+      external_id: ud.external_id || ident.external_id || null,
       first_name: ud.first_name || null,
       last_name: ud.last_name || null,
       city: ud.city || null,
@@ -135,22 +141,29 @@ function normalizeEventToQueuePayload(event: any) {
       zip: ud.zip || null,
     },
     session: {
-      fbp: ud.fbp || null,
-      fbc: ud.fbc || null,
-      ga_client_id: ud.ga_client_id || null,
-      gclid: cd.gclid || null,
-      gbraid: cd.gbraid || null,
-      wbraid: cd.wbraid || null,
-      fbclid: cd.fbclid || null,
-      ttclid: cd.ttclid || null,
-      msclkid: cd.msclkid || null,
-      utm_source: cd.utm_source || null,
-      utm_medium: cd.utm_medium || null,
-      utm_campaign: cd.utm_campaign || null,
-      utm_content: cd.utm_content || null,
-      utm_term: cd.utm_term || null,
-      ip: ud.client_ip_address || null,
-      user_agent: ud.client_user_agent || null,
+      session_id: event.session_id || sess.id || null,
+      fbp: ud.fbp || sess.fbp || null,
+      fbc: ud.fbc || sess.fbc || null,
+      // GA4: real GA client_id MUST win; session.ga_client_id is the source of truth.
+      ga_client_id: sess.ga_client_id || ud.ga_client_id || cd.ga_client_id || null,
+      client_id: sess.ga_client_id || ud.ga_client_id || cd.ga_client_id || null,
+      gclid: cd.gclid || sess.gclid || null,
+      gbraid: cd.gbraid || sess.gbraid || null,
+      wbraid: cd.wbraid || sess.wbraid || null,
+      fbclid: cd.fbclid || sess.fbclid || null,
+      ttclid: cd.ttclid || sess.ttclid || null,
+      msclkid: cd.msclkid || sess.msclkid || null,
+      utm_source: cd.utm_source || sess.utm_source || null,
+      utm_medium: cd.utm_medium || sess.utm_medium || null,
+      utm_campaign: cd.utm_campaign || sess.utm_campaign || null,
+      utm_content: cd.utm_content || sess.utm_content || null,
+      utm_term: cd.utm_term || sess.utm_term || null,
+      // RAW client IP (NOT a hash). Meta/TikTok require raw IP for client_ip_address.
+      ip: sess.client_ip || ud.client_ip_address || null,
+      ip_hash: sess.ip_hash || null,
+      user_agent: sess.user_agent || ud.client_user_agent || null,
+      landing_page: sess.landing_page || null,
+      referrer: sess.referrer || null,
     },
     order: {
       external_order_id: cd.transaction_id || cd.order_id || event.event_id,
@@ -160,6 +173,7 @@ function normalizeEventToQueuePayload(event: any) {
     },
     custom_data: cd,
     user_data: ud,
+    identity_id: event.identity_id || null,
   };
 }
 
