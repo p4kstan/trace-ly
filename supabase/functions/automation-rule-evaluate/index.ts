@@ -41,6 +41,59 @@ interface Rule {
   enabled: boolean;
   condition_json: any;
   action_json: any;
+  execution_mode?: string | null;
+  guardrails_json?: any;
+}
+
+// ── Guardrail defaults (per-rule overrides via guardrails_json) ─────────
+// Hard upper-bounds the system will never exceed even if a rule asks for more.
+const GUARD_DEFAULTS = {
+  dry_run: true,                 // default to dry_run unless explicitly set to false
+  max_items: 25,                 // hard cap on items mutated per evaluation
+  hard_max_items: 100,           // absolute ceiling (cannot be raised by rule)
+  bid_min_brl: 0.10,             // never set CPC below R$ 0.10
+  bid_max_brl: 50.0,             // never set CPC above R$ 50.00
+  bid_change_max_pct: 0.50,      // single change cannot move bid more than ±50%
+  budget_min_brl: 5.0,
+  budget_max_brl: 5000.0,
+  budget_change_max_pct: 0.50,
+};
+
+function resolveGuardrails(rule: Rule) {
+  const g = (rule.guardrails_json || {}) as Record<string, unknown>;
+  const num = (k: string, d: number, max?: number) => {
+    const v = Number(g[k]);
+    if (!Number.isFinite(v) || v <= 0) return d;
+    return max != null ? Math.min(v, max) : v;
+  };
+  // execution_mode column wins; falls back to guardrails_json.dry_run
+  const mode = (rule.execution_mode || "").toLowerCase();
+  const dryRun =
+    mode === "dry_run" ? true :
+    mode === "live" ? false :
+    g.dry_run === false ? false : true; // safe default
+
+  return {
+    dry_run: dryRun,
+    max_items: num("max_items", GUARD_DEFAULTS.max_items, GUARD_DEFAULTS.hard_max_items),
+    bid_min_brl: num("bid_min_brl", GUARD_DEFAULTS.bid_min_brl),
+    bid_max_brl: num("bid_max_brl", GUARD_DEFAULTS.bid_max_brl),
+    bid_change_max_pct: num("bid_change_max_pct", GUARD_DEFAULTS.bid_change_max_pct, 1.0),
+    budget_min_brl: num("budget_min_brl", GUARD_DEFAULTS.budget_min_brl),
+    budget_max_brl: num("budget_max_brl", GUARD_DEFAULTS.budget_max_brl),
+    budget_change_max_pct: num("budget_change_max_pct", GUARD_DEFAULTS.budget_change_max_pct, 1.0),
+  };
+}
+
+function clampBidMicros(currentMicros: number, factor: number, g: ReturnType<typeof resolveGuardrails>) {
+  // 1) limit movement
+  const safeFactor = Math.max(1 - g.bid_change_max_pct, Math.min(1 + g.bid_change_max_pct, factor));
+  let next = currentMicros * safeFactor;
+  // 2) clamp to absolute min/max
+  const minMicros = g.bid_min_brl * 1_000_000;
+  const maxMicros = g.bid_max_brl * 1_000_000;
+  next = Math.max(minMicros, Math.min(maxMicros, next));
+  return { micros: Math.round(next), applied_factor: safeFactor };
 }
 
 Deno.serve(async (req) => {
