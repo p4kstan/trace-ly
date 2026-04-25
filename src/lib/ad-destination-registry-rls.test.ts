@@ -54,13 +54,13 @@ describe("ad_conversion_destinations RLS audit (Passo R)", () => {
   it("data_reuse_summary RPC is SECURITY DEFINER + member-gated, no PII columns selected", () => {
     expect(SOURCE).toMatch(/FUNCTION public\.data_reuse_summary[\s\S]*SECURITY DEFINER/);
     expect(SOURCE).toMatch(/is_workspace_member\(auth\.uid\(\), _workspace_id\)/);
-    // Must NOT expose any raw PII fields back to the caller — only counts.
-    // (i.e. no `SELECT customer_email` outside aggregation contexts.)
     const rpcSlice = SOURCE.match(/FUNCTION public\.data_reuse_summary[\s\S]*?\$\$;/);
     expect(rpcSlice).toBeTruthy();
     const body = rpcSlice![0];
-    expect(body).not.toMatch(/RETURN[\s\S]*customer_email/i);
-    expect(body).not.toMatch(/RETURN[\s\S]*customer_phone/i);
+    // The RETURN payload must only assemble jsonb counters — never raw PII.
+    const returnStmt = body.match(/RETURN jsonb_build_object\([\s\S]*?\);/);
+    expect(returnStmt).toBeTruthy();
+    expect(returnStmt![0]).not.toMatch(/customer_email|customer_phone|gclid|fbclid|ttclid|msclkid/i);
   });
 
   it("list_ad_conversion_destinations RPC is SECURITY DEFINER and excludes secrets", () => {
