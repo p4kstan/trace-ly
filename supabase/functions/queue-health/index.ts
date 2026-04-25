@@ -165,11 +165,20 @@ Deno.serve(async (req) => {
   // ── Internal alerts (deduped, no external dispatch) ────────────────
   // Generate per-condition; the upsert RPC dedups by (ws, provider,
   // destination, alert_type) within the configured window.
+  // Auto-resolve (Passo I): when a condition no longer holds for a
+  // provider+destination+alert_type, mark previously open/acknowledged
+  // alerts as `resolved` with `resolved_by='system:queue-health'`.
   const alertOps: Promise<unknown>[] = [];
+  // Track which (provider, destination, alert_type) tuples are currently
+  // firing so we can auto-resolve every other tuple seen in the window.
+  const firingTuples = new Set<string>();
+  const tupleKey = (p: string, d: string, t: string) => `${p}|${d}|${t}`;
+
   const upsertAlert = (
     provider: string, destination: string, alertType: string,
     severity: "warn" | "critical", value: number, message: string,
   ) => {
+    firingTuples.add(tupleKey(provider, destination, alertType));
     alertOps.push(
       supabase.rpc("upsert_queue_health_alert", {
         _workspace_id: workspace_id,
@@ -211,6 +220,41 @@ Deno.serve(async (req) => {
   }
   // Best-effort — never block the response on alert writes.
   await Promise.allSettled(alertOps);
+
+  // ── Auto-resolve cleared conditions ────────────────────────────────
+  // Look at all currently-active alerts for this workspace; any whose
+  // (provider, destination, alert_type) is NOT in `firingTuples` is
+  // treated as cleared and resolved by the system. History is preserved.
+  try {
+    const { data: activeAlerts } = await supabase
+      .from("queue_health_alerts")
+      .select("provider, destination, alert_type, status")
+      .eq("workspace_id", workspace_id)
+      .in("status", ["open", "acknowledged"])
+      .limit(500);
+
+    const seen = new Set<string>();
+    const resolveOps: Promise<unknown>[] = [];
+    for (const a of (activeAlerts || []) as Array<Record<string, string>>) {
+      const k = tupleKey(a.provider, a.destination, a.alert_type);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      if (firingTuples.has(k)) continue;
+      // Condition no longer holds — auto-resolve via audited RPC.
+      resolveOps.push(
+        supabase.rpc("auto_resolve_queue_health_alerts", {
+          _workspace_id: workspace_id,
+          _provider: a.provider,
+          _destination: a.destination,
+          _alert_type: a.alert_type,
+          _reason: "condition_cleared",
+        }),
+      );
+    }
+    await Promise.allSettled(resolveOps);
+  } catch (e) {
+    console.warn("queue-health auto-resolve skipped", (e as Error).message);
+  }
 
   // ── Sample-truncation indicator + retention recommendation ─────────
   const queueTotal = queueTotalRes.count || queueRows.length;

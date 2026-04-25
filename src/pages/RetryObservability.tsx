@@ -189,6 +189,7 @@ export default function RetryObservability() {
       </div>
 
       <QueueHealthBanner workspaceId={workspace?.id} />
+      <RetentionCronDiagnostics />
       <InternalAlertsPanel workspaceId={workspace?.id} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -493,3 +494,56 @@ function InternalAlertsPanel({ workspaceId }: { workspaceId: string | undefined 
   );
 }
 
+
+/** Read-only diagnostics for the retention dry-run cron job.
+ *  Indicates whether a cron job referencing `retention-job` is registered
+ *  and whether the `app.cron_secret` GUC is set. NEVER reads or displays
+ *  the secret value itself. Safe for any workspace member.
+ */
+function RetentionCronDiagnostics() {
+  const { data } = useQuery({
+    queryKey: ["retention-cron-status"],
+    refetchInterval: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("retention_cron_status" as any);
+      if (error) throw error;
+      return data as {
+        ok: boolean;
+        monitor_cron_count?: number;
+        monitor_active?: boolean;
+        cron_secret_configured?: boolean;
+      } | null;
+    },
+  });
+
+  if (!data || data.ok !== true) return null;
+
+  const monitorActive = !!data.monitor_active;
+  const secretConfigured = !!data.cron_secret_configured;
+  const tone = monitorActive
+    ? "border-success/40 bg-success/5 text-success"
+    : "border-warning/40 bg-warning/5 text-warning";
+
+  return (
+    <div className={`border rounded-lg px-4 py-3 text-xs flex flex-wrap items-center gap-4 ${tone}`}>
+      <span className="font-semibold uppercase tracking-wide">retention monitor</span>
+      <span>cron: <b>{monitorActive ? "ativo" : "inativo"}</b></span>
+      <span>jobs registrados: <b>{data.monitor_cron_count ?? "—"}</b></span>
+      <span>
+        app.cron_secret:{" "}
+        <b>{secretConfigured ? "configurado" : "não configurado"}</b>
+      </span>
+      {!monitorActive && (
+        <span className="opacity-80">
+          Nenhum cron de retention-job dry-run encontrado. Execução destrutiva continua manual.
+        </span>
+      )}
+      {!secretConfigured && (
+        <span className="opacity-80">
+          Configure o GUC <code>app.cron_secret</code> no banco antes de habilitar execução real
+          (este painel não armazena nem exibe o valor).
+        </span>
+      )}
+    </div>
+  );
+}

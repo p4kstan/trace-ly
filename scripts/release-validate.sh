@@ -127,6 +127,59 @@ done
 grep -q "_ip_hash" "$RL_FILE" || fail "rate-limit helper must pass _ip_hash"
 ok "rate-limit helper is PII-safe"
 
+# Passo I — Auto-resolve, rate-limit configs UI, retention diagnostics.
+log "4h/7  Passo I controls (auto-resolve, RL configs UI, cron diag)"
+grep -q "auto_resolve_queue_health_alerts" supabase/functions/queue-health/index.ts \
+  || fail "queue-health must call auto_resolve_queue_health_alerts when conditions clear"
+grep -q "firingTuples" supabase/functions/queue-health/index.ts \
+  || fail "queue-health must track firing tuples for auto-resolve"
+[ -f src/pages/RateLimitConfigs.tsx ] \
+  || fail "MISSING src/pages/RateLimitConfigs.tsx"
+grep -q "/rate-limit-configs" src/App.tsx \
+  || fail "/rate-limit-configs route not wired in App.tsx"
+grep -q "/rate-limit-configs" src/components/AppSidebar.tsx \
+  || fail "/rate-limit-configs missing from sidebar"
+grep -q "RetentionCronDiagnostics" src/pages/RetryObservability.tsx \
+  || fail "RetryObservability must surface RetentionCronDiagnostics"
+grep -q "retention_cron_status" src/pages/RetryObservability.tsx \
+  || fail "RetryObservability must call retention_cron_status RPC"
+# Validate UI bounds for RL configs.
+grep -q "WINDOW_MIN = 10" src/pages/RateLimitConfigs.tsx \
+  || fail "RateLimitConfigs UI must bound window 10-3600s"
+grep -q "HITS_MAX = 10_000\|HITS_MAX = 10000" src/pages/RateLimitConfigs.tsx \
+  || fail "RateLimitConfigs UI must bound max_hits 1-10000"
+ok "Passo I controls wired"
+
+# Passo I — No secret exposure in frontend / logs.
+log "4i/7  No CRON_SECRET / app.cron_secret value exposure in client/logs"
+# Frontend must never read or display CRON_SECRET. The diag RPC only
+# returns a boolean — never the value.
+# Allow-list: prompt templates that document Edge Function snippets are not
+# executed in the browser. They live under src/lib/*-prompts.ts.
+PII_SECRET_HITS=$(grep -RnE 'CRON_SECRET|cron_secret\s*[:=]' src 2>/dev/null \
+  | grep -vE '(cron_secret_configured|app\.cron_secret\b|//|/\*)' \
+  | grep -vE 'src/lib/.*-prompts\.ts' \
+  | grep -v 'RetryObservability.tsx' || true)
+if [ -n "$PII_SECRET_HITS" ]; then
+  echo "Suspicious CRON_SECRET reference in src/:"
+  echo "$PII_SECRET_HITS"
+  fail "Remove CRON_SECRET reference from frontend"
+fi
+# RPC must NOT return the actual secret value.
+if grep -nE "current_setting\('app\.cron_secret'.*\).*RETURNING|jsonb_build_object[^)]*secret_val" \
+    supabase/migrations/*passo*i*.sql supabase/migrations/*.sql 2>/dev/null | grep -v "v_secret_set" >/dev/null 2>&1; then
+  fail "retention_cron_status RPC must NEVER return the secret value"
+fi
+ok "no secret exposure in client / RPC"
+
+# Passo I — Retention monitor remains non-destructive.
+log "4j/7  Retention monitor still non-destructive (no execute=1 in cron)"
+if grep -nE "execute['\"]?\s*[:=]\s*['\"]?(1|true)" supabase/migrations/*.sql 2>/dev/null \
+    | grep -i "retention" >/dev/null 2>&1; then
+  fail "Found execute=1 wired into retention cron — Passo I requires monitor only"
+fi
+ok "retention cron remains dry-run/monitor only"
+
 # ─── 5. Critical routes ─────────────────────────────────────────────────
 log "5/7  Critical UI routes wired"
 for route in "/canonical-audit" "/retry-observability" "/go-live-checklist"; do

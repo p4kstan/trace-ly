@@ -4310,6 +4310,9 @@ export type Database = {
           metric_value: number | null
           occurrences: number
           provider: string
+          resolution_reason: string | null
+          resolved_at: string | null
+          resolved_by: string | null
           severity: string
           status: string
           window_minutes: number
@@ -4329,6 +4332,9 @@ export type Database = {
           metric_value?: number | null
           occurrences?: number
           provider?: string
+          resolution_reason?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
           severity?: string
           status?: string
           window_minutes?: number
@@ -4348,6 +4354,9 @@ export type Database = {
           metric_value?: number | null
           occurrences?: number
           provider?: string
+          resolution_reason?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
           severity?: string
           status?: string
           window_minutes?: number
@@ -5060,6 +5069,16 @@ export type Database = {
         Args: { _alert_id: string; _note?: string }
         Returns: Json
       }
+      auto_resolve_queue_health_alerts: {
+        Args: {
+          _alert_type: string
+          _destination: string
+          _provider: string
+          _reason?: string
+          _workspace_id: string
+        }
+        Returns: number
+      }
       cleanup_expired_ga4_cache: { Args: never; Returns: number }
       cleanup_rate_limit_buckets: { Args: never; Returns: number }
       compute_attribution: {
@@ -5121,6 +5140,7 @@ export type Database = {
         }
         Returns: Json
       }
+      retention_cron_status: { Args: never; Returns: Json }
       upsert_queue_health_alert: {
         Args: {
           _alert_type: string
