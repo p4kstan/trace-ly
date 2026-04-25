@@ -83,6 +83,7 @@ const logsItems = [
   { title: "Auditoria Canônica", url: "/canonical-audit", icon: Shield },
   { title: "Retries & Dead-letter", url: "/retry-observability", icon: HeartPulse },
   { title: "Checklist Go-live", url: "/go-live-checklist", icon: Shield },
+  { title: "Rate-limit", url: "/rate-limit-configs", icon: Shield },
   { title: "Saúde do Sistema", url: "/system-diagnostic", icon: HeartPulse },
 ];
 
