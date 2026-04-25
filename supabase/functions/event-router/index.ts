@@ -456,12 +456,12 @@ Deno.serve(async (req) => {
     await Promise.all(routePromises);
 
     if (queueRows.length > 0) {
-      // P0: upsert com ignoreDuplicates evita inserir 2x quando webhook é reentregue
-      // pelo gateway. Unique index parcial em (workspace_id, event_id, provider) garante a dedup.
+      // Upsert deduplicado por (workspace, event_id, provider, destination)
+      // — permite múltiplas contas do mesmo provider sem colisão.
       const { error: qErr } = await supabase
         .from("event_queue")
         .upsert(queueRows, {
-          onConflict: "workspace_id,event_id,provider",
+          onConflict: "workspace_id,event_id,provider,destination",
           ignoreDuplicates: true,
         });
       if (qErr) {
