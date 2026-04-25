@@ -663,14 +663,21 @@ function DecisionAuditPanel({ workspaceId }: { workspaceId?: string }) {
         .eq("status", "skipped")
         .order("last_attempt_at", { ascending: false })
         .limit(20);
-      return (data ?? []).map((row: Record<string, unknown>) => ({
-        ...row,
-        reasons: Array.isArray((row.request_json as { reasons?: unknown })?.reasons)
-          ? ((row.request_json as { reasons: string[] }).reasons)
-          : [],
-        decision: (row.request_json as { dispatch_decision?: string })?.dispatch_decision ?? row.status,
-        test_mode: false,
-      }));
+      return (data ?? []).map((row) => {
+        const reqJson = (row.request_json ?? {}) as { reasons?: unknown; dispatch_decision?: string };
+        return {
+          id: row.id as string,
+          event_id: (row.event_id as string) ?? null,
+          provider: row.provider as string,
+          destination: (row.destination as string) ?? "—",
+          decision: (reqJson.dispatch_decision ?? row.status) as string,
+          reasons: Array.isArray(reqJson.reasons) ? (reqJson.reasons as string[]) : [],
+          test_mode: false,
+          last_attempt_at: (row.last_attempt_at as string) ?? "",
+          status: row.status as string,
+          request_json: row.request_json,
+        };
+      });
     },
   });
 
