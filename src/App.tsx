@@ -57,6 +57,7 @@ const NativeCheckoutGuide = lazy(() => import("@/pages/NativeCheckoutGuide"));
 const Duplicates = lazy(() => import("@/pages/Duplicates"));
 const TrackingDebug = lazy(() => import("@/pages/TrackingDebug"));
 const CanonicalAudit = lazy(() => import("@/pages/CanonicalAudit"));
+const RetryObservability = lazy(() => import("@/pages/RetryObservability"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -115,6 +116,7 @@ function ProtectedRoutes() {
           <Route path="/duplicates" element={<Duplicates />} />
           <Route path="/tracking-debug" element={<TrackingDebug />} />
           <Route path="/canonical-audit" element={<CanonicalAudit />} />
+          <Route path="/retry-observability" element={<RetryObservability />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
