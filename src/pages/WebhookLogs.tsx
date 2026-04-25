@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ChevronRight, Webhook, Search, RefreshCw } from "lucide-react";
+import { WebhookEndpointsPanel } from "@/components/setup/WebhookEndpointsPanel";
 
 const statusColors: Record<string, string> = {
   processed: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
@@ -62,6 +63,8 @@ export default function WebhookLogs() {
           <RefreshCw className="w-4 h-4" /> Atualizar
         </Button>
       </div>
+
+      <WebhookEndpointsPanel />
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
