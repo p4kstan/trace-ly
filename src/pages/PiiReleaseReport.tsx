@@ -88,7 +88,7 @@ const CHECKS: CheckRow[] = [
   {
     id: "cron-secret",
     area: "secrets",
-    title: "CRON_SECRET nunca exposto no frontend ou em RPCs",
+    title: "Segredo de cron nunca exposto no frontend ou em RPCs",
     description:
       "retention_cron_status retorna apenas booleano cron_secret_configured. Frontend só lê esse boolean. release-validate bloqueia regressões.",
     status: "enforced",
