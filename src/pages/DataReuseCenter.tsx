@@ -291,22 +291,16 @@ export default function DataReuseCenter() {
     queryFn: async (): Promise<AutomationRuleRow[]> => {
       const { data, error } = await supabase
         .from("automation_rules")
-        .select("id,enabled,execution_mode,guardrails_json,action_json")
+        .select("id,name,enabled,execution_mode,guardrails_json,action_json,workspace_id,customer_id,campaign_id")
         .eq("workspace_id", workspaceId!)
-        .limit(10);
+        .limit(50);
       if (error) return [];
       return (data ?? []) as unknown as AutomationRuleRow[];
     },
   });
 
-  const records = useMemo(
-    () => (ordersQuery.data ?? []).map(toRecord),
-    [ordersQuery.data],
-  );
-  const clickIdRecords = useMemo(
-    () => (ordersQuery.data ?? []).map(toClickIdRecord),
-    [ordersQuery.data],
-  );
+  const records = useMemo(() => pages.map(toRecord), [pages]);
+  const clickIdRecords = useMemo(() => pages.map(toClickIdRecord), [pages]);
   const coverage = useMemo(() => buildCoverageReport({ records }), [records]);
   const clickCoverage = useMemo(() => buildClickIdCoverage(clickIdRecords), [clickIdRecords]);
 
@@ -347,6 +341,25 @@ export default function DataReuseCenter() {
       ]),
     [destinationDescriptors],
   );
+
+  // Multi-rule simulator (Passo S) — iterate ALL applicable automation_rules
+  // for the workspace and aggregate by outcome. Auto stays blocked unless
+  // guardrails.auto_enabled=true AND execution_mode=auto on the row.
+  const multiRuleReport = useMemo(() => {
+    const rules = automationRulesQuery.data ?? [];
+    return simulateRulesForScope(
+      rules,
+      {},
+      {
+        kind: "budget",
+        target_id: "data-reuse-center:budget-preview",
+        current_value: 100,
+        proposed_value: 110,
+        recent_conversions: coverage.paid,
+        hours_since_last_change: 48,
+      },
+    );
+  }, [automationRulesQuery.data, coverage.paid]);
 
   const simulation = useMemo(() => {
     const recentConv = coverage.paid;
