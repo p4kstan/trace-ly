@@ -32,14 +32,31 @@ type Row = {
 };
 
 // ── Mini-router + processor ────────────────────────────────────────────
+// Models the TWO-layer dedup contract used in production:
+//   1. event_queue UNIQUE INDEX is PARTIAL: only blocks while status is
+//      queued/processing/retry. Delivered/dead-letter rows do NOT block.
+//   2. tracked_events UNIQUE INDEX is FULL on (workspace_id, event_id,
+//      provider, destination). Once a destination is `delivered` there,
+//      the gateway/router MUST refuse to re-enqueue it. This is what
+//      prevents double-spend on Ads after a sibling destination fails.
 class Router {
   rows: Row[] = [];
   delivered: Row[] = [];
+  // tracked_events shadow — full 4-col unique, status terminal once delivered.
+  tracked = new Map<string, "reserved" | "delivered" | "dead_letter">();
   private id = 0;
 
+  private trackedKey(i: { workspace_id: string; event_id: string; provider: string; destination: string }) {
+    return `${i.workspace_id}|${i.event_id}|${i.provider}|${i.destination}`;
+  }
+
   enqueue(input: { workspace_id: string; event_id: string; provider: string; destination: string }): Row | null {
-    // Simulates: ON CONFLICT (workspace_id, event_id, provider, destination)
-    // DO NOTHING WHERE status IN (queued, processing, retry).
+    // Layer 2: tracked_events — refuse if already delivered (idempotency).
+    const tk = this.trackedKey(input);
+    const tState = this.tracked.get(tk);
+    if (tState === "delivered") return null;
+
+    // Layer 1: event_queue partial unique on active statuses.
     const dup = this.rows.find(r =>
       r.workspace_id === input.workspace_id &&
       r.event_id === input.event_id &&
@@ -57,6 +74,7 @@ class Router {
       next_retry_at: Date.now(),
     };
     this.rows.push(row);
+    this.tracked.set(tk, "reserved");
     return row;
   }
 
@@ -66,7 +84,6 @@ class Router {
     const due = this.rows.filter(r =>
       (r.status === "queued" || r.status === "retry") && r.next_retry_at <= Date.now()
     );
-    // Group key — mirrors process-events grouping
     const groups = new Map<string, Row[]>();
     for (const r of due) {
       const key = `${r.provider}::${r.workspace_id}::${r.destination}`;
@@ -77,16 +94,18 @@ class Router {
     for (const [, group] of groups) {
       for (const r of group) {
         const result = dispatcher(r);
+        const tk = this.trackedKey(r);
         if (result === "ok") {
           r.status = "delivered";
           this.delivered.push(r);
+          this.tracked.set(tk, "delivered");
         } else {
           r.attempt_count++;
           if (r.attempt_count >= r.max_attempts) {
             r.status = "dead_letter";
+            this.tracked.set(tk, "dead_letter");
           } else {
             r.status = "retry";
-            // exponential backoff: 30s * 4^n
             r.next_retry_at = Date.now() + 30_000 * Math.pow(4, r.attempt_count);
           }
         }
@@ -159,4 +178,45 @@ describe("process-events contract", () => {
     expect(r.enqueue({ workspace_id: WS, event_id: step, provider: "meta_capi", destination: "PIX-1" })).not.toBeNull();
     expect(r.rows.map(x => x.event_id).sort()).toEqual([main, step].sort());
   });
+
+  it("C6 — delivered destination is NEVER re-enqueued because a sibling failed", () => {
+    // Two destinations for the same event_id+provider.
+    r.enqueue({ workspace_id: WS, event_id: EV, provider: "google_ads", destination: "CID-A" });
+    r.enqueue({ workspace_id: WS, event_id: EV, provider: "google_ads", destination: "CID-B" });
+
+    // First pass: A delivered, B failed.
+    r.process(row => row.destination === "CID-A" ? "ok" : "fail");
+    const a = r.rows.find(x => x.destination === "CID-A")!;
+    const b = r.rows.find(x => x.destination === "CID-B")!;
+    expect(a.status).toBe("delivered");
+    expect(b.status).toBe("retry");
+
+    // Operator/event-router tries to re-enqueue the SAME event_id+provider+destA
+    // (e.g. webhook redelivery, F5, or a retry sweep). It MUST be rejected by
+    // the dedup contract — otherwise CID-A would be billed twice on Ads.
+    const reattempt = r.enqueue({
+      workspace_id: WS, event_id: EV, provider: "google_ads", destination: "CID-A",
+    });
+    expect(reattempt).toBeNull();
+
+    // And the delivered row stays delivered.
+    expect(a.status).toBe("delivered");
+    expect(r.delivered.filter(x => x.destination === "CID-A")).toHaveLength(1);
+  });
+
+  it("C6b — retry sweep only touches non-delivered rows", () => {
+    r.enqueue({ workspace_id: WS, event_id: EV, provider: "ga4", destination: "G-A" });
+    r.enqueue({ workspace_id: WS, event_id: EV, provider: "ga4", destination: "G-B" });
+    r.process(row => row.destination === "G-A" ? "ok" : "fail");
+
+    // Force B due, then run a sweep that would deliver everything.
+    const b = r.rows.find(x => x.destination === "G-B")!;
+    b.next_retry_at = Date.now() - 1;
+    r.process(() => "ok");
+
+    // A must NOT appear twice in delivered.
+    expect(r.delivered.filter(x => x.destination === "G-A")).toHaveLength(1);
+    expect(b.status).toBe("delivered");
+  });
 });
+

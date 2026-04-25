@@ -26,6 +26,9 @@
  * (executed > 0). Recommendation/dry-run runs do NOT touch last_triggered_at.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { installSafeConsole } from "../_shared/install-safe-console.ts";
+
+installSafeConsole("automation-rule-evaluate");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
