@@ -487,7 +487,7 @@ export default function McpSettings() {
                 </code>
                 <CopyButton value={createdToken} label="Token" />
               </div>
-              <p className="text-xs text-muted-foreground border border-yellow-500/30 bg-yellow-500/5 rounded-md p-2">
+              <p className="text-xs text-muted-foreground border border-warning/30 bg-warning/5 rounded-md p-2">
                 Salve em um cofre seguro. Use como <code>CAPITRACK_AUTH_TOKEN</code> no Codex.
               </p>
             </div>
