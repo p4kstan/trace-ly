@@ -33,24 +33,27 @@ Deno.serve(async (req) => {
       });
     }
 
-    const systemPrompt = `Você é um engenheiro especialista em tracking server-side (Meta CAPI, Google Ads CAPI, GA4) e checkouts nativos no Brasil.
+    const systemPrompt = `Você é um engenheiro especialista em tracking server-side (Meta CAPI, Google Ads CAPI, GA4, TikTok Events) e checkouts nativos no Brasil.
 
-Tarefa: o usuário vai colar trechos do código do checkout dele. Analise e gere um PROMPT customizado em português, pronto para colar em uma IA-agente (Lovable/Cursor/Claude Code), que implemente captura de tracking + disparo de Purchase no CapiTrack.
+Tarefa: o usuário vai colar trechos do código do checkout dele. Analise e gere um PROMPT customizado em português, pronto para colar em uma IA-agente (Lovable/Cursor/Claude Code), que implemente captura de tracking + disparo idempotente de Purchase no CapiTrack.
 
 REGRAS:
 1. Identifique no código colado: nome das funções de criação de cobrança, nome das variáveis (order, payment, customer), framework (React/Next/Vue/Node), gateway de pagamento.
 2. Gere um prompt que CITA esses nomes reais — não use placeholders genéricos.
-3. Cubra os 4 passos: (1) capturar UTMs/gclid/fbclid/ttclid/_fbp/_fbc em cookies no <head>, (2) helper readTracking() que SEMPRE retorna session_id e usa apenas .trim() (NUNCA .toLowerCase()) em click IDs, (3) injetar metadata na chamada do gateway identificada no código, (4) disparar Purchase no CapiTrack quando o pagamento confirmar.
-4. Diferencie cartão (síncrono) de PIX/boleto (assíncrono via webhook ou polling).
-5. **CRÍTICO — Módulo de Deduplicação de Elite (04/2026)**:
-   - O payload do Purchase enviado ao CapiTrack DEVE conter \`external_id\` (ID da transação no gateway) e \`event_id\` no formato \`\${external_id}:Purchase\`.
-   - O backend deduplica em janela de 48h por \`external_id:event_name\` em event_deliveries — então é seguro disparar client-side e webhook simultaneamente.
-   - Inclua \`session_id\` no payload (lido do cookie \`ct_session\` ou sessionStorage) — permite fallback de atribuição via tabela sessions.
-   - Click IDs (gclid/gbraid/wbraid/fbclid/ttclid) são case-sensitive: NUNCA aplique .toLowerCase()/.normalize(). Apenas .trim().
-   - Trava de status: só dispare Purchase quando o status do gateway estiver em {paid, approved, confirmed, succeeded, captured, pix_paid, order_paid}. Status pending/checkout_created/boleto_printed devem usar InitiateCheckout ou generate_lead.
-   - Roteamento Last-Click é decidido pelo backend (gclid→Google Ads, fbclid→Meta, ttclid→TikTok) — só envie todos os IDs disponíveis, não filtre.
-6. Use SEMPRE o endpoint e a public key fornecidos.
-7. Retorne APENAS o prompt final em markdown, sem comentários, sem explicações antes/depois.`;
+3. Cubra os 5 passos: (1) capturar UTMs/click IDs/_fbp/_fbc/_ga em cookies no <head> com late-bind do ga_client_id, (2) helper readTracking() que SEMPRE retorna session_id e ga_client_id e usa apenas .trim() em click IDs, (3) persistir TODOS os metadados no pedido + injetar no metadata do gateway, (4) função compartilhada maybeFirePurchase() com idempotência atômica via purchase_tracked_at IS NULL, (5) URL canônica de webhook \`${body.endpoint.replace("/track", "/gateway-webhook")}?provider=<gateway>\`.
+4. Diferencie cartão (síncrono) de PIX/boleto (assíncrono). Para PIX EXIGIR 3 fontes idempotentes que chamam o mesmo maybeFirePurchase: pix-webhook, check-pix-status (polling) e reconcile-pix-payments (cron 2-5min).
+5. **CRÍTICO — Fluxo Final 04/2026**:
+   - event_id = \`purchase:<orderCode>\` (TMT/upsell = \`purchase:<orderCode>:tmt\`). NÃO use mais \`<externalId>:Purchase\`.
+   - transaction_id e gateway_order_id são campos SEPARADOS do payload.
+   - Backend deduplica em janela de 48h por workspace+event_id+provider em event_deliveries.
+   - Idempotência server: coluna purchase_tracked_at TIMESTAMPTZ NULL + UPDATE atômico WHERE purchase_tracked_at IS NULL.
+   - Click IDs (gclid/gbraid/wbraid/fbclid/ttclid/msclkid) case-sensitive: NUNCA aplique .toLowerCase()/.normalize. Apenas .trim().
+   - Metadados obrigatórios persistidos no pedido E enviados no Purchase: gclid, gbraid, wbraid, fbclid, fbp, fbc, ttclid, msclkid, ga_client_id, session_id, utm_source/medium/campaign/content/term, landing_page, referrer, user_agent, client_ip.
+   - Trava de status: só dispare Purchase em {paid, approved, confirmed, succeeded, captured, pix_paid, order_paid}.
+   - Roteamento Last-Click decidido pelo backend — só envie todos os IDs disponíveis.
+   - Segurança: NUNCA logar CPF/email/telefone/endereço/QR-PIX em texto puro. PII só server-to-server.
+6. Use SEMPRE o endpoint, public key e URL canônica de webhook fornecidos.
+7. Retorne APENAS o prompt final em markdown, sem comentários antes/depois.`;
 
     const userPrompt = `Gateway selecionado pelo usuário: ${body.gateway}
 Métodos de pagamento ativos: ${body.methods.join(", ")}
