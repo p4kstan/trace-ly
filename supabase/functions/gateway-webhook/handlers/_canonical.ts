@@ -51,16 +51,17 @@ export function inferStepFromExternalRef(
     };
   }
 
-  // Pattern B: `<key>-<root>` where key is non-numeric and root looks like an order code
-  // Examples: `tmt-EV-20260425-ABC`, `shipping_fee-EV-20260425-ABC`
-  const mB = ref.match(/^([a-z][a-z0-9_]{1,31})-(.+)$/i);
+  // Pattern B: `<key>_<more>-<root>` — key MUST contain an underscore so we never
+  // mis-classify a normal order code like `EV-20260425-XYZ` as `EV` (step) +
+  // `20260425-XYZ` (root). Real step keys are `shipping_fee`, `upsell_1`,
+  // `taxa_transporte`, `priority_fee`, etc. — all snake_case by convention.
+  // Examples that match: `shipping_fee-EV-20260425-ABC`, `upsell_1-EV-...`.
+  const mB = ref.match(/^([a-z][a-z0-9]*_[a-z0-9_]{1,30})-(.+)$/i);
   if (mB) {
-    const candidateKey = mB[1];
     const candidateRoot = mB[2].trim();
-    // Reject if the "key" is purely numeric (e.g. `pedido-123` is not a step)
-    if (!/^\d+$/.test(candidateKey) && candidateRoot.length >= 4) {
+    if (candidateRoot.length >= 4) {
       return {
-        stepKey: normalizeStepKey(candidateKey),
+        stepKey: normalizeStepKey(mB[1]),
         rootOrderCode: candidateRoot || null,
       };
     }

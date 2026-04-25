@@ -80,6 +80,7 @@ const logsItems = [
   { title: "Logs Webhook", url: "/webhook-logs", icon: Webhook },
   { title: "Duplicatas & Auditoria", url: "/duplicates", icon: Copy },
   { title: "Depurador", url: "/debugger", icon: Bug },
+  { title: "Auditoria Canônica", url: "/canonical-audit", icon: Shield },
   { title: "Saúde do Sistema", url: "/system-diagnostic", icon: HeartPulse },
 ];
 
