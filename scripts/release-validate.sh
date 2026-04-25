@@ -384,7 +384,7 @@ fi
 ok "Passo M controls wired"
 
 # ─── 11. Passo N — Edge auth, fast-path docs, external alerts opt-in ─────
-log "11/11 Passo N controls (edge auth, fast-path guides, external alerts opt-in)"
+log "11/12 Passo N controls (edge auth, fast-path guides, external alerts opt-in)"
 [ -f supabase/functions/_shared/edge-auth.ts ] || fail "MISSING _shared/edge-auth.ts"
 [ -f supabase/functions/_shared/edge-auth.test.ts ] || fail "MISSING edge-auth.test.ts"
 [ -f src/lib/gateway-fast-path-guides.ts ] || fail "MISSING gateway-fast-path-guides.ts"
@@ -414,6 +414,40 @@ grep -q "Passo N\|webhook-auth\|external alerts\|alertas externos" src/lib/nativ
   || fail "native prompt generator missing Passo N hardening notes"
 
 ok "Passo N controls wired"
+
+# ─── 12. Passo U — Dispatch hardening (cache TTL, audit, hard-stop) ──────
+log "12/12 Passo U controls (cache TTL, workspace selector, audit log, network hard-stop)"
+# Cache TTL must exist in process-events.
+grep -q "REGISTRY_CACHE_TTL_MS" supabase/functions/process-events/index.ts \
+  || fail "process-events must define REGISTRY_CACHE_TTL_MS for registry cache"
+# Audit log RPC must be wired (sanitized writer).
+grep -q "record_dispatch_decision" supabase/functions/process-events/index.ts \
+  || fail "process-events must call record_dispatch_decision RPC"
+# WorkspaceSelector must exist and be importable.
+[ -f src/components/WorkspaceSelector.tsx ] \
+  || fail "MISSING src/components/WorkspaceSelector.tsx"
+[ -f src/hooks/use-workspaces.ts ] \
+  || fail "MISSING src/hooks/use-workspaces.ts"
+# Pure gate must have explicit network-blocked test.
+[ -f src/lib/destination-dispatch-gate-passo-u.test.ts ] \
+  || fail "MISSING destination-dispatch-gate-passo-u.test.ts"
+grep -q "fetch must not be called" src/lib/destination-dispatch-gate-passo-u.test.ts \
+  || fail "Passo U test must assert global fetch is never invoked by the gate"
+# Audit table & RPCs referenced (read-only check on UI).
+grep -q "list_dispatch_decisions" src/pages/DestinationRegistry.tsx \
+  || fail "DestinationRegistry must call list_dispatch_decisions RPC"
+# Prompts must mention Passo U.
+grep -q "Passo U" src/lib/native-checkout-prompts.ts \
+  || fail "native prompt generator missing Passo U hardening notes"
+grep -q "Passo U" src/lib/external-checkout-prompts.ts \
+  || fail "external prompt generator missing Passo U hardening notes"
+# Go-live check must exist.
+grep -q "dispatch-audit-hardening-u" src/lib/go-live-checks.ts \
+  || fail "go-live-checks must declare dispatch-audit-hardening-u"
+# Release Report must surface Passo U card.
+grep -q "Passo U" src/pages/ReleaseReport.tsx \
+  || fail "ReleaseReport must surface Passo U card"
+ok "Passo U controls wired"
 
 echo ""
 ok "RELEASE VALIDATION PASSED"
