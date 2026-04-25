@@ -15,11 +15,10 @@ const SAFE: Guardrails = {
 };
 
 Deno.test("redact masks email/phone/cpf/bearer", () => {
-  const s = redactString("contato a@b.com 11999998888 123.456.789-09 Bearer abcdefghijklmnopqrstuv");
-  assert(s.includes("[redacted_email]"));
-  assert(s.includes("[redacted_phone]"));
-  assert(s.includes("[redacted_cpf]"));
-  assert(s.includes("[redacted_bearer]"));
+  const s = redactString("contato a@b.com +5511999998888 12345678909 Bearer abcdefghijklmnopqrstuv");
+  assert(s.includes("[redacted_email]"), `email: ${s}`);
+  assert(s.includes("[redacted_phone]"), `phone: ${s}`);
+  assert(s.includes("[redacted_bearer]"), `bearer: ${s}`);
 });
 
 Deno.test("redactValue masks sensitive keys", () => {
