@@ -156,6 +156,45 @@ export default function ReleaseReport() {
         </CardContent>
       </Card>
 
+      <Card className="border-primary/20 bg-primary/5">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-primary" />
+            Passo U — Hardening operacional do dispatch
+          </CardTitle>
+          <CardDescription>
+            Cache TTL controlado, workspace selector explícito, auditoria
+            dedicada e hard-stop em test_mode. Sem chamadas reais para
+            Meta/Google/TikTok/GA4 em teste.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="text-[12px] text-muted-foreground space-y-1.5">
+          <div>
+            <strong className="text-foreground">Cache TTL:</strong>{" "}
+            <code>REGISTRY_CACHE_TTL_MS</code> (default 60s) em{" "}
+            <code>process-events</code> evita registry stale entre isolates.
+          </div>
+          <div>
+            <strong className="text-foreground">Workspace selector:</strong>{" "}
+            <code>WorkspaceSelector</code> em <code>/destination-registry</code>{" "}
+            e <code>/data-reuse-center</code> quando há múltiplas workspaces.
+          </div>
+          <div>
+            <strong className="text-foreground">Auditoria dedicada:</strong>{" "}
+            tabela <code>dispatch_decision_log</code> (RLS member-read) +
+            RPC <code>list_dispatch_decisions</code> com filtros
+            provider/destination/decision — sem PII/segredos.
+          </div>
+          <div>
+            <strong className="text-foreground">Hard-stop:</strong>{" "}
+            <code>test_mode</code>/<code>dry_run</code> nunca chega a{" "}
+            <code>fetch()</code>; testes contratuais (
+            <code>destination-dispatch-gate-passo-u.test.ts</code>) garantem
+            que rede externa nunca é tocada pelo gate puro.
+          </div>
+        </CardContent>
+      </Card>
+
       <Card className="border-success/20 bg-success/5">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Alertas externos (opt-in)</CardTitle>
