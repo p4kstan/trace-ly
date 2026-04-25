@@ -189,8 +189,9 @@ export default function RetryObservability() {
       </div>
 
       <QueueHealthBanner workspaceId={workspace?.id} />
+      <InternalAlertsPanel workspaceId={workspace?.id} />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+
         <KpiCard label="Em retry" value={kpis.retryCount} tone={kpis.retryCount > 0 ? "warn" : "ok"} />
         <KpiCard label="Parados > 1h" value={kpis.stuck1h} tone={kpis.stuck1h > 0 ? "danger" : "ok"} />
         <KpiCard label="Dead-letter" value={kpis.dlCount} tone={kpis.dlCount > 0 ? "danger" : "ok"} />
@@ -387,6 +388,82 @@ function QueueHealthBanner({ workspaceId }: { workspaceId: string | undefined })
       <span>retry mais antigo: <b>{data.totals.retry_age_max_ms > 0 ? ageLabel(data.totals.retry_age_max_ms) : "—"}</b></span>
       <span>queued mais antigo: <b>{data.totals.queued_age_max_ms > 0 ? ageLabel(data.totals.queued_age_max_ms) : "—"}</b></span>
     </div>
+  );
+}
+
+/** Read-only list of internal queue health alerts (no external dispatch).
+ *  Backed by `queue_health_alerts` table — deduped by upsert RPC. */
+function InternalAlertsPanel({ workspaceId }: { workspaceId: string | undefined }) {
+  const { data, refetch } = useQuery({
+    queryKey: ["internal-alerts", workspaceId],
+    enabled: !!workspaceId,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("queue_health_alerts")
+        .select("id, provider, destination, alert_type, severity, metric_value, message, occurrences, last_seen_at, acknowledged")
+        .eq("workspace_id", workspaceId!)
+        .eq("acknowledged", false)
+        .order("last_seen_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  if (!data || data.length === 0) return null;
+
+  const ack = async (id: string) => {
+    await supabase.from("queue_health_alerts")
+      .update({ acknowledged: true, acknowledged_at: new Date().toISOString() })
+      .eq("id", id);
+    refetch();
+  };
+
+  return (
+    <Card className="border-warning/40">
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-warning" /> Alertas internos ({data.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-muted/40 text-muted-foreground">
+              <tr>
+                <th className="text-left px-3 py-2 font-medium">tipo</th>
+                <th className="text-left px-3 py-2 font-medium">provider/destination</th>
+                <th className="text-left px-3 py-2 font-medium">severidade</th>
+                <th className="text-right px-3 py-2 font-medium">métrica</th>
+                <th className="text-right px-3 py-2 font-medium">ocorrências</th>
+                <th className="text-left px-3 py-2 font-medium">último visto</th>
+                <th className="text-right px-3 py-2 font-medium">ação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.map((a: any) => (
+                <tr key={a.id} className="border-t border-border/40">
+                  <td className="px-3 py-2 font-mono">{a.alert_type}</td>
+                  <td className="px-3 py-2">{a.provider} / {a.destination}</td>
+                  <td className="px-3 py-2">
+                    <Badge variant="outline" className={a.severity === "critical" ? "text-destructive border-destructive/40" : "text-warning border-warning/40"}>
+                      {a.severity}
+                    </Badge>
+                  </td>
+                  <td className="px-3 py-2 text-right">{a.metric_value ?? "—"}</td>
+                  <td className="px-3 py-2 text-right">{a.occurrences}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{new Date(a.last_seen_at).toLocaleString()}</td>
+                  <td className="px-3 py-2 text-right">
+                    <button onClick={() => ack(a.id)} className="text-primary hover:underline">reconhecer</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
