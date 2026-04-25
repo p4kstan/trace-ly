@@ -120,6 +120,7 @@ function ProtectedRoutes() {
           <Route path="/canonical-audit" element={<CanonicalAudit />} />
           <Route path="/retry-observability" element={<RetryObservability />} />
           <Route path="/go-live-checklist" element={<GoLiveChecklist />} />
+          <Route path="/rate-limit-configs" element={<RateLimitConfigs />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
