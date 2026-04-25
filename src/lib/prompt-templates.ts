@@ -433,31 +433,44 @@ ${eventsCode}
 ═══════════════════════════════════════════════
 4) WEBHOOK ${GATEWAY_LABELS[cfg.gateway].toUpperCase()}
 ═══════════════════════════════════════════════
-${cfg.gateway !== "none" ? `Configure no painel do ${GATEWAY_LABELS[cfg.gateway]}:
-URL: ${cfg.endpoint.replace("/track", "/gateway-webhook")}/${cfg.gateway}?workspace_id=${cfg.workspaceId || "<WORKSPACE_ID>"}
+${cfg.gateway !== "none" ? `Configure no painel do ${GATEWAY_LABELS[cfg.gateway]} a URL CANÔNICA:
+URL: ${cfg.endpoint.replace("/track", "/gateway-webhook")}?provider=${cfg.gateway}
 
-Use APENAS UM webhook (não duplique). O CapiTrack distribui para todos os destinos automaticamente.
+⚠️ Esta é a URL exata exibida no painel **Webhook Logs** do CapiTrack — NÃO monte
+manualmente em formato antigo \`/gateway-webhook/<gateway>\`.
 
-CRÍTICO para dedup: o transaction_id enviado no purchase client-side deve ser EXATAMENTE o mesmo que o webhook do gateway envia.` : "Sem gateway — pular esta etapa."}
+Use APENAS UM webhook (não duplique). O CapiTrack distribui para todos os destinos
+e deduplica automaticamente.
+
+CRÍTICO para dedup: o \`order_id\` enviado no Purchase client-side deve ser EXATAMENTE
+o mesmo que o webhook do gateway envia. \`event_id = purchase:<order_id>\`.` : "Sem gateway — pular esta etapa."}
 
 ═══════════════════════════════════════════════
-4.1) PAYLOAD DO PURCHASE — REGRAS CRÍTICAS (atualizado 04/2026)
+4.1) PAYLOAD DO PURCHASE — REGRAS CRÍTICAS (atualizado 04/2026 — Fluxo Final)
 ═══════════════════════════════════════════════
 Quando disparar o Purchase (client-side OU server-side), o payload PRECISA conter:
 
-- **external_id**: ID da transação no gateway (ex: \`ord_abc123\`). Usado pra dedupe.
-- **event_id**: SEMPRE no formato \`\${external_id}:Purchase\` (mesmo entre client e webhook).
-- **event_name**: "Purchase" (ou "Subscribe" pra assinatura).
-- **session_id**: lido do cookie/sessionStorage do CapiTrack (\`ct_session\`). Permite fallback de atribuição.
-- **gclid / gbraid / wbraid / fbclid / ttclid**: lidos dos cookies \`ct_*\` ou da URL.
-  ⚠️ NUNCA aplique .toLowerCase(), .normalize() ou regex destrutivo nesses valores. Apenas .trim().
-- **utm_source / utm_medium / utm_campaign / utm_term / utm_content**: dos cookies \`ct_utm_*\`.
-- **status do pagamento**: só dispare Purchase quando status ∈ \`{paid, approved, confirmed, succeeded, pix_paid, order_paid}\`.
-  Para status \`pending\`, \`checkout_created\`, \`boleto_printed\` use \`InitiateCheckout\` ou \`generate_lead\` — NÃO Purchase.
+- **event_id**: SEMPRE no formato \`purchase:<order_id>\` (TMT/upsell: \`purchase:<order_id>:tmt\`).
+  Não use mais \`<external_id>:Purchase\`.
+- **order_id**: ID estável do pedido (mostrado ao cliente).
+- **transaction_id** / **gateway_order_id**: ID interno do gateway, em campos **separados**.
+- **event_name**: "Purchase" (ou "Subscribe" pra primeira cobrança de assinatura).
+- **session_id**: lido do cookie/sessionStorage (\`ct_session\`). Permite fallback de atribuição.
+- **gclid / gbraid / wbraid / fbclid / ttclid / msclkid**: dos cookies \`ct_*\` ou URL.
+  ⚠️ NUNCA aplique \`.toLowerCase()\` ou \`.normalize()\`. Apenas \`.trim()\`.
+- **fbp / fbc / ga_client_id (alias client_id)**: cookies \`_fbp/_fbc/_ga\`.
+- **utm_source / utm_medium / utm_campaign / utm_term / utm_content**: cookies \`ct_utm_*\`.
+- **landing_page / referrer / user_agent / client_ip**: persistidos no pedido.
+- **status do pagamento**: só dispare quando status ∈
+  \`{paid, approved, confirmed, succeeded, captured, pix_paid, order_paid}\`.
 
-A janela de dedupe do CapiTrack é de **48h**: o mesmo \`external_id:Purchase\` enviado 2x dentro
-desse período é automaticamente bloqueado pelo backend, então é seguro disparar tanto client-side
-quanto webhook (o segundo será ignorado).
+A janela de dedupe do CapiTrack é **48h** por \`workspace_id+event_id+provider\` em
+\`event_deliveries\` — então é seguro disparar tanto client-side quanto webhook.
+
+**Idempotência server-side (PIX/boleto)**: use coluna \`purchase_tracked_at TIMESTAMPTZ NULL\`
+no pedido + UPDATE atômico \`WHERE purchase_tracked_at IS NULL\`. Todas as fontes
+(\`pix-webhook\`, \`check-pix-status\`, \`reconcile-pix-payments\`) chamam a mesma função
+\`maybeFirePurchase()\` — só uma ganha a corrida, as outras viram no-op silencioso.
 
 ═══════════════════════════════════════════════
 5) ALTERNATIVA — IMPORTAR CONTAINER GTM (opcional)
@@ -542,16 +555,23 @@ ${checks}
 TESTE 3: DEDUPLICAÇÃO ${cfg.gateway !== "none" ? `(${GATEWAY_LABELS[cfg.gateway]})` : ""}
 ═══════════════════════════════════════════════
 ${cfg.gateway !== "none" ? `1. Faça 1 compra/conversão real
-2. Em /event-logs, filtre por event_name = purchase
+2. Em /event-logs, filtre por event_name = Purchase
 3. Você deve ver:
-   - 1 evento client-side (source: web)
-   - 1 evento server-side (source: webhook)
-   - AMBOS com mesmo event_id (\`{transaction_id}:purchase\`)
-4. Em /destinations → veja se Meta CAPI / Google Ads CAPI receberam APENAS 1 envio (deduplicado)
+   - 1 evento client-side / thank-you (source: web) — se aplicável
+   - 1 evento server-side via webhook (source: webhook)
+   - **AMBOS com o mesmo \`event_id = purchase:<order_id>\`**
+4. Em /destinations veja que Meta CAPI / Google Ads CAPI receberam APENAS 1 envio (deduplicado)
+5. **F5 na thank-you NÃO duplica** (dedup 48h em event_deliveries por workspace+event_id+provider)
+6. **Reentregar webhook** do mesmo pedido NÃO duplica (\`purchase_tracked_at\` bloqueia)
+7. Se for PIX nativo: confirme \`purchase_tracked_source\` no pedido — uma das três:
+   \`pix-webhook\`, \`check-pix-status\`, ou \`reconcile-pix\`. Apenas UMA delas vence a corrida.
+8. \`msclkid\` e \`ga_client_id\` aparecem persistidos quando existirem na sessão original.
 
-- [ ] 2 eventos no CapiTrack, mesmo event_id
+- [ ] Eventos no CapiTrack com mesmo event_id = purchase:<order_id>
 - [ ] Meta Events Manager mostra 1 Purchase (não 2)
-- [ ] Google Ads Conversões mostra 1 (não 2)` : "Sem gateway — pular."}
+- [ ] Google Ads Conversões mostra 1 (não 2)
+- [ ] F5 na thank-you não duplica
+- [ ] Reentrega manual de webhook não duplica` : "Sem gateway — pular."}
 
 ═══════════════════════════════════════════════
 TESTE 4: PII HASHEADO
