@@ -8,10 +8,11 @@
  *  - garantir purchase_tracked_at atômico para evitar duplicação
  *
  * Atualizado em 04/2026 com fluxo final validado:
- *  - event_id padrão = `purchase:<orderCode>` (TMT/upsell = `purchase:<orderCode>:tmt`)
+ *  - event_id padrão = `purchase:<root_order_code>` (etapas adicionais — taxa, upsell,
+ *    seguro, prioridade, TMT etc. — = `purchase:<root_order_code>:step:<step_key>`)
  *  - Webhook URL canônica: <SUPABASE_URL>/functions/v1/gateway-webhook?provider=<gateway>
  *  - PIX exige: pix-webhook + check-pix-status + reconcile-pix-payments
- *  - Reconcile cron 2-5min, idempotência via purchase_tracked_at IS NULL
+ *  - Reconcile cron 2-5min, idempotência via `tracked_events` (genérica para N etapas)
  *  - Click IDs case-sensitive (apenas .trim()), sem PII em logs
  */
 
