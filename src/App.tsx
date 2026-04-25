@@ -63,6 +63,8 @@ const RateLimitConfigs = lazy(() => import("@/pages/RateLimitConfigs"));
 const AuditLogViewer = lazy(() => import("@/pages/AuditLogViewer"));
 const PiiReleaseReport = lazy(() => import("@/pages/PiiReleaseReport"));
 const ReleaseReport = lazy(() => import("@/pages/ReleaseReport"));
+const RlsWarningsPanel = lazy(() => import("@/pages/RlsWarningsPanel"));
+const GatewayDocs = lazy(() => import("@/pages/GatewayDocs"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -127,6 +129,8 @@ function ProtectedRoutes() {
           <Route path="/audit-logs" element={<AuditLogViewer />} />
           <Route path="/pii-release-report" element={<PiiReleaseReport />} />
           <Route path="/release-report" element={<ReleaseReport />} />
+          <Route path="/rls-warnings" element={<RlsWarningsPanel />} />
+          <Route path="/gateway-docs" element={<GatewayDocs />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
