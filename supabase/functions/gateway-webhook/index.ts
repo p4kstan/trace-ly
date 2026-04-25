@@ -800,12 +800,14 @@ Deno.serve(async (req) => {
       marketingEvent = defaultMapping?.external_event_name || INTERNAL_TO_META[internalEvent] || null;
     }
 
-    // ── Create event (reusing browser event_id when present) ──
+    // ── Create event (canonical multi-step event_id) ──
     let eventId: string | null = null;
     if (marketingEvent || internalEvent) {
       const evtName = marketingEvent || internalEvent;
       const browserEventId = (order.tracking?.event_id || "").trim();
-      const persistedEventId = browserEventId || crypto.randomUUID();
+      // Canonical event_id: purchase:<root>[:step:<key>] for paid Purchase,
+      // deterministic <event>:<external>:<provider> otherwise. Never random UUID.
+      const persistedEventId = canonicalIdentity.eventId;
 
       // Pre-hash em/ph once for the event row so providers can read identifiers
       // directly from `events.user_data_json` without hitting `identities` again.
@@ -827,11 +829,18 @@ Deno.serve(async (req) => {
           transaction_id: order.external_order_id,
           payment_method: order.payment_method, internal_event: internalEvent,
           browser_event_id: browserEventId || null,
+          // Multi-step canonical metadata — surfaced for downstream dispatchers.
+          canonical_event_id: canonicalIdentity.eventId,
+          root_order_code: canonicalIdentity.rootOrderCode,
+          step_key: canonicalIdentity.stepKey,
+          canonical_source: canonicalIdentity.source,
+          external_reference: order.tracking?.external_reference || null,
           // Click IDs propagate to providers via the queue payload normalization.
           gclid: order.tracking?.gclid || null,
           gbraid: order.tracking?.gbraid || null,
           wbraid: order.tracking?.wbraid || null,
           fbclid: order.tracking?.fbclid || null,
+          msclkid: order.tracking?.msclkid || null,
           ttclid: order.tracking?.ttclid || null,
           ga_client_id: order.tracking?.ga_client_id || null,
           utm_source: order.tracking?.utm_source || null,
