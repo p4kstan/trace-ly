@@ -43,15 +43,18 @@ REGRAS:
 3. Cubra os 5 passos: (1) capturar UTMs/click IDs/_fbp/_fbc/_ga em cookies no <head> com late-bind do ga_client_id, (2) helper readTracking() que SEMPRE retorna session_id e ga_client_id e usa apenas .trim() em click IDs, (3) persistir TODOS os metadados no pedido + injetar no metadata do gateway, (4) função compartilhada maybeFirePurchase() com idempotência atômica via purchase_tracked_at IS NULL, (5) URL canônica de webhook \`${body.endpoint.replace("/track", "/gateway-webhook")}?provider=<gateway>\`.
 4. Diferencie cartão (síncrono) de PIX/boleto (assíncrono). Para PIX EXIGIR 3 fontes idempotentes que chamam o mesmo maybeFirePurchase: pix-webhook, check-pix-status (polling) e reconcile-pix-payments (cron 2-5min).
 5. **CRÍTICO — Fluxo Final 04/2026**:
-   - event_id = \`purchase:<orderCode>\` (TMT/upsell = \`purchase:<orderCode>:tmt\`). NÃO use mais \`<externalId>:Purchase\`.
+   - event_id = \`purchase:<orderCode>\` (TMT/upsell/segunda tela = \`purchase:<orderCodePrincipal>:tmt\`, referenciando o pedido **pai**, NUNCA o orderCode da própria TMT). NÃO use mais \`<externalId>:Purchase\` nem event_id cru sem prefixo (\`EV-...\`).
+   - **Checkout em duas etapas (Pedido principal + TMT/taxa/upsell)**: as duas cobranças são legítimas e viram Purchase **separados**. Cada um tem event_id único, trava atômica própria (\`purchase_tracked_at\` para main, \`tmt_tracked_at\` para TMT) e value isolado (a TMT envia SOMENTE o valor da taxa — não somar o do principal).
+   - **Herança de metadata na TMT**: gclid, gbraid, wbraid, fbclid, ttclid, msclkid, fbp, fbc, ga_client_id, session_id, utm_*, landing_page, referrer, user_agent, client_ip da TMT vêm do pedido pai (lookup via \`externalReference = tmt-<orderCodePrincipal>\` ou \`parent_order_code\`). Se a TMT chegar com metadata vazia, o backend (webhook/check-pix-status/reconcile) **completa antes** de chamar /track.
    - transaction_id e gateway_order_id são campos SEPARADOS do payload.
    - Backend deduplica em janela de 48h por workspace+event_id+provider em event_deliveries.
-   - Idempotência server: coluna purchase_tracked_at TIMESTAMPTZ NULL + UPDATE atômico WHERE purchase_tracked_at IS NULL.
+   - Idempotência server: coluna purchase_tracked_at TIMESTAMPTZ NULL + UPDATE atômico WHERE purchase_tracked_at IS NULL (análoga \`tmt_tracked_at\` para a TMT).
    - Click IDs (gclid/gbraid/wbraid/fbclid/ttclid/msclkid) case-sensitive: NUNCA aplique .toLowerCase()/.normalize. Apenas .trim().
    - Metadados obrigatórios persistidos no pedido E enviados no Purchase: gclid, gbraid, wbraid, fbclid, fbp, fbc, ttclid, msclkid, ga_client_id, session_id, utm_source/medium/campaign/content/term, landing_page, referrer, user_agent, client_ip.
    - Trava de status: só dispare Purchase em {paid, approved, confirmed, succeeded, captured, pix_paid, order_paid}.
    - Roteamento Last-Click decidido pelo backend — só envie todos os IDs disponíveis.
-   - Segurança: NUNCA logar CPF/email/telefone/endereço/QR-PIX em texto puro. PII só server-to-server.
+   - Segurança: NUNCA logar CPF/email/telefone/endereço/QR-PIX em texto puro. Logue apenas orderCode, parent_order_code, event_id, value, source, provider, status. PII só server-to-server.
+   - Validação obrigatória deve checar: nenhum event_id cru (\`EV-...\`), TMT com event_id \`purchase:<orderPrincipal>:tmt\` (não \`purchase:<orderTMT>\`), TMT herdou gclid/msclkid/utm_*/fbp/session_id do pai, value da TMT é só a taxa, e falha Google Ads com UNPARSEABLE_GCLID em gclid sintético é esperada (não indica bug).
 6. Use SEMPRE o endpoint, public key e URL canônica de webhook fornecidos.
 7. Retorne APENAS o prompt final em markdown, sem comentários antes/depois.`;
 

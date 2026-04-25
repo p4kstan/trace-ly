@@ -450,9 +450,12 @@ o mesmo que o webhook do gateway envia. \`event_id = purchase:<order_id>\`.` : "
 ═══════════════════════════════════════════════
 Quando disparar o Purchase (client-side OU server-side), o payload PRECISA conter:
 
-- **event_id**: SEMPRE no formato \`purchase:<order_id>\` (TMT/upsell: \`purchase:<order_id>:tmt\`).
-  Não use mais \`<external_id>:Purchase\`.
+- **event_id**: SEMPRE no formato \`purchase:<order_id>\` (TMT/upsell/segunda tela:
+  \`purchase:<order_id_principal>:tmt\` — referencia o **pedido pai**, nunca o orderCode
+  da própria TMT). NUNCA envie event_id cru sem prefixo (\`EV-...\`) nem o padrão antigo
+  \`<external_id>:Purchase\`.
 - **order_id**: ID estável do pedido (mostrado ao cliente).
+- **parent_order_id** (apenas em TMT): orderCode do pedido principal correlacionado.
 - **transaction_id** / **gateway_order_id**: ID interno do gateway, em campos **separados**.
 - **event_name**: "Purchase" (ou "Subscribe" pra primeira cobrança de assinatura).
 - **session_id**: lido do cookie/sessionStorage (\`ct_session\`). Permite fallback de atribuição.
@@ -461,8 +464,19 @@ Quando disparar o Purchase (client-side OU server-side), o payload PRECISA conte
 - **fbp / fbc / ga_client_id (alias client_id)**: cookies \`_fbp/_fbc/_ga\`.
 - **utm_source / utm_medium / utm_campaign / utm_term / utm_content**: cookies \`ct_utm_*\`.
 - **landing_page / referrer / user_agent / client_ip**: persistidos no pedido.
+- **value**: para TMT, **APENAS** o valor da própria taxa (não somar o valor do pedido principal).
 - **status do pagamento**: só dispare quando status ∈
   \`{paid, approved, confirmed, succeeded, captured, pix_paid, order_paid}\`.
+
+**Checkout em duas etapas (Pedido principal + TMT/taxa/upsell):**
+- As duas cobranças são legítimas e viram **Purchase separados**.
+- TMT herda do pedido pai: \`gclid, gbraid, wbraid, fbclid, ttclid, msclkid, fbp, fbc,
+  ga_client_id, session_id, utm_*, landing_page, referrer, user_agent, client_ip\`.
+  Lookup do pai via \`externalReference = tmt-<orderCodePrincipal>\` ou \`parent_order_code\`.
+- Se a TMT chegar com metadata vazia, o backend (webhook/check-pix-status/reconcile)
+  **completa antes** de chamar \`/track\`.
+- Cada uma com trava atômica própria: \`purchase_tracked_at\` para o main e
+  \`tmt_tracked_at\` para a TMT (ou tabela \`event_id_sent\`).
 
 A janela de dedupe do CapiTrack é **48h** por \`workspace_id+event_id+provider\` em
 \`event_deliveries\` — então é seguro disparar tanto client-side quanto webhook.
@@ -566,12 +580,21 @@ ${cfg.gateway !== "none" ? `1. Faça 1 compra/conversão real
 7. Se for PIX nativo: confirme \`purchase_tracked_source\` no pedido — uma das três:
    \`pix-webhook\`, \`check-pix-status\`, ou \`reconcile-pix\`. Apenas UMA delas vence a corrida.
 8. \`msclkid\` e \`ga_client_id\` aparecem persistidos quando existirem na sessão original.
+9. **Checkout em duas etapas (Pedido principal + TMT/taxa/upsell)** — se aplicável:
+   - [ ] Existem **DOIS** Purchase distintos: \`purchase:<orderCode>\` e \`purchase:<orderCode>:tmt\`.
+   - [ ] **NÃO** existe Purchase com event_id cru tipo \`EV-...\` (sem prefixo \`purchase:\`).
+   - [ ] **NÃO** existe Purchase com event_id \`purchase:<orderCodeTMT>\` (TMT usando próprio orderCode).
+   - [ ] A TMT carrega \`gclid/msclkid/utm_*/fbp/session_id\` IDÊNTICOS ao do pedido principal.
+   - [ ] \`value\` da TMT = APENAS o valor da taxa (não somado ao do pedido principal).
+   - [ ] Falha em Google Ads com \`UNPARSEABLE_GCLID\` para gclid de teste sintético é
+         **esperada** — não indica bug; confirma apenas que o gclid foi preservado.
 
 - [ ] Eventos no CapiTrack com mesmo event_id = purchase:<order_id>
 - [ ] Meta Events Manager mostra 1 Purchase (não 2)
 - [ ] Google Ads Conversões mostra 1 (não 2)
 - [ ] F5 na thank-you não duplica
-- [ ] Reentrega manual de webhook não duplica` : "Sem gateway — pular."}
+- [ ] Reentrega manual de webhook não duplica
+- [ ] (Se aplicável) Pedido principal e TMT aparecem como 2 Purchases separados, sem duplicatas` : "Sem gateway — pular."}
 
 ═══════════════════════════════════════════════
 TESTE 4: PII HASHEADO
