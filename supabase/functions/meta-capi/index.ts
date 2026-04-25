@@ -213,10 +213,13 @@ Deno.serve(async (req) => {
         const userData = event.user_data_json || {};
         const customData = event.custom_data_json || {};
 
-        // Build user_data with hashed PII
+        // Build user_data with hashed PII.
+        // CRITICAL: client_ip_address must be the RAW IP (Meta hashes it server-side).
+        // Sending an SHA-256 ip_hash here would NEVER match — leave it null instead.
+        const rawIp = (session as any)?.client_ip || (userData.client_ip_address as string) || undefined;
         const userDataPayload: MetaEventData["user_data"] = {
-          client_ip_address: session?.ip_hash || undefined,
-          client_user_agent: session?.user_agent || undefined,
+          client_ip_address: rawIp,
+          client_user_agent: session?.user_agent || (userData.client_user_agent as string) || undefined,
           fbc: session?.fbc || undefined,
           fbp: session?.fbp || undefined,
         };
@@ -237,7 +240,9 @@ Deno.serve(async (req) => {
         const metaEvent: MetaEventData = {
           event_name: event.event_name,
           event_time: Math.floor(new Date(event.event_time).getTime() / 1000),
-          event_id: event.event_id || event.id,
+          // Prefer browser-supplied event_id (fbq eventID) for browser↔CAPI dedup.
+          // Fall back to DB UUID only when no browser event_id exists.
+          event_id: event.event_id || (event as any).browser_event_id || event.id,
           event_source_url: event.event_source_url || undefined,
           action_source: event.action_source || "website",
           user_data: userDataPayload,
