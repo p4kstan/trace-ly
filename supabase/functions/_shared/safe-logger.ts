@@ -114,6 +114,60 @@ export function sanitizeForLog(value: unknown): unknown {
   return redact(value, 0);
 }
 
+// ── Redaction debug mode (Passo L) ──────────────────────────────────────
+// Off by default. When enabled (env `SAFE_LOGGER_DEBUG=1` or via
+// `setSafeLoggerDebug(true)`), the logger emits a SECOND, side-channel
+// summary that lists which CATEGORIES were redacted, never the values.
+//
+// Categories: pii_key, email, phone, cpf, cnpj, jwt, bearer, pix_emv,
+// truncated. The summary is intended for local dev/test only.
+type RedactionStats = Record<string, number>;
+let DEBUG_ENABLED = (() => {
+  try { return Deno.env.get("SAFE_LOGGER_DEBUG") === "1"; } catch { return false; }
+})();
+export function setSafeLoggerDebug(on: boolean): void { DEBUG_ENABLED = !!on; }
+export function isSafeLoggerDebug(): boolean { return DEBUG_ENABLED; }
+
+function bumpStat(stats: RedactionStats, key: string) {
+  stats[key] = (stats[key] || 0) + 1;
+}
+function collectStats(value: unknown, stats: RedactionStats, depth = 0): void {
+  if (value == null || depth > MAX_DEPTH) return;
+  const t = typeof value;
+  if (t === "string") {
+    const s = value as string;
+    if (s.length > MAX_STRING_LEN) bumpStat(stats, "truncated");
+    const inc = (key: string, re: RegExp) => {
+      const m = s.match(re);
+      if (m && m.length) stats[key] = (stats[key] || 0) + m.length;
+    };
+    inc("email", EMAIL_RE);
+    inc("jwt", JWT_RE);
+    inc("bearer", BEARER_RE);
+    inc("pix_emv", PIX_EMV_RE);
+    inc("cpf", CPF_RE);
+    inc("cnpj", CNPJ_RE);
+    inc("phone", PHONE_BR_RE);
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.slice(0, MAX_ARRAY_LEN).forEach((v) => collectStats(v, stats, depth + 1));
+    return;
+  }
+  if (t === "object") {
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (isPiiKey(k)) bumpStat(stats, "pii_key");
+      else collectStats(v, stats, depth + 1);
+    }
+  }
+}
+/** For tests/debug ONLY — returns category counts without the actual values. */
+export function redactionStats(value: unknown): RedactionStats {
+  const stats: RedactionStats = {};
+  collectStats(value, stats, 0);
+  return stats;
+}
+
 type LogLevel = "log" | "info" | "warn" | "error" | "debug";
 
 export interface SafeLogger {
@@ -132,6 +186,19 @@ export function createSafeLogger(scope: string): SafeLogger {
     const safe = args.map((a) => sanitizeForLog(a));
     // eslint-disable-next-line no-console
     (console as any)[level === "debug" ? "log" : level](prefix, ...safe);
+    // Optional debug side-channel: categories only, never values.
+    if (DEBUG_ENABLED) {
+      const merged: RedactionStats = {};
+      for (const a of args) {
+        const s = redactionStats(a);
+        for (const [k, v] of Object.entries(s)) merged[k] = (merged[k] || 0) + v;
+      }
+      const totals = Object.keys(merged).length;
+      if (totals > 0) {
+        // eslint-disable-next-line no-console
+        console.log(`${prefix} [redaction-debug]`, merged);
+      }
+    }
   };
   return {
     log:   (...a) => emit("log",   a),

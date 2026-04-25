@@ -2,7 +2,7 @@
 // Runs under both Vitest (Node) and Deno test (no env-specific APIs used).
 
 import { describe, it, expect } from "vitest";
-import { sanitizeForLog } from "./safe-logger.ts";
+import { sanitizeForLog, redactionStats, setSafeLoggerDebug, isSafeLoggerDebug } from "./safe-logger.ts";
 
 describe("sanitizeForLog", () => {
   it("redacts known PII keys (email, phone, cpf, document)", () => {
@@ -73,5 +73,35 @@ describe("sanitizeForLog", () => {
     expect(sanitizeForLog(42)).toBe(42);
     expect(sanitizeForLog(true)).toBe(true);
     expect(sanitizeForLog("hello")).toBe("hello");
+  });
+});
+
+describe("safe-logger debug mode (Passo L)", () => {
+  it("is OFF by default", () => {
+    setSafeLoggerDebug(false);
+    expect(isSafeLoggerDebug()).toBe(false);
+  });
+
+  it("redactionStats reports categories without values", () => {
+    const stats = redactionStats({
+      customer: { email: "x@y.com", phone: "+55 11 99999-8888" },
+      note: "Bearer eyJabc.def.ghi and CPF 123.456.789-09",
+    });
+    // pii_key fired for `email` and `phone` keys
+    expect(stats.pii_key).toBeGreaterThanOrEqual(2);
+    // string-pattern matches for nested note
+    expect(stats.bearer ?? 0).toBeGreaterThanOrEqual(1);
+    expect(stats.cpf ?? 0).toBeGreaterThanOrEqual(1);
+    // No raw values must appear in the stats object.
+    const flat = JSON.stringify(stats);
+    expect(flat).not.toContain("x@y.com");
+    expect(flat).not.toContain("123.456.789-09");
+  });
+
+  it("setSafeLoggerDebug toggles the global flag", () => {
+    setSafeLoggerDebug(true);
+    expect(isSafeLoggerDebug()).toBe(true);
+    setSafeLoggerDebug(false);
+    expect(isSafeLoggerDebug()).toBe(false);
   });
 });

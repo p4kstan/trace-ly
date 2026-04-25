@@ -299,5 +299,54 @@ grep -q "sem alertas internos" src/pages/RetryObservability.tsx \
   || fail "SLA panel must show explicit empty state"
 ok "SLA panel split by status + per-severity max age"
 
+# ─── 9. Passo L — Semantic RLS, contract tests, PII report, debug-mode ──
+log "9/9  Passo L controls (semantic RLS, contract tests, PII report, debug-mode)"
+
+# 9a. New contract tests must exist.
+[ -f supabase/functions/audience-seed-export/contract.test.ts ] \
+  || fail "MISSING audience-seed-export/contract.test.ts (Passo L)"
+[ -f supabase/functions/_shared/rpc-contract.test.ts ] \
+  || fail "MISSING _shared/rpc-contract.test.ts (Passo L)"
+ok "Passo L contract tests present"
+
+# 9b. safe-logger debug mode wired and OFF by default.
+grep -q "setSafeLoggerDebug" supabase/functions/_shared/safe-logger.ts \
+  || fail "safe-logger must export setSafeLoggerDebug (Passo L)"
+grep -q "redactionStats" supabase/functions/_shared/safe-logger.ts \
+  || fail "safe-logger must export redactionStats (Passo L)"
+grep -q "SAFE_LOGGER_DEBUG" supabase/functions/_shared/safe-logger.ts \
+  || fail "safe-logger debug must read SAFE_LOGGER_DEBUG env (off by default)"
+ok "safe-logger debug mode wired (off by default)"
+
+# 9c. PII Release Report page wired.
+[ -f src/pages/PiiReleaseReport.tsx ] || fail "MISSING src/pages/PiiReleaseReport.tsx"
+grep -q "/pii-release-report" src/App.tsx \
+  || fail "/pii-release-report route not wired in App.tsx"
+grep -q "/pii-release-report" src/components/AppSidebar.tsx \
+  || fail "/pii-release-report missing from sidebar"
+# Static report must NOT query users / orders / identities.
+if grep -nE 'from\s*\(\s*"(orders|identities|profiles|workspace_members)"' src/pages/PiiReleaseReport.tsx >/dev/null 2>&1; then
+  fail "PiiReleaseReport must remain static — no user-data queries"
+fi
+ok "PII Release Report wired and static"
+
+# 9d. audience-seed-export real-export path must NOT be relaxed: consent
+# default true, hashes-only response.
+grep -q "require_consent !== false" supabase/functions/audience-seed-export/index.ts \
+  || fail "audience-seed-export must default require_consent=true"
+grep -q "email_hash" supabase/functions/audience-seed-export/index.ts \
+  || fail "audience-seed-export must emit email_hash field"
+if grep -nE 'response.*[\"\x27]email[\"\x27]\s*:\s*i\.email\b' supabase/functions/audience-seed-export/index.ts >/dev/null 2>&1; then
+  fail "audience-seed-export must NEVER return raw email"
+fi
+ok "audience-seed-export real-export path remains hash-only + consent-default"
+
+# 9e. Semantic RLS audit (only if PGHOST present).
+if [ -n "${PGHOST:-}" ]; then
+  bash scripts/rls-semantic-audit.sh || fail "Semantic RLS audit failed"
+else
+  info "Semantic RLS audit skipped — PGHOST not set"
+fi
+
 echo ""
 ok "RELEASE VALIDATION PASSED"

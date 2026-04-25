@@ -61,6 +61,7 @@ const RetryObservability = lazy(() => import("@/pages/RetryObservability"));
 const GoLiveChecklist = lazy(() => import("@/pages/GoLiveChecklist"));
 const RateLimitConfigs = lazy(() => import("@/pages/RateLimitConfigs"));
 const AuditLogViewer = lazy(() => import("@/pages/AuditLogViewer"));
+const PiiReleaseReport = lazy(() => import("@/pages/PiiReleaseReport"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -123,6 +124,7 @@ function ProtectedRoutes() {
           <Route path="/go-live-checklist" element={<GoLiveChecklist />} />
           <Route path="/rate-limit-configs" element={<RateLimitConfigs />} />
           <Route path="/audit-logs" element={<AuditLogViewer />} />
+          <Route path="/pii-release-report" element={<PiiReleaseReport />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
