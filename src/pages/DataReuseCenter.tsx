@@ -495,7 +495,10 @@ export default function DataReuseCenter() {
                 <Layers className="h-4 w-4 text-primary" /> Consistência multi-destination
               </CardTitle>
               <CardDescription>
-                Verifica destinos duplicados, ausentes, sem credential_ref ou sem consent gate.
+                Verifica destinos duplicados, ausentes, sem credential_ref ou sem consent gate.{" "}
+                <Badge variant="outline" className="ml-1 text-[10px]">
+                  fonte: {registrySource}
+                </Badge>
               </CardDescription>
             </CardHeader>
             <CardContent>
