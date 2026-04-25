@@ -340,11 +340,21 @@
   // ---- Build Event ----
   async function buildEvent(eventName, data) {
     var utms = captureAndPersistUTMs();
+    // Late-bind GA4 client_id: cookie `_ga` may be set asynchronously by gtag.js
+    // *after* the SDK is initialized. Read it here at build-time, and for the
+    // critical Purchase/Lead/Subscribe events poll briefly so we don't lose the
+    // signal on first-page conversions. Failure is non-fatal — Google Ads
+    // accepts conversions without ga_client_id (uses Enhanced Conversions).
     var ga4ClientId = getGa4ClientId();
-    // For checkout-related events, reuse the persistent journey id so it
-    // matches what we inject into outbound checkout URLs (and the gateway
-    // webhook will re-emit it back via metadata).
     var isCheckoutEvent = /^(InitiateCheckout|AddPaymentInfo|Purchase|Lead|Subscribe|StartTrial)$/i.test(eventName);
+    if (!ga4ClientId && isCheckoutEvent) {
+      // Up to 3 quick retries (50ms apart) before giving up.
+      for (var i = 0; i < 3; i++) {
+        await new Promise(function (r) { setTimeout(r, 50); });
+        ga4ClientId = getGa4ClientId();
+        if (ga4ClientId) break;
+      }
+    }
     // Caller-provided event_id wins (browser↔server CAPI dedup). Accept several
     // common aliases so the GTM/dataLayer bridge and direct ct() calls work.
     var providedEventId = data && (data.event_id || data.eventId || data.trace_event_id || data.browser_event_id);
@@ -360,7 +370,10 @@
       landing_page: getLandingPage(),
       fbp: getFbp(),
       fbc: getFbc(),
-      ga_client_id: ga4ClientId,
+      // Aliases preserved so server-side enrichment (event-router, ga4-events,
+      // google-ads-capi) can read whichever field name they expect.
+      ga_client_id: ga4ClientId || undefined,
+      client_id: ga4ClientId || undefined,
       source: 'sdk',
       action_source: 'website',
       sdk_version: SDK_VERSION,
