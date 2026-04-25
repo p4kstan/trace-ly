@@ -160,8 +160,10 @@ export default function TrafficAgent() {
         </TabsList>
 
         <TabsContent value="recs" className="space-y-2 min-w-0">
-          {recs.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma recomendação. Clique em "Avaliar agora".</p>}
-          {recs.map((r) => (
+          {refreshError && <p className="text-sm text-destructive break-words">{refreshError}</p>}
+          {!refreshError && refreshing && recs.length === 0 && <p className="text-sm text-muted-foreground">Carregando…</p>}
+          {!refreshError && !refreshing && recs.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma recomendação. Clique em "Avaliar agora".</p>}
+          {(recs ?? []).map((r) => (
             <Card key={r.id} className="min-w-0">
               <CardHeader className="p-4 pb-2">
                 <div className="flex flex-wrap items-center gap-2 min-w-0">
@@ -173,9 +175,9 @@ export default function TrafficAgent() {
                 </div>
                 <CardDescription className="break-words">{r.rationale}</CardDescription>
               </CardHeader>
-              <CardContent className="p-4 pt-0 space-y-2">
-                <pre className="text-xs bg-muted p-2 rounded overflow-x-auto whitespace-pre-wrap break-words max-w-full">
-                  {JSON.stringify(r.evidence_json ?? {}, null, 2)}
+              <CardContent className="p-4 pt-0 space-y-2 min-w-0">
+                <pre className="text-xs bg-muted p-2 rounded overflow-auto whitespace-pre-wrap break-all max-w-full max-h-64">
+                  {safeStringify(r.evidence_json)}
                 </pre>
                 <div className="flex gap-2 flex-wrap">
                   <Button size="sm" variant="outline" onClick={() => simulate(r.id)}>Simular</Button>
@@ -187,10 +189,11 @@ export default function TrafficAgent() {
         </TabsContent>
 
         <TabsContent value="runs" className="space-y-2 min-w-0">
-          {runs.map((r) => (
-            <Card key={r.id}><CardContent className="p-3 text-sm break-words">
-              <div className="flex flex-wrap gap-2 items-center"><Badge>{r.status}</Badge><span className="text-muted-foreground">{r.started_at}</span></div>
-              <pre className="text-xs mt-2 overflow-x-auto whitespace-pre-wrap break-words">{JSON.stringify(r.summary ?? {}, null, 2)}</pre>
+          {!refreshing && (runs ?? []).length === 0 && <p className="text-sm text-muted-foreground">Nenhum run ainda.</p>}
+          {(runs ?? []).map((r) => (
+            <Card key={r.id}><CardContent className="p-3 text-sm break-words min-w-0">
+              <div className="flex flex-wrap gap-2 items-center"><Badge>{r.status}</Badge><span className="text-muted-foreground break-all">{r.started_at}</span></div>
+              <pre className="text-xs mt-2 overflow-auto whitespace-pre-wrap break-all max-h-48 max-w-full">{safeStringify(r.summary)}</pre>
             </CardContent></Card>
           ))}
         </TabsContent>
@@ -198,7 +201,7 @@ export default function TrafficAgent() {
         <TabsContent value="rag" className="space-y-3 min-w-0">
           <Card>
             <CardHeader className="p-4 pb-2"><CardTitle className="text-base flex items-center gap-2"><FileText className="h-4 w-4" />Indexar conhecimento</CardTitle></CardHeader>
-            <CardContent className="p-4 pt-0 space-y-2">
+            <CardContent className="p-4 pt-0 space-y-2 min-w-0">
               <Label>Título</Label>
               <Input value={docTitle} onChange={(e) => setDocTitle(e.target.value)} />
               <Label>Conteúdo</Label>
@@ -208,18 +211,20 @@ export default function TrafficAgent() {
           </Card>
           <Card>
             <CardHeader className="p-4 pb-2"><CardTitle className="text-base flex items-center gap-2"><Search className="h-4 w-4" />Buscar</CardTitle></CardHeader>
-            <CardContent className="p-4 pt-0 space-y-2">
+            <CardContent className="p-4 pt-0 space-y-2 min-w-0">
               <div className="flex gap-2 flex-wrap">
                 <Input value={search} onChange={(e) => setSearch(e.target.value)} className="min-w-0 flex-1" />
                 <Button onClick={searchKnowledge}>Buscar</Button>
               </div>
-              {results.map((r) => (
+              {(results ?? []).length === 0 && <p className="text-xs text-muted-foreground">Sem resultados.</p>}
+              {(results ?? []).map((r) => (
                 <div key={r.chunk_id} className="text-sm border-l-2 border-primary pl-3 break-words">{r.snippet}</div>
               ))}
             </CardContent>
           </Card>
           <div className="space-y-1">
-            {docs.map((d) => (
+            {(docs ?? []).length === 0 && <p className="text-xs text-muted-foreground">Nenhum documento indexado.</p>}
+            {(docs ?? []).map((d) => (
               <div key={d.id} className="text-sm flex flex-wrap gap-2 items-center min-w-0">
                 <Badge variant="outline">{d.source_type}</Badge><span className="break-words min-w-0">{d.title}</span>
               </div>
@@ -228,9 +233,10 @@ export default function TrafficAgent() {
         </TabsContent>
 
         <TabsContent value="logs" className="space-y-1 min-w-0">
-          {logs.map((l) => (
-            <Card key={l.id}><CardContent className="p-3 text-sm break-words">
-              <div className="flex gap-2 items-center flex-wrap"><Badge variant={l.level === "warn" ? "destructive" : "outline"}>{l.level}</Badge><span className="text-xs text-muted-foreground">{l.created_at}</span></div>
+          {!refreshing && (logs ?? []).length === 0 && <p className="text-sm text-muted-foreground">Sem logs.</p>}
+          {(logs ?? []).map((l) => (
+            <Card key={l.id}><CardContent className="p-3 text-sm break-words min-w-0">
+              <div className="flex gap-2 items-center flex-wrap"><Badge variant={l.level === "warn" ? "destructive" : "outline"}>{l.level}</Badge><span className="text-xs text-muted-foreground break-all">{l.created_at}</span></div>
               <p className="mt-1 break-words">{l.message}</p>
             </CardContent></Card>
           ))}
