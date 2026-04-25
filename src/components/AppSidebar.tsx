@@ -29,6 +29,7 @@ const intelligenceItems = [
   { title: "Atribuição", url: "/attribution", icon: GitBranch },
   { title: "Predições", url: "/predictions", icon: TrendingUp },
   { title: "Otimização", url: "/optimization", icon: Lightbulb },
+  { title: "Centro de Reuso de Dados", url: "/data-reuse-center", icon: Layers },
 ];
 
 // 3. CAMPANHAS — visualização das plataformas de ads

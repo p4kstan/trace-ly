@@ -25,6 +25,8 @@ const REQUIRED_CONTROLS: Array<{ key: string; matcher: RegExp }> = [
   { key: "fast-path",       matcher: /Fast-?path|gateway-fast-path/i },
   { key: "pii-report",      matcher: /pii-?release-?report|PII report|relatório PII/i },
   { key: "release-report",  matcher: /release-?report|relatório operacional/i },
+  { key: "data-reuse",      matcher: /Data Reuse Center|data-reuse-center|reuso de dados/i },
+  { key: "execution-mode",  matcher: /automation_rules\.execution_mode/i },
 ];
 
 function expectAllMentioned(label: string, body: string) {
