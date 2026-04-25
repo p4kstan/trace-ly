@@ -183,14 +183,29 @@ async function recordDecisionLog(args: {
   }
 }
 
-/** Per-item gate. Returns the decision and list of items still allowed. */
+/**
+ * Per-item gate. Returns:
+ *   - allowed:  items that may proceed to the external dispatcher
+ *   - blocked:  items rejected by registry rules (no external call)
+ *   - dryRun:   items that are in test_mode/dry_run — NEVER hit the network,
+ *               recorded as `dry_run` and marked delivered locally.
+ *   - usedFallback: at least one item used the legacy fallback (registry empty)
+ *
+ * Side-effect (Passo U): every decision is also written to
+ * `dispatch_decision_log` via `record_dispatch_decision` RPC, no PII.
+ */
 async function gateItems(
   provider: string,
   workspaceId: string,
   destinationId: string,
   items: any[],
   globalTestMode: boolean,
-): Promise<{ allowed: any[]; blocked: Array<{ item: any; decision: DispatchDecision; reasons: string[] }>; usedFallback: boolean }> {
+): Promise<{
+  allowed: any[];
+  blocked: Array<{ item: any; decision: DispatchDecision; reasons: string[] }>;
+  dryRun: Array<{ item: any; decision: DispatchDecision }>;
+  usedFallback: boolean;
+}> {
   const registry = await loadRegistry(workspaceId, provider);
   // Restrict to the destination_id this batch was reserved for.
   const scoped = registry.filter((r) =>
@@ -200,7 +215,9 @@ async function gateItems(
 
   const allowed: any[] = [];
   const blocked: Array<{ item: any; decision: DispatchDecision; reasons: string[] }> = [];
+  const dryRun: Array<{ item: any; decision: DispatchDecision }> = [];
   let usedFallback = false;
+  const auditPromises: Promise<void>[] = [];
 
   for (const item of items) {
     const p = item.payload_json || {};
@@ -212,22 +229,96 @@ async function gateItems(
       consent_granted: consent,
       test_mode: itemTestMode,
     });
-    if (decision.fallback) {
-      usedFallback = true;
-      // No registry rows for provider: preserve legacy behaviour.
-      allowed.push(item);
+
+    // Passo U — Hard guarantee: when test_mode/dry_run is active, NEVER
+    // hand the item to the network dispatcher, regardless of registry state.
+    if (itemTestMode) {
+      dryRun.push({ item, decision });
+      auditPromises.push(recordDecisionLog({
+        workspaceId, eventId: item.event_id ?? null, provider,
+        destinationId: destinationId || null,
+        decision: decision.fallback ? "fallback" : "test_mode",
+        reasons: decision.fallback ? ["fallback_registry_empty"] : ["test_mode_active"],
+        matchedRows: decision.matched_registry_rows,
+        testMode: true,
+      }));
       continue;
     }
-    // If at least one target survives, allow the item; record skipped destinations
-    // (other than the one we're currently dispatching to) only as audit.
+
+    if (decision.fallback) {
+      usedFallback = true;
+      allowed.push(item);
+      auditPromises.push(recordDecisionLog({
+        workspaceId, eventId: item.event_id ?? null, provider,
+        destinationId: destinationId || null,
+        decision: "fallback",
+        reasons: ["fallback_registry_empty"],
+        matchedRows: 0,
+        testMode: false,
+      }));
+      continue;
+    }
+
     if (decision.targets.length > 0) {
       allowed.push(item);
+      auditPromises.push(recordDecisionLog({
+        workspaceId, eventId: item.event_id ?? null, provider,
+        destinationId: destinationId || null,
+        decision: "allow",
+        reasons: [],
+        matchedRows: decision.matched_registry_rows,
+        testMode: false,
+      }));
     } else {
       const reasons = decision.skipped.flatMap((s) => s.reasons);
       blocked.push({ item, decision, reasons });
+      auditPromises.push(recordDecisionLog({
+        workspaceId, eventId: item.event_id ?? null, provider,
+        destinationId: destinationId || null,
+        decision: "block",
+        reasons,
+        matchedRows: decision.matched_registry_rows,
+        testMode: false,
+      }));
     }
   }
-  return { allowed, blocked, usedFallback };
+  // Audit writes are best-effort and not blocking — but await before
+  // returning so tests can assert log entries deterministically.
+  await Promise.all(auditPromises);
+  return { allowed, blocked, dryRun, usedFallback };
+}
+
+async function recordDryRun(
+  provider: string,
+  destinationId: string,
+  dryRun: Array<{ item: any; decision: DispatchDecision }>,
+  stats: { skipped?: number },
+) {
+  if (dryRun.length === 0) return;
+  const ids = dryRun.map((b) => b.item.id);
+  await supabase.from("event_queue").update({
+    status: "skipped",
+    last_error: "dispatch_gate_dry_run: test_mode_active",
+    updated_at: new Date().toISOString(),
+  }).in("id", ids);
+  const deliveries = dryRun.map((b) => ({
+    event_id: b.item.event_id || crypto.randomUUID(),
+    workspace_id: b.item.workspace_id,
+    provider,
+    destination: destinationId,
+    status: "skipped",
+    attempt_count: 1,
+    last_attempt_at: new Date().toISOString(),
+    request_json: {
+      dispatch_decision: "dry_run",
+      reasons: ["test_mode_active"],
+      matched_registry_rows: b.decision.matched_registry_rows,
+    },
+    response_json: null,
+    error_message: "dispatch_gate_dry_run: test_mode_active",
+  }));
+  await supabase.from("event_deliveries").insert(deliveries);
+  stats.skipped = (stats.skipped || 0) + dryRun.length;
 }
 
 async function recordBlockedDecisions(
