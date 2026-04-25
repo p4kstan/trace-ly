@@ -523,8 +523,9 @@ async function enqueueForOtherProviders(
       continue;
     }
 
+    await supabase.from("event_queue").upsert({
       workspace_id: workspaceId, event_id: eventId, order_id: orderId,
-      provider: dest.provider, destination: dest.destination_id, status: "queued",
+      provider: dest.provider, destination: dest.destination_id || "default", status: "queued",
       payload_json: {
         marketing_event: marketingEvent,
         dedup_key: dedupKey,
