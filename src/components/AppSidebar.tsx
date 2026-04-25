@@ -26,6 +26,7 @@ const overviewItems = [
 // 2. INTELIGÊNCIA — IA, ML, atribuição, predição
 const intelligenceItems = [
   { title: "Insights IA", url: "/ai-analytics", icon: Brain },
+  { title: "Agente de Tráfego", url: "/traffic-agent", icon: Brain },
   { title: "Atribuição", url: "/attribution", icon: GitBranch },
   { title: "Predições", url: "/predictions", icon: TrendingUp },
   { title: "Otimização", url: "/optimization", icon: Lightbulb },
