@@ -212,6 +212,28 @@ Deno.serve(async (req) => {
   // Best-effort — never block the response on alert writes.
   await Promise.allSettled(alertOps);
 
+  // ── Sample-truncation indicator + retention recommendation ─────────
+  const queueTotal = queueTotalRes.count || queueRows.length;
+  const dlTotal = dlTotalRes.count || dlRows.length;
+  const sampleTruncated = queueTotal > QUEUE_SAMPLE || dlTotal > DL_SAMPLE;
+
+  // Read-only retention recommendation. Never deletes anything.
+  const retentionRecommendation: {
+    recommended: boolean;
+    reason: string;
+    suggested_action: string;
+  } = sampleTruncated
+    ? {
+        recommended: true,
+        reason: `sample_truncated queue=${queueTotal}/${QUEUE_SAMPLE} dl=${dlTotal}/${DL_SAMPLE}`,
+        suggested_action: "Run retention-job in dry-run to evaluate cleanup. No automatic deletion is performed by this endpoint.",
+      }
+    : {
+        recommended: false,
+        reason: "within sample bounds",
+        suggested_action: "no action required",
+      };
+
   return new Response(JSON.stringify({
     status,
     window: { queue_days: 7, dead_letter_hours: 24 },
@@ -220,7 +242,17 @@ Deno.serve(async (req) => {
       retry_total,
       retry_age_max_ms: retry_age_max,
       queued_age_max_ms: queued_age_max,
+      queue_total_in_window: queueTotal,
+      dead_letter_total_in_window: dlTotal,
     },
+    sample: {
+      truncated: sampleTruncated,
+      queue_sample_size: queueRows.length,
+      queue_sample_cap: QUEUE_SAMPLE,
+      dead_letter_sample_size: dlRows.length,
+      dead_letter_sample_cap: DL_SAMPLE,
+    },
+    retention_recommendation: retentionRecommendation,
     groups: groupsArr.slice(0, 100), // cap response size
     generated_at: new Date().toISOString(),
   }), {
