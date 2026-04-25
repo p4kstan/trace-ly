@@ -22,6 +22,9 @@ import { getRegisteredHandler, getHandler } from "./handlers/_registry.ts";
 import type { NormalizedCustomer, NormalizedOrder } from "./handlers/_types.ts";
 import { sha256, str } from "./handlers/_helpers.ts";
 import { buildCanonicalEventIdentity } from "./handlers/_canonical.ts";
+import { installSafeConsole } from "../_shared/install-safe-console.ts";
+
+installSafeConsole("gateway-webhook");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
