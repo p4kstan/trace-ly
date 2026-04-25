@@ -692,6 +692,12 @@ Deno.serve(async (req) => {
       landing_page: tk.landing_page || null, referrer: tk.referrer || null,
       // Persist for retro lookups (Etapa 1 added these columns + unique index).
       ga_client_id: tk.ga_client_id || null,
+      msclkid: tk.msclkid || null,
+      // Multi-step canonical model — saved on every order so retries/extra
+      // payments can be reconciled to the same root.
+      root_order_code: canonicalIdentity.rootOrderCode || null,
+      step_key: canonicalIdentity.stepKey || null,
+      canonical_event_id: canonicalIdentity.eventId || null,
       client_ip: order.customer.ip || tk.ip || inboundIp,
       user_agent: order.customer.user_agent || tk.user_agent || inboundUa,
     };
