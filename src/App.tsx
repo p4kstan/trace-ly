@@ -129,6 +129,8 @@ function ProtectedRoutes() {
           <Route path="/audit-logs" element={<AuditLogViewer />} />
           <Route path="/pii-release-report" element={<PiiReleaseReport />} />
           <Route path="/release-report" element={<ReleaseReport />} />
+          <Route path="/rls-warnings" element={<RlsWarningsPanel />} />
+          <Route path="/gateway-docs" element={<GatewayDocs />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
