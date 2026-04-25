@@ -82,8 +82,8 @@ export function buildMaskedSample(
   flags: { has_email_hash: boolean; has_phone_hash: boolean; click_id?: string | null },
 ): string {
   const parts: string[] = [`#${String(index + 1).padStart(3, "0")}`];
-  if (flags.has_email_hash) parts.push("email:***@***");
-  if (flags.has_phone_hash) parts.push("phone:+** ** ****-****");
+  if (flags.has_email_hash) parts.push("email:***");
+  if (flags.has_phone_hash) parts.push("phone:***");
   if (flags.click_id) parts.push(`click_id:${flags.click_id}=***`);
   return parts.join(" · ");
 }

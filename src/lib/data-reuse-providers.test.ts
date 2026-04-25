@@ -69,7 +69,7 @@ describe("data-reuse-providers (Passo Q)", () => {
       has_phone_hash: true,
       click_id: "gclid",
     });
-    expect(s).not.toMatch(/@(?!\*)/); // no real email
+    expect(s).not.toMatch(/@/);
     expect(s).toMatch(/\*\*\*/);
     expect(s).toMatch(/gclid=\*\*\*/);
   });
