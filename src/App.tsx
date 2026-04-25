@@ -75,6 +75,7 @@ const queryClient = new QueryClient();
 
 function ProtectedRoutes() {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) return <LoadingSpinner />;
   if (!user) return <Navigate to="/auth" replace />;
@@ -82,6 +83,7 @@ function ProtectedRoutes() {
   return (
     <DashboardLayout>
       <Suspense fallback={<PageSkeleton />}>
+        <RouteErrorBoundary routeKey={location.pathname}>
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/attribution" element={<Attribution />} />
