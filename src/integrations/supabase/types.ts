@@ -5125,6 +5125,10 @@ export type Database = {
         Args: { _workspace_id: string }
         Returns: Json
       }
+      is_workspace_admin: {
+        Args: { _user_id: string; _workspace_id: string }
+        Returns: boolean
+      }
       is_workspace_member: {
         Args: { _user_id: string; _workspace_id: string }
         Returns: boolean
@@ -5153,6 +5157,17 @@ export type Database = {
           _workspace_id: string
         }
         Returns: string
+      }
+      upsert_rate_limit_config: {
+        Args: {
+          _fail_closed: boolean
+          _id: string
+          _max_hits: number
+          _notes?: string
+          _route: string
+          _window_seconds: number
+        }
+        Returns: Json
       }
     }
     Enums: {

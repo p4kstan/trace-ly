@@ -15,6 +15,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useWorkspace } from "@/hooks/use-tracking-data";
+import { useWorkspaceRole, canEditRateLimitConfigs } from "@/hooks/use-workspace-role";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -51,6 +52,8 @@ function validBounds(window_seconds: number, max_hits: number): string | null {
 
 export default function RateLimitConfigs() {
   const { data: workspace } = useWorkspace();
+  const { data: role } = useWorkspaceRole(workspace?.id);
+  const canEdit = canEditRateLimitConfigs(role ?? null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -129,6 +132,14 @@ export default function RateLimitConfigs() {
         </p>
       </div>
 
+      {!canEdit && (
+        <div className="border border-warning/40 bg-warning/5 text-warning rounded-lg px-4 py-3 text-xs flex items-center gap-2">
+          <Lock className="w-4 h-4" />
+          Você está em modo somente-leitura. Apenas <b>owner</b> ou <b>admin</b> do workspace
+          podem alterar políticas de rate-limit.
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Políticas ativas</CardTitle>
@@ -159,6 +170,7 @@ export default function RateLimitConfigs() {
                     <ConfigRowEditor
                       key={c.id}
                       row={c}
+                      canEdit={canEdit}
                       onSave={(updated) => upsertMutation.mutate(updated)}
                       onDelete={() => deleteMutation.mutate(c.id)}
                       saving={upsertMutation.isPending}
@@ -171,23 +183,27 @@ export default function RateLimitConfigs() {
         </CardContent>
       </Card>
 
-      <NewConfigForm
-        onCreate={(row) => upsertMutation.mutate(row)}
-        saving={upsertMutation.isPending}
-      />
+      {canEdit && (
+        <NewConfigForm
+          onCreate={(row) => upsertMutation.mutate(row)}
+          saving={upsertMutation.isPending}
+        />
+      )}
     </div>
   );
 }
 
 function ConfigRowEditor({
-  row, onSave, onDelete, saving,
+  row, canEdit, onSave, onDelete, saving,
 }: {
   row: ConfigRow;
+  canEdit: boolean;
   onSave: (r: Partial<ConfigRow> & { id?: string }) => void;
   onDelete: () => void;
   saving: boolean;
 }) {
   const isGlobal = row.workspace_id === null;
+  const locked = isGlobal || !canEdit;
   const [windowS, setWindowS] = useState(row.window_seconds);
   const [maxHits, setMaxHits] = useState(row.max_hits);
   const [failClosed, setFailClosed] = useState(row.fail_closed);
@@ -214,7 +230,7 @@ function ConfigRowEditor({
           min={WINDOW_MIN}
           max={WINDOW_MAX}
           value={windowS}
-          disabled={isGlobal}
+          disabled={locked}
           onChange={(e) => setWindowS(Number(e.target.value))}
           className="w-24 h-8 ml-auto text-right"
         />
@@ -225,7 +241,7 @@ function ConfigRowEditor({
           min={HITS_MIN}
           max={HITS_MAX}
           value={maxHits}
-          disabled={isGlobal}
+          disabled={locked}
           onChange={(e) => setMaxHits(Number(e.target.value))}
           className="w-28 h-8 ml-auto text-right"
         />
@@ -233,12 +249,12 @@ function ConfigRowEditor({
       <td className="px-3 py-2 text-center">
         <Switch
           checked={failClosed}
-          disabled={isGlobal}
+          disabled={locked}
           onCheckedChange={setFailClosed}
         />
       </td>
       <td className="px-3 py-2 text-right space-x-2">
-        {!isGlobal && (
+        {!locked && (
           <>
             <Button
               size="sm"

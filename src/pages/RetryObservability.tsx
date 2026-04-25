@@ -190,6 +190,7 @@ export default function RetryObservability() {
 
       <QueueHealthBanner workspaceId={workspace?.id} />
       <RetentionCronDiagnostics />
+      <AlertSlaPanel workspaceId={workspace?.id} />
       <InternalAlertsPanel workspaceId={workspace?.id} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -527,23 +528,120 @@ function RetentionCronDiagnostics() {
   return (
     <div className={`border rounded-lg px-4 py-3 text-xs flex flex-wrap items-center gap-4 ${tone}`}>
       <span className="font-semibold uppercase tracking-wide">retention monitor</span>
-      <span>cron: <b>{monitorActive ? "ativo" : "inativo"}</b></span>
+      <span>modo: <b>dry-run</b> {monitorActive ? "ativo" : "inativo"}</span>
       <span>jobs registrados: <b>{data.monitor_cron_count ?? "—"}</b></span>
+      <span>execução real: <b>somente manual</b></span>
       <span>
         app.cron_secret:{" "}
         <b>{secretConfigured ? "configurado" : "não configurado"}</b>
       </span>
+      <span className="opacity-70">o valor do segredo nunca é exibido nem solicitado nesta UI</span>
       {!monitorActive && (
         <span className="opacity-80">
           Nenhum cron de retention-job dry-run encontrado. Execução destrutiva continua manual.
         </span>
       )}
-      {!secretConfigured && (
-        <span className="opacity-80">
-          Configure o GUC <code>app.cron_secret</code> no banco antes de habilitar execução real
-          (este painel não armazena nem exibe o valor).
-        </span>
-      )}
     </div>
+  );
+}
+
+/** Alert SLA panel: counts how many open/acknowledged alerts are aging
+ *  beyond 1h / 24h, grouped by provider/destination. Read-only, no PII,
+ *  no external dispatch. */
+function AlertSlaPanel({ workspaceId }: { workspaceId: string | undefined }) {
+  const { data } = useQuery({
+    queryKey: ["alert-sla", workspaceId],
+    enabled: !!workspaceId,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("queue_health_alerts")
+        .select("provider, destination, status, created_at, last_seen_at")
+        .eq("workspace_id", workspaceId!)
+        .in("status", ["open", "acknowledged"])
+        .order("last_seen_at", { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      return (data || []) as Array<{
+        provider: string; destination: string; status: string;
+        created_at: string; last_seen_at: string;
+      }>;
+    },
+  });
+
+  const summary = useMemo(() => {
+    const rows = data || [];
+    let over1h = 0;
+    let over24h = 0;
+    const byTuple = new Map<string, { provider: string; destination: string; over1h: number; over24h: number; total: number }>();
+    for (const r of rows) {
+      const age = Date.now() - new Date(r.created_at).getTime();
+      const key = `${r.provider}|${r.destination}`;
+      const e = byTuple.get(key) || { provider: r.provider, destination: r.destination, over1h: 0, over24h: 0, total: 0 };
+      e.total++;
+      if (age > 60 * 60_000) { e.over1h++; over1h++; }
+      if (age > 24 * 60 * 60_000) { e.over24h++; over24h++; }
+      byTuple.set(key, e);
+    }
+    return {
+      total: rows.length,
+      over1h,
+      over24h,
+      tuples: Array.from(byTuple.values())
+        .filter((t) => t.over1h > 0)
+        .sort((a, b) => b.over24h - a.over24h || b.over1h - a.over1h)
+        .slice(0, 10),
+    };
+  }, [data]);
+
+  if (!data) return null;
+  if (summary.total === 0) return null;
+
+  const tone = summary.over24h > 0
+    ? "border-destructive/40 bg-destructive/5 text-destructive"
+    : summary.over1h > 0
+    ? "border-warning/40 bg-warning/5 text-warning"
+    : "border-success/40 bg-success/5 text-success";
+
+  return (
+    <Card className={`border ${tone}`}>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Clock className="w-4 h-4" /> SLA de alertas internos
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="text-xs space-y-3">
+        <div className="flex flex-wrap items-center gap-4">
+          <span>abertos/ack ativos: <b>{summary.total}</b></span>
+          <span>aging &gt; 1h: <b>{summary.over1h}</b></span>
+          <span>aging &gt; 24h: <b>{summary.over24h}</b></span>
+          <span className="opacity-70">sem dispatch externo</span>
+        </div>
+        {summary.tuples.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="text-muted-foreground">
+                <tr>
+                  <th className="text-left px-2 py-1 font-medium">provider/destination</th>
+                  <th className="text-right px-2 py-1 font-medium">total</th>
+                  <th className="text-right px-2 py-1 font-medium">&gt; 1h</th>
+                  <th className="text-right px-2 py-1 font-medium">&gt; 24h</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.tuples.map((t) => (
+                  <tr key={`${t.provider}|${t.destination}`} className="border-t border-border/40">
+                    <td className="px-2 py-1 font-mono">{t.provider} / {t.destination}</td>
+                    <td className="px-2 py-1 text-right">{t.total}</td>
+                    <td className="px-2 py-1 text-right">{t.over1h}</td>
+                    <td className="px-2 py-1 text-right font-bold">{t.over24h}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
