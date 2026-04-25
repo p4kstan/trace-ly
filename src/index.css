@@ -82,6 +82,21 @@
 }
 
 @layer utilities {
+  /* === RESPONSIVE TEXT HELPERS === */
+  .break-anywhere {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  /* Compact uppercase label that wraps gracefully inside narrow stat cards
+     (e.g., "SEM CREDENTIAL_REF", "INFORMATIVOS"). */
+  .stat-label {
+    @apply text-[10px] uppercase tracking-wide text-muted-foreground leading-tight;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    hyphens: auto;
+  }
+
   /* === GLASS MORPHISM === */
   .glass-card {
     @apply backdrop-blur-xl border rounded-xl;
