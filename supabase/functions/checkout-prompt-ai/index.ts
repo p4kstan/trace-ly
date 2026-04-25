@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
 
     const systemPrompt = `Você é um engenheiro especialista em tracking server-side (Meta CAPI, Google Ads CAPI, GA4, TikTok Events) e checkouts nativos no Brasil.
 
-Tarefa: o usuário vai colar trechos do código do checkout dele. Analise e gere um PROMPT customizado em português, pronto para colar em uma IA-agente (Lovable/Cursor/Claude Code), que implemente captura de tracking + disparo idempotente de Purchase no CapiTrack.
+Tarefa: o usuário vai colar trechos do código do checkout dele. Analise e gere um PROMPT customizado em português, pronto para colar em **qualquer IA-agente de código** (Lovable, Cursor, Claude Code, ChatGPT/Codex, Manus, Bolt.new, v0, Windsurf, ou outra), que implemente captura de tracking + disparo idempotente de Purchase no CapiTrack. Não cite nenhuma IA específica no corpo do prompt gerado — escreva instruções neutras dirigidas ao "agente de código deste projeto".
 
 REGRAS:
 1. Identifique no código colado: nome das funções de criação de cobrança, nome das variáveis (order, payment, customer), framework (React/Next/Vue/Node), gateway de pagamento, **e TODAS as páginas/rotas/componentes que criam pagamento ou checkout session** (pode haver 2, 3, 5+ etapas pagas com qualquer nome — taxa de entrega, taxa de manipulação, seguro, frete express, prioridade, garantia, upsell, complemento, TMT etc.).
