@@ -5169,6 +5169,15 @@ export type Database = {
         Args: { _limit?: number; _offset?: number; _workspace_id: string }
         Returns: Json
       }
+      data_reuse_summary_keyset: {
+        Args: {
+          _cursor_created_at?: string
+          _cursor_id?: string
+          _limit?: number
+          _workspace_id: string
+        }
+        Returns: Json
+      }
       detect_duplicate_conversion: {
         Args: {
           _currency?: string
