@@ -621,6 +621,19 @@ Deno.serve(async (req) => {
     const externalEventId = str(payload.id || payload.event_id || payload.notification_id || order.external_order_id);
     const dedupKey = `${provider}:${eventType}:${externalEventId}`;
 
+    // ── Canonical event identity (multi-step model) ──
+    // Resolves purchase:<root_order_code> or purchase:<root_order_code>:step:<step_key>
+    // for paid Purchase events; deterministic fallback for everything else.
+    const marketingEventForCanonical =
+      INTERNAL_TO_META[internalEvent as keyof typeof INTERNAL_TO_META] || "Purchase";
+    const canonicalIdentity = buildCanonicalEventIdentity({
+      order,
+      eventName: marketingEventForCanonical,
+      internalEvent,
+      provider,
+      externalEventId: externalEventId || null,
+    });
+
     // ── Webhook log ──
     const headersJson: Record<string, string> = {};
     req.headers.forEach((v, k) => { headersJson[k] = v; });
