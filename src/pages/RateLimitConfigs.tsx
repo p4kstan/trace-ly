@@ -230,7 +230,7 @@ function ConfigRowEditor({
           min={WINDOW_MIN}
           max={WINDOW_MAX}
           value={windowS}
-          disabled={isGlobal}
+          disabled={locked}
           onChange={(e) => setWindowS(Number(e.target.value))}
           className="w-24 h-8 ml-auto text-right"
         />
@@ -241,7 +241,7 @@ function ConfigRowEditor({
           min={HITS_MIN}
           max={HITS_MAX}
           value={maxHits}
-          disabled={isGlobal}
+          disabled={locked}
           onChange={(e) => setMaxHits(Number(e.target.value))}
           className="w-28 h-8 ml-auto text-right"
         />
@@ -249,12 +249,12 @@ function ConfigRowEditor({
       <td className="px-3 py-2 text-center">
         <Switch
           checked={failClosed}
-          disabled={isGlobal}
+          disabled={locked}
           onCheckedChange={setFailClosed}
         />
       </td>
       <td className="px-3 py-2 text-right space-x-2">
-        {!isGlobal && (
+        {!locked && (
           <>
             <Button
               size="sm"
