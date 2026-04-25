@@ -19,6 +19,7 @@ import {
 interface Props {
   publicKey: string;
   endpoint: string;
+  supabaseUrl: string;
 }
 
 function CopyableBlock({ code, label }: { code: string; label: string }) {
@@ -43,7 +44,7 @@ const GATEWAYS: GatewayId[] = [
 ];
 const METHODS: PaymentMethod[] = ["pix", "card", "boleto", "subscription"];
 
-export function NativeCheckoutBuilder({ publicKey, endpoint }: Props) {
+export function NativeCheckoutBuilder({ publicKey, endpoint, supabaseUrl }: Props) {
   const [gateway, setGateway] = useState<GatewayId>("quantumpay");
   const [methods, setMethods] = useState<PaymentMethod[]>(["pix", "card"]);
   const [stack, setStack] = useState<NativeCheckoutConfig["stack"]>("react");
@@ -53,12 +54,12 @@ export function NativeCheckoutBuilder({ publicKey, endpoint }: Props) {
   const [aiPrompt, setAiPrompt] = useState("");
 
   const wizardPrompt = useMemo(() => generateNativeCheckoutPrompt({
-    gateway, methods, publicKey, endpoint, stack,
-  }), [gateway, methods, publicKey, endpoint, stack]);
+    gateway, methods, publicKey, endpoint, supabaseUrl, stack,
+  }), [gateway, methods, publicKey, endpoint, supabaseUrl, stack]);
 
   const templatePrompt = useMemo(() => generateNativeCheckoutPrompt({
-    gateway, methods: METHODS, publicKey, endpoint, stack: "unknown",
-  }), [gateway, publicKey, endpoint]);
+    gateway, methods: METHODS, publicKey, endpoint, supabaseUrl, stack: "unknown",
+  }), [gateway, publicKey, endpoint, supabaseUrl]);
 
   const toggleMethod = (m: PaymentMethod) => {
     setMethods(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
