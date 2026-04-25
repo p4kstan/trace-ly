@@ -349,6 +349,12 @@ export default function DestinationRegistry() {
         </CardContent>
       </Card>
 
+      {/* Passo T — Test Dispatch (read-only simulator) */}
+      <TestDispatchPanel workspaceId={workspaceId} rows={rows} />
+
+      {/* Passo T — Decision audit (no PII / no secrets) */}
+      <DecisionAuditPanel workspaceId={workspaceId} />
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
