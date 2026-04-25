@@ -873,7 +873,9 @@ Deno.serve(async (req) => {
         },
         deduplication_key: dedupKey,
       }).select("id").single();
-      eventId = evt?.id || null;
+      // Use canonical event_id downstream so the queue/dedup keys align
+      // with the multi-step model (purchase:<root>[:step:<key>]).
+      eventId = canonicalIdentity.eventId;
 
       if (["Purchase", "Lead", "Subscribe"].includes(evtName) || isPaid) {
         await supabase.from("conversions").insert({
