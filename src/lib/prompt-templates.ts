@@ -602,21 +602,29 @@ ${cfg.gateway !== "none" ? `1. Faça 1 compra/conversão real
 7. Se for PIX nativo: confirme \`purchase_tracked_source\` no pedido — uma das três:
    \`pix-webhook\`, \`check-pix-status\`, ou \`reconcile-pix\`. Apenas UMA delas vence a corrida.
 8. \`msclkid\` e \`ga_client_id\` aparecem persistidos quando existirem na sessão original.
-9. **Checkout em duas etapas (Pedido principal + TMT/taxa/upsell)** — se aplicável:
-   - [ ] Existem **DOIS** Purchase distintos: \`purchase:<orderCode>\` e \`purchase:<orderCode>:tmt\`.
+9. **Checkout MULTI-ETAPAS (Pedido principal + N pagamentos adicionais)** — se aplicável:
+   - [ ] **Auditoria**: você listou TODAS as etapas pagas do projeto (principal +
+         N adicionais — ex.: taxa de entrega, taxa de manipulação, seguro, upsell,
+         frete express, prioridade, garantia, **TMT** etc.). TMT é apenas exemplo.
+   - [ ] Para CADA etapa, existe um Purchase distinto:
+         principal = \`purchase:<root_order_code>\`,
+         adicionais = \`purchase:<root_order_code>:step:<step_key>\`.
    - [ ] **NÃO** existe Purchase com event_id cru tipo \`EV-...\` (sem prefixo \`purchase:\`).
-   - [ ] **NÃO** existe Purchase com event_id \`purchase:<orderCodeTMT>\` (TMT usando próprio orderCode).
-   - [ ] A TMT carrega \`gclid/msclkid/utm_*/fbp/session_id\` IDÊNTICOS ao do pedido principal.
-   - [ ] \`value\` da TMT = APENAS o valor da taxa (não somado ao do pedido principal).
+   - [ ] **NÃO** existe etapa adicional usando o orderCode dela própria como event_id
+         principal (\`purchase:<orderCodeDaEtapa>\`).
+   - [ ] **Toda etapa adicional** carrega \`gclid/msclkid/utm_*/fbp/session_id\`
+         IDÊNTICOS ao do pedido principal (herança via root).
+   - [ ] \`value\` de cada etapa adicional = APENAS o valor dela (não somado ao principal).
    - [ ] Falha em Google Ads com \`UNPARSEABLE_GCLID\` para gclid de teste sintético é
          **esperada** — não indica bug; confirma apenas que o gclid foi preservado.
 
 - [ ] Eventos no CapiTrack com mesmo event_id = purchase:<order_id>
-- [ ] Meta Events Manager mostra 1 Purchase (não 2)
-- [ ] Google Ads Conversões mostra 1 (não 2)
-- [ ] F5 na thank-you não duplica
+- [ ] Meta Events Manager mostra 1 Purchase (não 2) por etapa
+- [ ] Google Ads Conversões mostra 1 (não 2) por etapa
+- [ ] F5 na thank-you não duplica nenhuma etapa
 - [ ] Reentrega manual de webhook não duplica
-- [ ] (Se aplicável) Pedido principal e TMT aparecem como 2 Purchases separados, sem duplicatas` : "Sem gateway — pular."}
+- [ ] (Se aplicável) Pedido principal e cada etapa adicional aparecem como Purchases
+      separados, com event_ids distintos e sem duplicatas` : "Sem gateway — pular."}
 
 ═══════════════════════════════════════════════
 TESTE 4: PII HASHEADO
