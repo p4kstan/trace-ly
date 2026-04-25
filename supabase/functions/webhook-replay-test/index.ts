@@ -136,6 +136,8 @@ Deno.serve(async (req) => {
 
   // ── Rate limit (persistent, DB-backed) ──────────────────────────────
   // Raw IP is hashed before storage. Never persisted in cleartext.
+  // fail_closed can be enabled per-route/workspace via `rate_limit_configs`
+  // OR forced for this call via body.fail_closed=true (test harness).
   const ipHdr = req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip") || "";
   const rl = await checkRateLimit({
     route: "webhook-replay-test",
@@ -144,6 +146,7 @@ Deno.serve(async (req) => {
     rawIp: ipHdr,
     windowSeconds: RL_WINDOW_SECONDS,
     maxHits: RL_MAX,
+    failClosed: body?.fail_closed === true,
   });
   if (!rl.allowed) {
     return new Response(JSON.stringify({

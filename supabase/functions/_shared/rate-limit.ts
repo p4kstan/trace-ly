@@ -4,6 +4,14 @@
 //
 // IMPORTANT: We never store the raw IP. We hash it (SHA-256, hex) before
 // it leaves this module so DB rows only ever see opaque digests.
+//
+// Failure mode (Passo H):
+//   - Default is FAIL-OPEN: if the DB call errors we still allow the request,
+//     but emit a `safe` console warning so ops can detect the regression.
+//   - When `failClosed=true` (or rate_limit_configs.fail_closed=true for the
+//     route/workspace), an RPC failure triggers a 429-equivalent response
+//     (`allowed=false`, `retryAfterSeconds = windowSeconds`). Callers MUST
+//     translate that into HTTP 429.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.103.0";
 
@@ -14,6 +22,8 @@ export interface RateLimitInput {
   rawIp?: string | null;
   windowSeconds?: number;
   maxHits?: number;
+  /** When true, RPC errors are treated as "limit exceeded". Default false. */
+  failClosed?: boolean;
 }
 
 export interface RateLimitResult {
@@ -21,6 +31,8 @@ export interface RateLimitResult {
   hits: number;
   limit: number;
   retryAfterSeconds: number;
+  /** True when we returned a fallback decision because the RPC failed. */
+  degraded?: boolean;
 }
 
 async function sha256Hex(input: string): Promise<string> {
@@ -31,9 +43,54 @@ async function sha256Hex(input: string): Promise<string> {
     .join("");
 }
 
+/** Resolves the effective rate-limit config for a (route, workspace) pair.
+ *  Workspace-specific row wins; otherwise falls back to a route-wide row;
+ *  otherwise returns the caller-provided defaults.
+ *
+ *  Failure here is non-fatal — we just keep the caller defaults.
+ */
+async function resolveConfig(
+  supa: ReturnType<typeof createClient>,
+  input: RateLimitInput,
+): Promise<{ failClosed: boolean; windowSeconds: number; maxHits: number }> {
+  const fallback = {
+    failClosed: input.failClosed === true,
+    windowSeconds: input.windowSeconds ?? 60,
+    maxHits: input.maxHits ?? 30,
+  };
+  try {
+    const { data } = await supa
+      .from("rate_limit_configs")
+      .select("workspace_id, fail_closed, window_seconds, max_hits")
+      .eq("route", input.route)
+      .or(
+        input.workspaceId
+          ? `workspace_id.eq.${input.workspaceId},workspace_id.is.null`
+          : "workspace_id.is.null",
+      )
+      .limit(5);
+    const rows = (data || []) as Array<Record<string, unknown>>;
+    if (!rows.length) return fallback;
+    // Prefer the row that targets the workspace explicitly.
+    const ranked = rows.sort((a, b) => {
+      const aw = a.workspace_id ? 0 : 1;
+      const bw = b.workspace_id ? 0 : 1;
+      return aw - bw;
+    });
+    const top = ranked[0] as Record<string, unknown>;
+    return {
+      failClosed: Boolean(top.fail_closed) || fallback.failClosed,
+      windowSeconds: Number(top.window_seconds) || fallback.windowSeconds,
+      maxHits: Number(top.max_hits) || fallback.maxHits,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 /**
- * Persistent rate-limit check. Fail-open if the DB call errors so a bad
- * deploy of the helper does not lock everyone out.
+ * Persistent rate-limit check. Default is fail-open; pass `failClosed=true`
+ * (or set it in rate_limit_configs) to deny when the underlying RPC errors.
  */
 export async function checkRateLimit(input: RateLimitInput): Promise<RateLimitResult> {
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -43,23 +100,34 @@ export async function checkRateLimit(input: RateLimitInput): Promise<RateLimitRe
   const ipHash = ip ? await sha256Hex(`rl:${ip}`) : "";
 
   const supa = createClient(SUPABASE_URL, SERVICE_KEY);
+  const cfg = await resolveConfig(supa, input);
+
   const { data, error } = await supa.rpc("rate_limit_hit", {
     _route: input.route,
     _workspace_id: input.workspaceId ?? null,
     _user_id: input.userId ?? null,
     _ip_hash: ipHash,
-    _window_seconds: input.windowSeconds ?? 60,
-    _max_hits: input.maxHits ?? 30,
+    _window_seconds: cfg.windowSeconds,
+    _max_hits: cfg.maxHits,
   });
 
   if (error || !data) {
-    // Fail-open but log via safe console.
-    console.warn("rate_limit_hit_failed", error?.message || "unknown");
+    console.warn("rate_limit_hit_failed", error?.message || "unknown", "fail_closed=", cfg.failClosed);
+    if (cfg.failClosed) {
+      return {
+        allowed: false,
+        hits: cfg.maxHits + 1,
+        limit: cfg.maxHits,
+        retryAfterSeconds: cfg.windowSeconds,
+        degraded: true,
+      };
+    }
     return {
       allowed: true,
       hits: 0,
-      limit: input.maxHits ?? 30,
+      limit: cfg.maxHits,
       retryAfterSeconds: 0,
+      degraded: true,
     };
   }
 
@@ -67,7 +135,7 @@ export async function checkRateLimit(input: RateLimitInput): Promise<RateLimitRe
   return {
     allowed: Boolean(d.allowed),
     hits: Number(d.hits || 0),
-    limit: Number(d.limit || (input.maxHits ?? 30)),
-    retryAfterSeconds: Number((d as any).retry_after_seconds || 0),
+    limit: Number(d.limit || cfg.maxHits),
+    retryAfterSeconds: Number((d as Record<string, unknown>).retry_after_seconds || 0),
   };
 }
