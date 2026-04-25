@@ -738,67 +738,101 @@ Se houver \`workspace_id\` ou \`api_key\` exigidos pelo backend, **não invente*
 ## Particularidades por método
 ${cfg.methods.map(m => `- **${PAYMENT_META[m].label}**: ${PAYMENT_META[m].hint}`).join("\n")}
 
-## ⚠️ Regras críticas (Fluxo Final Validado — 04/2026)
-1. **\`event_id\` = \`purchase:<orderCode>\`** (NÃO use mais \`<externalId>:Purchase\` nem event_id cru tipo \`EV-...\`).
-   Para TMT/upsell/segunda tela: **\`purchase:<orderCodePrincipal>:tmt\`** — referencia o
-   pedido **pai**, nunca o orderCode da própria TMT.
-   \`transaction_id\` e \`gateway_order_id\` são campos **separados** no payload.
-2. **Checkout em duas etapas (Main + TMT)**: as duas cobranças são legítimas e viram
-   Purchase **separados**. Cada um precisa de event_id único, trava atômica própria
-   (\`purchase_tracked_at\` para main, \`tmt_tracked_at\` para TMT) e value isolado
-   (a TMT envia **só** o valor da taxa — nunca somar o do pedido principal).
-3. **Herança de metadata na TMT**: gclid, gbraid, wbraid, fbclid, ttclid, msclkid, fbp,
-   fbc, ga_client_id, session_id, utm_*, landing_page, referrer, user_agent e client_ip
-   da TMT vêm do **pedido pai** (lookup via \`externalReference = tmt-<orderCodePrincipal>\`
-   ou \`parent_order_code\`). Se a TMT chegar com metadata vazia, o backend **completa
-   antes** de chamar \`/track\`.
-4. **Idempotência via trava atômica**: UPDATE com \`WHERE purchase_tracked_at IS NULL\`
-   (main) e \`WHERE tmt_tracked_at IS NULL\` (TMT). Todas as fontes (webhook, check-status,
-   reconcile, frontend) chamam o MESMO \`maybeFirePurchase\` / \`maybeFireTmtPurchase\`.
-5. **PIX exige 3 fontes** (para main E para TMT): \`pix-webhook\` + \`check-pix-status\`
-   + \`reconcile-pix-payments\` (cron 2-5min).
-6. **Click IDs case-sensitive**: \`gclid/gbraid/wbraid/fbclid/ttclid/msclkid\` apenas \`.trim()\`.
-7. **Trava de status pago**: Purchase só dispara quando \`status ∈ {paid, approved, confirmed, succeeded, captured, pix_paid, order_paid}\`.
-8. **Browser-side fallback**: se existir disparo browser-side na thank-you, ele DEVE usar
-   exatamente \`purchase:<orderCodePrincipal>\` (main) e \`purchase:<orderCodePrincipal>:tmt\`
-   (TMT) — **nunca** event_id cru sem prefixo. Mesmo event_id que o server-side.
-9. **Sem PII em logs**: nada de CPF/e-mail/telefone/endereço/QR/PIX/payload sensível em
-   \`console.log\`. Logue apenas \`orderCode, parent_order_code, event_id, value, source,
-   provider, status\`. E-mail/telefone/documento são hasheados pelo CapiTrack antes de
-   chegarem nas plataformas de ads.
+## ⚠️ Regras críticas (Fluxo Final Validado — 04/2026, multi-etapas genérico)
+1. **\`event_id\` do principal = \`purchase:<root_order_code>\`**. **Etapas adicionais**
+   (taxa de entrega, taxa de manipulação, seguro, frete express, prioridade, garantia,
+   upsell de segunda tela, **TMT** etc.) = **\`purchase:<root_order_code>:step:<step_key>\`**
+   onde \`step_key\` é estável (ex.: \`shipping_fee\`, \`handling_fee\`, \`upsell_1\`,
+   \`insurance\`, \`priority_fee\`, \`warranty\`, \`tmt\`). NÃO use mais \`<externalId>:Purchase\`
+   nem event_id cru tipo \`EV-...\`. \`transaction_id\` e \`gateway_order_id\` são campos
+   **separados** no payload. **TMT é apenas exemplo de etapa adicional, nunca regra fixa.**
+2. **Auditoria obrigatória**: descubra no código TODAS as páginas/rotas/componentes que
+   criam pagamento. Pode haver 2, 3, 5+ etapas com qualquer nome. Liste cada uma com
+   \`route, gateway, value, externalReference, status source, step_key sugerido,
+   relação com root\` antes de implementar tracking.
+3. **Modelo canônico**: \`root_order_code\` representa a jornada inteira; principal usa
+   \`step_key=main\`; cada etapa adicional tem \`step_key\` derivado do tipo. Para
+   repetições do mesmo tipo (ex.: 2 upsells), use índice/hash determinístico.
+4. **Relação pai-filho**: toda etapa adicional persiste \`parent_order_code\`/
+   \`root_order_code\` no banco. \`externalReference\` no gateway segue padrão
+   determinístico (ex.: \`step:<step_key>:<root_order_code>\`). Webhook/polling/reconcile
+   identificam o root e o step_key mesmo se a página tiver nome diferente.
+5. **Herança de metadata**: principal captura \`gclid, gbraid, wbraid, fbclid, ttclid,
+   msclkid, fbp, fbc, ga_client_id, session_id, utm_*, landing_page, referrer,
+   user_agent, client_ip\`. **Toda etapa adicional herda do root** se metadata do
+   gateway vier vazia — o backend completa **antes** de chamar \`/track\`.
+6. **Receita isolada**: principal envia \`value\` do principal. Cada etapa adicional
+   envia \`value\` **somente daquela etapa**, sem somar/inflar o principal. Para
+   otimizar só pelo principal, trate as adicionais como secondary conversion;
+   para LTV/receita total, eventos separados com event_id único. **Nunca** duplicar
+   o mesmo Purchase.
+7. **Idempotência multi-source genérica**: trava por \`event_id\`/\`step_key\`,
+   **não** por uma única coluna que bloqueia as adicionais. Para N etapas dinâmicas,
+   use tabela \`tracked_events\` com \`unique(event_id)\`. Webhook, polling, reconcile
+   e fallback browser-side passam pela MESMA função idempotente — F5, reentrega,
+   polling simultâneo e reconcile **não podem** duplicar nenhuma etapa.
+8. **PIX exige 3 fontes** (para o principal E para CADA etapa adicional PIX):
+   \`pix-webhook\` + \`check-pix-status\` + \`reconcile-pix-payments\` (cron 2-5min).
+9. **Click IDs case-sensitive**: \`gclid/gbraid/wbraid/fbclid/ttclid/msclkid\`
+   apenas \`.trim()\` — nunca \`.toLowerCase()\`/\`.normalize()\`.
+10. **Trava de status pago**: Purchase só dispara quando \`status ∈ {paid, approved,
+    confirmed, succeeded, captured, pix_paid, order_paid}\`.
+11. **Browser-side fallback**: se existir disparo na thank-you, use exatamente
+    \`purchase:<root_order_code>\` (principal) e
+    \`purchase:<root_order_code>:step:<step_key>\` (adicionais) — **nunca** event_id cru.
+    \`sessionStorage\` deve ser **por event_id** (lista), não uma flag única que
+    bloqueia todas as etapas.
+12. **Sem PII em logs**: nada de CPF/e-mail/telefone/endereço/QR/PIX/payload sensível.
+    Logue apenas \`root_order_code, step_key, event_id, value, source, provider,
+    status\`. PII é hasheada server-side pelo CapiTrack antes dos ads.
 
-## Validação (faça uma compra teste em cada método)
+## Validação obrigatória (faça uma compra teste percorrendo TODAS as etapas pagas)
 1. Abra o site com \`?gclid=TESTE-CaseSensitive_123&utm_source=google&utm_term=palavra-chave\`.
 2. Confirme que cookies \`ct_gclid\`, \`ct_utm_*\` foram setados (com case preservado).
-3. **PIX**: pague um QR e:
-   - [ ] Cenário A (webhook chega): \`pix-webhook\` registra \`purchase_tracked_source=pix-webhook\`.
-   - [ ] Cenário B (webhook falha mas tela aberta): \`check-pix-status\` registra \`purchase_tracked_source=check-pix-status\`.
-   - [ ] Cenário C (webhook falha + cliente fechou aba): cron \`reconcile-pix-payments\` registra \`purchase_tracked_source=reconcile-pix\` em ≤5min.
-   - [ ] **Em todos os cenários**, há **uma única** linha em \`event_deliveries\` por provider.
-4. **Cartão**: aprove uma compra. \`event_id = purchase:<orderCode>\`. Webhook em paralelo é skipped silenciosamente.
-5. **F5 na página de obrigado** NÃO duplica (frontend não dispara — backend já tracked).
-6. **Reentregar webhook do mesmo pedido** NÃO duplica (\`purchase_tracked_at\` bloqueia).
-7. \`msclkid\` e \`ga_client_id\` aparecem persistidos no payload quando existirem.
-8. **Checkout em duas etapas (se aplicável)** — após pagar pedido + TMT:
-   - [ ] Existem **DOIS** Purchase em \`/event-logs\`: \`purchase:<orderCode>\` e \`purchase:<orderCode>:tmt\`.
+3. **Para cada etapa paga descoberta na auditoria** (principal + N adicionais), pague de
+   verdade e verifique:
+   - [ ] **Cada etapa** aparece em \`/event-logs\` com seu próprio \`event_id\`:
+         principal = \`purchase:<root_order_code>\`,
+         adicionais = \`purchase:<root_order_code>:step:<step_key>\`.
    - [ ] **NÃO** existe nenhum Purchase com event_id cru tipo \`EV-...\` (sem prefixo).
-   - [ ] **NÃO** existe Purchase com event_id \`purchase:<orderCodeTMT>\` (TMT usando próprio orderCode).
-   - [ ] A TMT carrega \`gclid/msclkid/utm_*/fbp/session_id\` **idênticos** ao do pedido principal.
-   - [ ] O \`value\` da TMT é APENAS a taxa (não somado ao do pedido principal).
-   - [ ] \`event_deliveries\`: 1 linha por provider para o main + 1 linha por provider para a TMT.
-   - [ ] Falha eventual em Google Ads com \`UNPARSEABLE_GCLID\` para gclid de teste sintético
-         (\`TESTE-CaseSensitive_123\`) é **esperada** e **não indica bug** — apenas confirma
-         que o engine recebeu/preservou o gclid corretamente.
-9. Confirme no painel CapiTrack /event-logs que a request \`Purchase\` chegou com:
-   \`event_id\` correto, \`order_id\`, \`transaction_id\`, \`session_id\`, \`gclid\` (case preservado),
-   \`fbp\`, \`user_agent\`, \`client_ip\`.
+   - [ ] **NÃO** existe etapa adicional usando o orderCode dela própria como
+         event_id principal (\`purchase:<orderCodeDaEtapa>\`).
+   - [ ] **Toda etapa adicional** carrega \`gclid/msclkid/utm_*/fbp/session_id\`
+         **idênticos** ao do principal (herança via root).
+   - [ ] O \`value\` de cada etapa adicional é APENAS o valor dela, sem somar o principal.
+   - [ ] \`event_deliveries\`: 1 linha por provider para o principal + 1 linha por
+         provider para cada etapa adicional. Sem duplicatas dentro da mesma etapa.
+4. **PIX**: pague um QR e:
+   - [ ] Cenário A (webhook chega): trava registra \`source=pix-webhook\`.
+   - [ ] Cenário B (webhook falha mas tela aberta): \`check-pix-status\` registra
+         \`source=check-pix-status\`.
+   - [ ] Cenário C (webhook falha + cliente fechou aba): cron \`reconcile-pix-payments\`
+         registra \`source=reconcile-pix\` em ≤5min.
+   - [ ] Em todos os cenários, **uma única** linha em \`event_deliveries\` por etapa.
+5. **Cartão**: aprove uma compra. Webhook em paralelo é skipped silenciosamente.
+6. **F5 na thank-you** NÃO duplica nenhuma etapa (frontend não dispara — backend já tracked).
+7. **Reentregar webhook** do mesmo pedido NÃO duplica (trava por \`event_id\` bloqueia).
+8. \`msclkid\` e \`ga_client_id\` aparecem persistidos no payload quando existirem.
+9. Falha eventual em Google Ads com \`UNPARSEABLE_GCLID\` para gclid de teste sintético
+   (\`TESTE-CaseSensitive_123\`) é **esperada** e **não indica bug** — apenas confirma
+   que o engine recebeu/preservou o gclid corretamente.
+10. Confirme no painel CapiTrack \`/event-logs\` que cada Purchase chegou com:
+    \`event_id\` correto, \`order_id\`, \`parent_order_id\` (em adicionais), \`step_key\`,
+    \`transaction_id\`, \`session_id\`, \`gclid\` (case preservado), \`fbp\`, \`user_agent\`, \`client_ip\`.
 
 ## Não faça
 - Não use mais \`<externalId>:Purchase\` como event_id padrão.
 - Não envie event_id cru tipo \`EV-...\` (sem prefixo \`purchase:\`).
-- Não use o orderCode da TMT como event_id principal — sempre referencie o pedido pai com sufixo \`:tmt\`.
-- Não dispare a TMT sem antes herdar metadata de atribuição do pedido pai.
-- Não some o valor do pedido principal no \`value\` da TMT.
+- Não trate "TMT" como regra fixa — é apenas um \`step_key\` possível dentre N. Descubra
+  os nomes reais das etapas adicionais lendo o código do projeto-alvo.
+- Não use o orderCode de uma etapa adicional como event_id principal — sempre referencie
+  o root com \`:step:<step_key>\`.
+- Não dispare etapas adicionais sem antes herdar metadata de atribuição do root.
+- Não some o valor do principal no \`value\` de uma etapa adicional.
+- Não use uma única coluna \`purchase_tracked_at\` como trava global — isso bloqueia
+  as etapas adicionais. Use trava por \`event_id\` (tabela \`tracked_events\`) ou
+  colunas separadas por etapa fixa.
+- Não use \`sessionStorage\` com flag única no browser — use lista de event_ids já disparados.
 - Não monte URL de webhook no formato antigo \`/gateway-webhook/<gateway>\` — use a query \`?provider=\`.
 - Não dispare Purchase em status pendente.
 - Não logue PII em texto puro (CPF, e-mail, telefone, endereço, QR/PIX copia-e-cola).
