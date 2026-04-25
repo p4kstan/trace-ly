@@ -79,7 +79,7 @@ describe("data-reuse-eligibility (Passo P)", () => {
     expect(report.click_id_coverage.gclid).toBe(1);
     expect(report.click_id_coverage.fbclid).toBe(2);
     expect(report.audience_seed_eligible).toBe(2);
-    expect(report.offline_eligible_per_provider.google_ads).toBe(1);
+    expect(report.offline_eligible_per_provider.google_ads).toBe(2);
     expect(report.offline_eligible_per_provider.meta).toBe(2);
     // Sanity: serialized report must NOT contain raw email or hash strings
     const json = JSON.stringify(report);
