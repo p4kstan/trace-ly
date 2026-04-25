@@ -582,9 +582,13 @@ Deno.serve(async (req) => {
       webhookSecret = data?.webhook_secret_encrypted || null;
     }
 
-    // Test-mode bypass for authenticated workspace members
+    // Test-mode bypass for authenticated workspace members.
+    // Accepted via header (x-test-mode / x-capitrack-test-mode) OR query (test_mode=1).
+    // When active: signature is bypassed AND no events are enqueued to real destinations.
     let isTestMode = false;
-    if (req.headers.get("x-test-mode") === "1") {
+    const testHeader = req.headers.get("x-test-mode") === "1" || req.headers.get("x-capitrack-test-mode") === "1";
+    const testQuery = url.searchParams.get("test_mode") === "1";
+    if (testHeader || testQuery) {
       const authHeader = req.headers.get("authorization") || "";
       if (authHeader.startsWith("Bearer ")) {
         const token = authHeader.slice(7);
@@ -917,10 +921,17 @@ Deno.serve(async (req) => {
           }
         }
 
-        if (META_EVENTS.has(marketingEvent)) {
-          await enqueueForMeta(workspaceId, eventId, savedOrder?.id || null, order, marketingEvent, finalSessionData, identityId, enrichedHashed);
+        if (isTestMode) {
+          // Test-mode replay: do NOT enqueue to real ad destinations.
+          // The webhook still normalizes, dedupes, and writes audit logs so operators
+          // can validate the gateway integration end-to-end without real dispatch.
+          console.log(`[gateway-webhook] test_mode=1 — skipping enqueue for event=${eventId}`);
+        } else {
+          if (META_EVENTS.has(marketingEvent)) {
+            await enqueueForMeta(workspaceId, eventId, savedOrder?.id || null, order, marketingEvent, finalSessionData, identityId, enrichedHashed);
+          }
+          await enqueueForOtherProviders(workspaceId, eventId, savedOrder?.id || null, order, marketingEvent, finalSessionData, identityId, enrichedHashed, internalEvent);
         }
-        await enqueueForOtherProviders(workspaceId, eventId, savedOrder?.id || null, order, marketingEvent, finalSessionData, identityId, enrichedHashed, internalEvent);
 
         // ── Auto-feedback (fire-and-forget): on Purchase, recompute ROI + log automation event.
         // Uses EdgeRuntime.waitUntil so the webhook responds immediately to the gateway.
