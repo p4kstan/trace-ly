@@ -113,26 +113,74 @@ async function processInParallel<T>(items: T[], concurrency: number, fn: (item: 
 }
 
 // ══════════════════════════════════════════════════════════════
-// DESTINATION DISPATCH GATE (Passo T)
+// DESTINATION DISPATCH GATE (Passo T+U)
 // Loads ad_conversion_destinations registry per workspace+provider and
 // applies decideDispatch() BEFORE any external call. Empty registry ⇒
 // fallback to legacy heuristic dispatcher (no regression).
+//
+// Passo U — TTL-bounded cache. The registry is cached per
+// workspace+provider for `REGISTRY_CACHE_TTL_MS` (default 60s, override via
+// REGISTRY_CACHE_TTL_MS env). This prevents stale registry rows from
+// surviving an isolate that lives for hours, while still avoiding
+// per-event SELECTs.
 // ══════════════════════════════════════════════════════════════
 
-const registryCache = new Map<string, RegistryDispatchRow[]>();
+const REGISTRY_CACHE_TTL_MS = (() => {
+  const raw = Number(Deno.env.get("REGISTRY_CACHE_TTL_MS") ?? "60000");
+  if (!Number.isFinite(raw) || raw < 1000) return 60_000;
+  return Math.min(raw, 5 * 60_000);
+})();
+
+interface RegistryCacheEntry {
+  rows: RegistryDispatchRow[];
+  expiresAt: number;
+}
+const registryCache = new Map<string, RegistryCacheEntry>();
 
 async function loadRegistry(workspaceId: string, provider: string): Promise<RegistryDispatchRow[]> {
   const key = `${workspaceId}::${provider}`;
   const hit = registryCache.get(key);
-  if (hit) return hit;
+  if (hit && hit.expiresAt > Date.now()) return hit.rows;
   const { data } = await supabase
     .from("ad_conversion_destinations")
-    .select("id,provider,destination_id,account_id,conversion_action_id,event_name,credential_ref,status,consent_gate_required,send_enabled,test_mode_default")
+    .select("id,provider,destination_id,account_id,conversion_action_id,event_name,credential_ref,status,consent_gate_required,send_enabled,test_mode_default,updated_at")
     .eq("workspace_id", workspaceId)
     .eq("provider", provider);
   const rows: RegistryDispatchRow[] = (data ?? []) as never;
-  registryCache.set(key, rows);
+  registryCache.set(key, { rows, expiresAt: Date.now() + REGISTRY_CACHE_TTL_MS });
   return rows;
+}
+
+/**
+ * Passo U — fire-and-forget dispatch decision recorder. Writes to the
+ * dedicated `dispatch_decision_log` via SECURITY DEFINER RPC. NEVER
+ * includes PII or credentials. Failures are swallowed so that audit
+ * problems never block a real delivery.
+ */
+async function recordDecisionLog(args: {
+  workspaceId: string;
+  eventId: string | null;
+  provider: string;
+  destinationId: string | null;
+  decision: "allow" | "block" | "dry_run" | "test_mode" | "fallback";
+  reasons: string[];
+  matchedRows: number;
+  testMode: boolean;
+}): Promise<void> {
+  try {
+    await supabase.rpc("record_dispatch_decision" as never, {
+      _workspace_id: args.workspaceId,
+      _event_id: args.eventId,
+      _provider: args.provider,
+      _destination_id: args.destinationId,
+      _decision: args.decision,
+      _reasons: args.reasons,
+      _matched_rows: args.matchedRows,
+      _test_mode: args.testMode,
+    } as never);
+  } catch {
+    /* audit best-effort — never break a delivery */
+  }
 }
 
 /** Per-item gate. Returns the decision and list of items still allowed. */
