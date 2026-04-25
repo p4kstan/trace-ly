@@ -622,19 +622,55 @@ function TestDispatchPanel({ workspaceId, rows }: { workspaceId?: string; rows: 
 // Lists last 20 gate decisions (no PII, no credentials).
 // ════════════════════════════════════════════════════════════════
 function DecisionAuditPanel({ workspaceId }: { workspaceId?: string }) {
+  const [providerFilter, setProviderFilter] = useState<string>("all");
+  const [decisionFilter, setDecisionFilter] = useState<string>("all");
+  const [destinationFilter, setDestinationFilter] = useState<string>("");
+
   const auditQuery = useQuery({
-    queryKey: ["dispatch-audit", workspaceId],
+    queryKey: ["dispatch-audit", workspaceId, providerFilter, decisionFilter, destinationFilter],
     enabled: !!workspaceId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Passo U — prefer dedicated dispatch_decision_log via RPC (filters,
+      // pagination cap, no PII). Fallback to legacy event_deliveries scan
+      // when the RPC is unavailable on older deployments.
+      try {
+        const { data, error } = await supabase.rpc("list_dispatch_decisions" as never, {
+          _workspace_id: workspaceId!,
+          _provider: providerFilter === "all" ? null : providerFilter,
+          _destination_id: destinationFilter ? destinationFilter : null,
+          _decision: decisionFilter === "all" ? null : decisionFilter,
+          _limit: 50,
+        } as never);
+        if (!error && Array.isArray(data)) {
+          return (data as Array<Record<string, unknown>>).map((r) => ({
+            id: r.id as string,
+            event_id: (r.event_id as string) ?? null,
+            provider: r.provider as string,
+            destination: (r.destination_id as string) ?? "—",
+            decision: r.decision as string,
+            reasons: Array.isArray(r.reasons) ? (r.reasons as string[]) : [],
+            test_mode: r.test_mode === true,
+            last_attempt_at: r.created_at as string,
+            status: r.decision as string,
+            request_json: { reasons: r.reasons },
+          }));
+        }
+      } catch { /* fall through */ }
+      const { data } = await supabase
         .from("event_deliveries")
         .select("id,event_id,provider,destination,status,last_attempt_at,request_json,error_message")
         .eq("workspace_id", workspaceId!)
         .eq("status", "skipped")
         .order("last_attempt_at", { ascending: false })
         .limit(20);
-      if (error) throw error;
-      return data ?? [];
+      return (data ?? []).map((row: Record<string, unknown>) => ({
+        ...row,
+        reasons: Array.isArray((row.request_json as { reasons?: unknown })?.reasons)
+          ? ((row.request_json as { reasons: string[] }).reasons)
+          : [],
+        decision: (row.request_json as { dispatch_decision?: string })?.dispatch_decision ?? row.status,
+        test_mode: false,
+      }));
     },
   });
 
@@ -645,13 +681,40 @@ function DecisionAuditPanel({ workspaceId }: { workspaceId?: string }) {
           <History className="h-4 w-4 text-primary" /> Auditoria de decisões de dispatch
         </CardTitle>
         <CardDescription>
-          Últimas 20 decisões registradas pelo gate. Mostra apenas event_id / provider / destination_id / motivos —
-          nunca PII e nunca segredos.
+          Últimas 50 decisões (Passo U). Sem PII, sem credenciais. Filtros por provider, destination e decision.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={providerFilter} onValueChange={setProviderFilter}>
+            <SelectTrigger className="h-8 w-[160px] text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os providers</SelectItem>
+              {PROVIDER_OPTIONS.map((p) => (
+                <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={decisionFilter} onValueChange={setDecisionFilter}>
+            <SelectTrigger className="h-8 w-[160px] text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as decisões</SelectItem>
+              <SelectItem value="allow">allow</SelectItem>
+              <SelectItem value="block">block</SelectItem>
+              <SelectItem value="dry_run">dry_run</SelectItem>
+              <SelectItem value="test_mode">test_mode</SelectItem>
+              <SelectItem value="fallback">fallback</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input
+            value={destinationFilter}
+            onChange={(e) => setDestinationFilter(e.target.value)}
+            placeholder="destination_id (opcional)"
+            className="h-8 w-[220px] text-xs"
+          />
+        </div>
         {!auditQuery.data?.length ? (
-          <div className="text-xs text-muted-foreground">Nenhuma decisão de bloqueio recente.</div>
+          <div className="text-xs text-muted-foreground">Nenhuma decisão recente para os filtros selecionados.</div>
         ) : (
           <div className="overflow-x-auto">
             <Table>
@@ -660,23 +723,24 @@ function DecisionAuditPanel({ workspaceId }: { workspaceId?: string }) {
                   <TableHead className="text-xs">Quando</TableHead>
                   <TableHead className="text-xs">Provider</TableHead>
                   <TableHead className="text-xs">Destination</TableHead>
-                  <TableHead className="text-xs">Status</TableHead>
+                  <TableHead className="text-xs">Decision</TableHead>
                   <TableHead className="text-xs">Motivos</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {auditQuery.data.map((row: any) => {
-                  const reasons = (row.request_json?.reasons ?? []) as string[];
-                  return (
-                    <TableRow key={row.id}>
-                      <TableCell className="text-[10px] font-mono">{row.last_attempt_at?.slice(0, 19)}</TableCell>
-                      <TableCell className="text-xs font-mono">{row.provider}</TableCell>
-                      <TableCell className="text-xs font-mono">{row.destination}</TableCell>
-                      <TableCell><Badge variant="outline" className="text-[10px]">{row.status}</Badge></TableCell>
-                      <TableCell className="text-xs font-mono">{reasons.join(", ") || "—"}</TableCell>
-                    </TableRow>
-                  );
-                })}
+                {auditQuery.data.map((row) => (
+                  <TableRow key={row.id}>
+                    <TableCell className="text-[10px] font-mono">{(row.last_attempt_at ?? "").slice(0, 19)}</TableCell>
+                    <TableCell className="text-xs font-mono">{row.provider}</TableCell>
+                    <TableCell className="text-xs font-mono">{row.destination}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-[10px]">
+                        {row.decision}{row.test_mode ? " · test" : ""}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs font-mono">{(row.reasons ?? []).join(", ") || "—"}</TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           </div>
