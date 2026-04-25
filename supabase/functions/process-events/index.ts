@@ -422,8 +422,8 @@ Deno.serve(async (req) => {
       processInParallel(metaEntries, CONCURRENCY, async ([pixelKey, items]) => {
         await processMetaBatch(pixelKey, items, pixelCache, stats);
       }),
-      processInParallel(nonMetaEntries, CONCURRENCY, async ({ provider, workspaceId, items }) => {
-        await processNonMetaBatch(provider, workspaceId, items, destCache, stats);
+      processInParallel(nonMetaEntries, CONCURRENCY, async ({ provider, workspaceId, destination, items }) => {
+        await processNonMetaBatch(provider, workspaceId, destination, items, destCache, stats);
       }),
     ]);
 
