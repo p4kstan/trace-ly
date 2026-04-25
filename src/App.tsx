@@ -1,10 +1,11 @@
 import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { ErrorBoundary } from "@/components/layout/ErrorBoundary";
+import { RouteErrorBoundary } from "@/components/layout/RouteErrorBoundary";
 import { LoadingSpinner, PageSkeleton } from "@/components/layout/LoadingSpinner";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -74,6 +75,7 @@ const queryClient = new QueryClient();
 
 function ProtectedRoutes() {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) return <LoadingSpinner />;
   if (!user) return <Navigate to="/auth" replace />;
@@ -81,6 +83,7 @@ function ProtectedRoutes() {
   return (
     <DashboardLayout>
       <Suspense fallback={<PageSkeleton />}>
+        <RouteErrorBoundary routeKey={location.pathname}>
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/attribution" element={<Attribution />} />
@@ -139,6 +142,7 @@ function ProtectedRoutes() {
           <Route path="/traffic-agent" element={<TrafficAgent />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </RouteErrorBoundary>
       </Suspense>
     </DashboardLayout>
   );

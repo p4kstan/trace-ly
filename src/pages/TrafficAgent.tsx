@@ -11,6 +11,21 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Loader2, Shield, ShieldOff, Brain, Search, FileText } from "lucide-react";
 
+function safeStringify(value: unknown): string {
+  try {
+    const seen = new WeakSet();
+    return JSON.stringify(value ?? {}, (_k, v) => {
+      if (typeof v === "object" && v !== null) {
+        if (seen.has(v)) return "[circular]";
+        seen.add(v);
+      }
+      return v;
+    }, 2) ?? "{}";
+  } catch {
+    return "[unserializable]";
+  }
+}
+
 export default function TrafficAgent() {
   const { data: workspace } = useWorkspace();
   const wid = workspace?.id;
@@ -20,25 +35,40 @@ export default function TrafficAgent() {
   const [logs, setLogs] = useState<any[]>([]);
   const [guardrails, setGuardrails] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [docTitle, setDocTitle] = useState("");
   const [docContent, setDocContent] = useState("");
 
-  useEffect(() => { if (wid) refresh(); }, [wid]);
+  useEffect(() => {
+    if (!wid) return;
+    refresh().catch((e) => setRefreshError(e?.message ?? "Falha ao carregar"));
+  }, [wid]);
 
   async function refresh() {
     if (!wid) return;
-    const [{ data: r }, { data: rs }, { data: d }, { data: l }, { data: g }] = await Promise.all([
-      supabase.rpc("list_traffic_agent_recommendations" as any, { _workspace_id: wid, _limit: 50 }),
-      supabase.from("traffic_agent_runs" as any).select("*").eq("workspace_id", wid).order("started_at", { ascending: false }).limit(10),
-      supabase.from("traffic_agent_knowledge_documents" as any).select("*").eq("workspace_id", wid).order("created_at", { ascending: false }).limit(20),
-      supabase.from("traffic_agent_action_logs" as any).select("*").eq("workspace_id", wid).order("created_at", { ascending: false }).limit(20),
-      supabase.rpc("get_or_create_traffic_agent_guardrails" as any, { _workspace_id: wid }),
-    ]);
-    setRecs((r as any[]) ?? []); setRuns((rs as any[]) ?? []);
-    setDocs((d as any[]) ?? []); setLogs((l as any[]) ?? []);
-    setGuardrails(g);
+    setRefreshing(true);
+    setRefreshError(null);
+    try {
+      const [r1, r2, r3, r4, r5] = await Promise.all([
+        supabase.rpc("list_traffic_agent_recommendations" as any, { _workspace_id: wid, _limit: 50 }),
+        supabase.from("traffic_agent_runs" as any).select("*").eq("workspace_id", wid).order("started_at", { ascending: false }).limit(10),
+        supabase.from("traffic_agent_knowledge_documents" as any).select("*").eq("workspace_id", wid).order("created_at", { ascending: false }).limit(20),
+        supabase.from("traffic_agent_action_logs" as any).select("*").eq("workspace_id", wid).order("created_at", { ascending: false }).limit(20),
+        supabase.rpc("get_or_create_traffic_agent_guardrails" as any, { _workspace_id: wid }),
+      ]);
+      setRecs(Array.isArray(r1.data) ? r1.data : []);
+      setRuns(Array.isArray(r2.data) ? r2.data : []);
+      setDocs(Array.isArray(r3.data) ? r3.data : []);
+      setLogs(Array.isArray(r4.data) ? r4.data : []);
+      setGuardrails(r5.data ?? null);
+    } catch (e: any) {
+      setRefreshError(e?.message ?? "Falha ao carregar dados");
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   async function runEvaluate() {
@@ -55,42 +85,50 @@ export default function TrafficAgent() {
   }
 
   async function simulate(recId: string) {
-    const { data, error } = await supabase.functions.invoke("traffic-agent-simulate", {
-      body: { workspace_id: wid, recommendation_id: recId },
-    });
-    if (error) { toast.error(error.message); return; }
-    const decision = data?.guardrail_decision;
-    toast(decision?.allowed ? "Permitido (mas dry-run)" : "Bloqueado por guardrails", {
-      description: (decision?.reasons ?? []).map((r: any) => r.code).join(", "),
-    });
+    try {
+      const { data, error } = await supabase.functions.invoke("traffic-agent-simulate", {
+        body: { workspace_id: wid, recommendation_id: recId },
+      });
+      if (error) { toast.error(error.message); return; }
+      const decision = (data as any)?.guardrail_decision;
+      toast(decision?.allowed ? "Permitido (mas dry-run)" : "Bloqueado por guardrails", {
+        description: ((decision?.reasons ?? []) as any[]).map((r: any) => r?.code).filter(Boolean).join(", "),
+      });
+    } catch (e: any) { toast.error(e?.message ?? "Falha ao simular"); }
   }
 
   async function execute(recId: string) {
-    const { data, error } = await supabase.functions.invoke("traffic-agent-execute", {
-      body: { workspace_id: wid, recommendation_id: recId },
-    });
-    if (error) { toast.error(error.message); return; }
-    toast.success("Action registrado (dry-run, sem mutação externa)");
-    await refresh();
+    try {
+      const { error } = await supabase.functions.invoke("traffic-agent-execute", {
+        body: { workspace_id: wid, recommendation_id: recId },
+      });
+      if (error) { toast.error(error.message); return; }
+      toast.success("Action registrado (dry-run, sem mutação externa)");
+      await refresh();
+    } catch (e: any) { toast.error(e?.message ?? "Falha ao registrar"); }
   }
 
   async function indexDoc() {
     if (!wid || !docTitle || docContent.length < 10) { toast.error("Preencha título e conteúdo"); return; }
-    const { error } = await supabase.functions.invoke("traffic-agent-rag-index", {
-      body: { workspace_id: wid, title: docTitle, source_type: "manual", content: docContent },
-    });
-    if (error) { toast.error(error.message); return; }
-    toast.success("Documento indexado");
-    setDocTitle(""); setDocContent(""); await refresh();
+    try {
+      const { error } = await supabase.functions.invoke("traffic-agent-rag-index", {
+        body: { workspace_id: wid, title: docTitle, source_type: "manual", content: docContent },
+      });
+      if (error) { toast.error(error.message); return; }
+      toast.success("Documento indexado");
+      setDocTitle(""); setDocContent(""); await refresh();
+    } catch (e: any) { toast.error(e?.message ?? "Falha ao indexar"); }
   }
 
   async function searchKnowledge() {
     if (!wid || search.trim().length < 2) return;
-    const { data, error } = await supabase.functions.invoke("traffic-agent-rag-search", {
-      body: { workspace_id: wid, query: search, limit: 5 },
-    });
-    if (error) { toast.error(error.message); return; }
-    setResults((data as any)?.results ?? []);
+    try {
+      const { data, error } = await supabase.functions.invoke("traffic-agent-rag-search", {
+        body: { workspace_id: wid, query: search, limit: 5 },
+      });
+      if (error) { toast.error(error.message); return; }
+      setResults(Array.isArray((data as any)?.results) ? (data as any).results : []);
+    } catch (e: any) { toast.error(e?.message ?? "Falha ao buscar"); }
   }
 
   return (
@@ -130,8 +168,10 @@ export default function TrafficAgent() {
         </TabsList>
 
         <TabsContent value="recs" className="space-y-2 min-w-0">
-          {recs.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma recomendação. Clique em "Avaliar agora".</p>}
-          {recs.map((r) => (
+          {refreshError && <p className="text-sm text-destructive break-words">{refreshError}</p>}
+          {!refreshError && refreshing && recs.length === 0 && <p className="text-sm text-muted-foreground">Carregando…</p>}
+          {!refreshError && !refreshing && recs.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma recomendação. Clique em "Avaliar agora".</p>}
+          {(recs ?? []).map((r) => (
             <Card key={r.id} className="min-w-0">
               <CardHeader className="p-4 pb-2">
                 <div className="flex flex-wrap items-center gap-2 min-w-0">
@@ -143,9 +183,9 @@ export default function TrafficAgent() {
                 </div>
                 <CardDescription className="break-words">{r.rationale}</CardDescription>
               </CardHeader>
-              <CardContent className="p-4 pt-0 space-y-2">
-                <pre className="text-xs bg-muted p-2 rounded overflow-x-auto whitespace-pre-wrap break-words max-w-full">
-                  {JSON.stringify(r.evidence_json ?? {}, null, 2)}
+              <CardContent className="p-4 pt-0 space-y-2 min-w-0">
+                <pre className="text-xs bg-muted p-2 rounded overflow-auto whitespace-pre-wrap break-all max-w-full max-h-64">
+                  {safeStringify(r.evidence_json)}
                 </pre>
                 <div className="flex gap-2 flex-wrap">
                   <Button size="sm" variant="outline" onClick={() => simulate(r.id)}>Simular</Button>
@@ -157,10 +197,11 @@ export default function TrafficAgent() {
         </TabsContent>
 
         <TabsContent value="runs" className="space-y-2 min-w-0">
-          {runs.map((r) => (
-            <Card key={r.id}><CardContent className="p-3 text-sm break-words">
-              <div className="flex flex-wrap gap-2 items-center"><Badge>{r.status}</Badge><span className="text-muted-foreground">{r.started_at}</span></div>
-              <pre className="text-xs mt-2 overflow-x-auto whitespace-pre-wrap break-words">{JSON.stringify(r.summary ?? {}, null, 2)}</pre>
+          {!refreshing && (runs ?? []).length === 0 && <p className="text-sm text-muted-foreground">Nenhum run ainda.</p>}
+          {(runs ?? []).map((r) => (
+            <Card key={r.id}><CardContent className="p-3 text-sm break-words min-w-0">
+              <div className="flex flex-wrap gap-2 items-center"><Badge>{r.status}</Badge><span className="text-muted-foreground break-all">{r.started_at}</span></div>
+              <pre className="text-xs mt-2 overflow-auto whitespace-pre-wrap break-all max-h-48 max-w-full">{safeStringify(r.summary)}</pre>
             </CardContent></Card>
           ))}
         </TabsContent>
@@ -168,7 +209,7 @@ export default function TrafficAgent() {
         <TabsContent value="rag" className="space-y-3 min-w-0">
           <Card>
             <CardHeader className="p-4 pb-2"><CardTitle className="text-base flex items-center gap-2"><FileText className="h-4 w-4" />Indexar conhecimento</CardTitle></CardHeader>
-            <CardContent className="p-4 pt-0 space-y-2">
+            <CardContent className="p-4 pt-0 space-y-2 min-w-0">
               <Label>Título</Label>
               <Input value={docTitle} onChange={(e) => setDocTitle(e.target.value)} />
               <Label>Conteúdo</Label>
@@ -178,18 +219,20 @@ export default function TrafficAgent() {
           </Card>
           <Card>
             <CardHeader className="p-4 pb-2"><CardTitle className="text-base flex items-center gap-2"><Search className="h-4 w-4" />Buscar</CardTitle></CardHeader>
-            <CardContent className="p-4 pt-0 space-y-2">
+            <CardContent className="p-4 pt-0 space-y-2 min-w-0">
               <div className="flex gap-2 flex-wrap">
                 <Input value={search} onChange={(e) => setSearch(e.target.value)} className="min-w-0 flex-1" />
                 <Button onClick={searchKnowledge}>Buscar</Button>
               </div>
-              {results.map((r) => (
+              {(results ?? []).length === 0 && <p className="text-xs text-muted-foreground">Sem resultados.</p>}
+              {(results ?? []).map((r) => (
                 <div key={r.chunk_id} className="text-sm border-l-2 border-primary pl-3 break-words">{r.snippet}</div>
               ))}
             </CardContent>
           </Card>
           <div className="space-y-1">
-            {docs.map((d) => (
+            {(docs ?? []).length === 0 && <p className="text-xs text-muted-foreground">Nenhum documento indexado.</p>}
+            {(docs ?? []).map((d) => (
               <div key={d.id} className="text-sm flex flex-wrap gap-2 items-center min-w-0">
                 <Badge variant="outline">{d.source_type}</Badge><span className="break-words min-w-0">{d.title}</span>
               </div>
@@ -198,9 +241,10 @@ export default function TrafficAgent() {
         </TabsContent>
 
         <TabsContent value="logs" className="space-y-1 min-w-0">
-          {logs.map((l) => (
-            <Card key={l.id}><CardContent className="p-3 text-sm break-words">
-              <div className="flex gap-2 items-center flex-wrap"><Badge variant={l.level === "warn" ? "destructive" : "outline"}>{l.level}</Badge><span className="text-xs text-muted-foreground">{l.created_at}</span></div>
+          {!refreshing && (logs ?? []).length === 0 && <p className="text-sm text-muted-foreground">Sem logs.</p>}
+          {(logs ?? []).map((l) => (
+            <Card key={l.id}><CardContent className="p-3 text-sm break-words min-w-0">
+              <div className="flex gap-2 items-center flex-wrap"><Badge variant={l.level === "warn" ? "destructive" : "outline"}>{l.level}</Badge><span className="text-xs text-muted-foreground break-all">{l.created_at}</span></div>
               <p className="mt-1 break-words">{l.message}</p>
             </CardContent></Card>
           ))}
