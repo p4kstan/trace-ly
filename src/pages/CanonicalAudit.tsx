@@ -28,7 +28,6 @@ type TrackedEventRow = {
   destination: string;
   status: string;
   attempts: number | null;
-  last_error: string | null;
   first_seen_at: string;
   last_seen_at: string;
 };
@@ -89,7 +88,7 @@ export default function CanonicalAudit() {
     queryFn: async () => {
       let q = supabase
         .from("tracked_events")
-        .select("id, workspace_id, event_id, provider, destination, status, attempts, last_error, first_seen_at, last_seen_at")
+        .select("id, workspace_id, event_id, provider, destination, status, attempts, first_seen_at, last_seen_at")
         .eq("workspace_id", workspace!.id)
         .order("last_seen_at", { ascending: false })
         .limit(100);
