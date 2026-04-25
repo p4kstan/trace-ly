@@ -88,12 +88,12 @@ describe("AuditLogViewer.redactValue", () => {
   });
 
   it("truncates extremely long strings to avoid leaking blobs", () => {
-    const big = "a".repeat(500);
-    const out = redactValue({ description: big }) as string | { description: string };
-    // `description` is not in PII set → string redaction path → truncation
-    // applies (length > 240).
-    expect((out as any).description.length).toBeLessThanOrEqual(241);
-    expect((out as any).description.endsWith("…")).toBe(true);
+    // Use non-hex chars so HEX_TOKEN_RE doesn't fire — we want to exercise
+    // the length-truncation branch specifically.
+    const big = "z".repeat(500);
+    const out = redactValue({ description: big }) as { description: string };
+    expect(out.description.length).toBeLessThanOrEqual(241);
+    expect(out.description.endsWith("…")).toBe(true);
   });
 
   it("preserves null / numbers / booleans verbatim", () => {
