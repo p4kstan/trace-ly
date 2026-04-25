@@ -59,6 +59,7 @@ const TrackingDebug = lazy(() => import("@/pages/TrackingDebug"));
 const CanonicalAudit = lazy(() => import("@/pages/CanonicalAudit"));
 const RetryObservability = lazy(() => import("@/pages/RetryObservability"));
 const GoLiveChecklist = lazy(() => import("@/pages/GoLiveChecklist"));
+const RateLimitConfigs = lazy(() => import("@/pages/RateLimitConfigs"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
