@@ -51,7 +51,8 @@ describe("sanitizeForLog", () => {
   });
 
   it("masks JWTs and Pix EMV strings", () => {
-    const jwt = "eyJhbGciOi.eyJzdWIiOiIxMjM0NTY.SflKxwRJSMeKKF2QT4fwpMeJf36";
+    // Each JWT segment must be ≥ 8 chars after the leading "eyJ".
+    const jwt = "eyJhbGciOiJIUzI1NiIs.eyJzdWIiOiIxMjM0NTY.SflKxwRJSMeKKF2QT4fwpMeJf36";
     const pix = "00020126" + "a".repeat(60);
     const out = sanitizeForLog({ note: `token=${jwt} pix=${pix}` }) as any;
     expect(out.note).toContain("[REDACTED_JWT]");
