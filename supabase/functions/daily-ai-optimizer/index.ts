@@ -53,7 +53,7 @@ interface ChannelStat {
   conv_rate: number;
 }
 
-async function aggregateForWorkspace(supabase: ReturnType<typeof createClient>, workspaceId: string) {
+async function aggregateForWorkspace(supabase: any, workspaceId: string) {
   const sinceISO = new Date(Date.now() - 7 * 86400_000).toISOString();
 
   const [{ data: conversions }, { data: hybrid }, { data: touches }, { data: recentActions }] =
