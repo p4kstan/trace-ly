@@ -379,6 +379,56 @@ export type Database = {
           },
         ]
       }
+      audience_seed_exports: {
+        Row: {
+          created_at: string
+          destination_customer_id: string | null
+          error_message: string | null
+          filters_json: Json
+          id: string
+          platform: string
+          require_consent: boolean
+          row_count: number
+          status: string
+          user_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          destination_customer_id?: string | null
+          error_message?: string | null
+          filters_json?: Json
+          id?: string
+          platform: string
+          require_consent?: boolean
+          row_count?: number
+          status?: string
+          user_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          destination_customer_id?: string | null
+          error_message?: string | null
+          filters_json?: Json
+          id?: string
+          platform?: string
+          require_consent?: boolean
+          row_count?: number
+          status?: string
+          user_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audience_seed_exports_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           action: string
@@ -921,7 +971,7 @@ export type Database = {
         Row: {
           attempt_count: number
           created_at: string
-          destination: string | null
+          destination: string
           event_id: string | null
           id: string
           last_error: string | null
@@ -937,7 +987,7 @@ export type Database = {
         Insert: {
           attempt_count?: number
           created_at?: string
-          destination?: string | null
+          destination?: string
           event_id?: string | null
           id?: string
           last_error?: string | null
@@ -953,7 +1003,7 @@ export type Database = {
         Update: {
           attempt_count?: number
           created_at?: string
-          destination?: string | null
+          destination?: string
           event_id?: string | null
           id?: string
           last_error?: string | null
@@ -3204,6 +3254,9 @@ export type Database = {
       }
       identities: {
         Row: {
+          ads_consent_at: string | null
+          ads_consent_granted: boolean
+          ads_consent_source: string | null
           email: string | null
           email_hash: string | null
           external_id: string | null
@@ -3211,12 +3264,17 @@ export type Database = {
           first_seen_at: string
           id: string
           last_seen_at: string
+          msclkid: string | null
           name: string | null
           phone: string | null
           phone_hash: string | null
+          pii_retention_until: string | null
           workspace_id: string
         }
         Insert: {
+          ads_consent_at?: string | null
+          ads_consent_granted?: boolean
+          ads_consent_source?: string | null
           email?: string | null
           email_hash?: string | null
           external_id?: string | null
@@ -3224,12 +3282,17 @@ export type Database = {
           first_seen_at?: string
           id?: string
           last_seen_at?: string
+          msclkid?: string | null
           name?: string | null
           phone?: string | null
           phone_hash?: string | null
+          pii_retention_until?: string | null
           workspace_id: string
         }
         Update: {
+          ads_consent_at?: string | null
+          ads_consent_granted?: boolean
+          ads_consent_source?: string | null
           email?: string | null
           email_hash?: string | null
           external_id?: string | null
@@ -3237,9 +3300,11 @@ export type Database = {
           first_seen_at?: string
           id?: string
           last_seen_at?: string
+          msclkid?: string | null
           name?: string | null
           phone?: string | null
           phone_hash?: string | null
+          pii_retention_until?: string | null
           workspace_id?: string
         }
         Relationships: [
@@ -3785,7 +3850,11 @@ export type Database = {
       }
       orders: {
         Row: {
+          ads_consent_at: string | null
+          ads_consent_granted: boolean
+          ads_consent_source: string | null
           canceled_at: string | null
+          canonical_event_id: string | null
           client_ip: string | null
           coupon_code: string | null
           created_at: string
@@ -3814,15 +3883,21 @@ export type Database = {
           identity_id: string | null
           installments: number | null
           landing_page: string | null
+          msclkid: string | null
           order_created_at: string | null
           paid_at: string | null
+          parent_order_code: string | null
           payment_method: string | null
           pixel_id: string | null
+          purchase_tracked_at: string | null
+          purchase_tracked_source: string | null
           referrer: string | null
           refunded_at: string | null
+          root_order_code: string | null
           session_id: string | null
           shipping_value: number | null
           status: string
+          step_key: string | null
           subtotal_value: number | null
           total_value: number | null
           ttclid: string | null
@@ -3837,7 +3912,11 @@ export type Database = {
           workspace_id: string
         }
         Insert: {
+          ads_consent_at?: string | null
+          ads_consent_granted?: boolean
+          ads_consent_source?: string | null
           canceled_at?: string | null
+          canonical_event_id?: string | null
           client_ip?: string | null
           coupon_code?: string | null
           created_at?: string
@@ -3866,15 +3945,21 @@ export type Database = {
           identity_id?: string | null
           installments?: number | null
           landing_page?: string | null
+          msclkid?: string | null
           order_created_at?: string | null
           paid_at?: string | null
+          parent_order_code?: string | null
           payment_method?: string | null
           pixel_id?: string | null
+          purchase_tracked_at?: string | null
+          purchase_tracked_source?: string | null
           referrer?: string | null
           refunded_at?: string | null
+          root_order_code?: string | null
           session_id?: string | null
           shipping_value?: number | null
           status?: string
+          step_key?: string | null
           subtotal_value?: number | null
           total_value?: number | null
           ttclid?: string | null
@@ -3889,7 +3974,11 @@ export type Database = {
           workspace_id: string
         }
         Update: {
+          ads_consent_at?: string | null
+          ads_consent_granted?: boolean
+          ads_consent_source?: string | null
           canceled_at?: string | null
+          canonical_event_id?: string | null
           client_ip?: string | null
           coupon_code?: string | null
           created_at?: string
@@ -3918,15 +4007,21 @@ export type Database = {
           identity_id?: string | null
           installments?: number | null
           landing_page?: string | null
+          msclkid?: string | null
           order_created_at?: string | null
           paid_at?: string | null
+          parent_order_code?: string | null
           payment_method?: string | null
           pixel_id?: string | null
+          purchase_tracked_at?: string | null
+          purchase_tracked_source?: string | null
           referrer?: string | null
           refunded_at?: string | null
+          root_order_code?: string | null
           session_id?: string | null
           shipping_value?: number | null
           status?: string
+          step_key?: string | null
           subtotal_value?: number | null
           total_value?: number | null
           ttclid?: string | null
@@ -4291,6 +4386,7 @@ export type Database = {
           identity_id: string | null
           ip_hash: string | null
           landing_page: string | null
+          msclkid: string | null
           referrer: string | null
           region: string | null
           ttclid: string | null
@@ -4320,6 +4416,7 @@ export type Database = {
           identity_id?: string | null
           ip_hash?: string | null
           landing_page?: string | null
+          msclkid?: string | null
           referrer?: string | null
           region?: string | null
           ttclid?: string | null
@@ -4349,6 +4446,7 @@ export type Database = {
           identity_id?: string | null
           ip_hash?: string | null
           landing_page?: string | null
+          msclkid?: string | null
           referrer?: string | null
           region?: string | null
           ttclid?: string | null
@@ -4447,6 +4545,62 @@ export type Database = {
           },
           {
             foreignKeyName: "subscriptions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tracked_events: {
+        Row: {
+          attempts: number
+          delivered_at: string | null
+          destination: string
+          event_id: string
+          event_name: string
+          first_seen_at: string
+          id: string
+          last_seen_at: string
+          metadata_json: Json
+          provider: string
+          source: string | null
+          status: string
+          workspace_id: string
+        }
+        Insert: {
+          attempts?: number
+          delivered_at?: string | null
+          destination?: string
+          event_id: string
+          event_name: string
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          metadata_json?: Json
+          provider?: string
+          source?: string | null
+          status?: string
+          workspace_id: string
+        }
+        Update: {
+          attempts?: number
+          delivered_at?: string | null
+          destination?: string
+          event_id?: string
+          event_name?: string
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          metadata_json?: Json
+          provider?: string
+          source?: string | null
+          status?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tracked_events_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
