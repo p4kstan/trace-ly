@@ -329,7 +329,7 @@ function NewConfigForm({
             criar
           </Button>
         </div>
-        <p className="md:col-span-5 text-xs text-muted-foreground">
+        <p className="sm:col-span-2 lg:col-span-5 text-xs text-muted-foreground">
           Limites permitidos: janela {WINDOW_MIN}–{WINDOW_MAX}s, max reqs {HITS_MIN}–{HITS_MAX}.
           Alterações são auditadas em <code>audit_logs</code> sem expor PII.
         </p>
