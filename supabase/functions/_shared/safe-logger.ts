@@ -182,6 +182,19 @@ export function createSafeLogger(scope: string): SafeLogger {
     const safe = args.map((a) => sanitizeForLog(a));
     // eslint-disable-next-line no-console
     (console as any)[level === "debug" ? "log" : level](prefix, ...safe);
+    // Optional debug side-channel: categories only, never values.
+    if (DEBUG_ENABLED) {
+      const merged: RedactionStats = {};
+      for (const a of args) {
+        const s = redactionStats(a);
+        for (const [k, v] of Object.entries(s)) merged[k] = (merged[k] || 0) + v;
+      }
+      const totals = Object.keys(merged).length;
+      if (totals > 0) {
+        // eslint-disable-next-line no-console
+        console.log(`${prefix} [redaction-debug]`, merged);
+      }
+    }
   };
   return {
     log:   (...a) => emit("log",   a),
