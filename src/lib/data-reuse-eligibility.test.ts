@@ -63,9 +63,14 @@ describe("data-reuse-eligibility (Passo P)", () => {
   it("coverage report aggregates counters without leaking identifiers", () => {
     const report = buildCoverageReport({
       records: [
-        baseRecord(),
-        baseRecord({ click_ids: { fbclid: true } }),
-        baseRecord({ paid: false, consent_marketing: false, has_email_hash: false }),
+        baseRecord(),                                    // gclid + fbclid
+        baseRecord({ click_ids: { fbclid: true } }),     // fbclid only
+        baseRecord({                                     // unpaid, no consent, no hashes, no clicks
+          paid: false,
+          consent_marketing: false,
+          has_email_hash: false,
+          click_ids: {},
+        }),
       ],
     });
     expect(report.total).toBe(3);
@@ -76,10 +81,10 @@ describe("data-reuse-eligibility (Passo P)", () => {
     expect(report.audience_seed_eligible).toBe(2);
     expect(report.offline_eligible_per_provider.google_ads).toBe(1);
     expect(report.offline_eligible_per_provider.meta).toBe(2);
-    // Sanity: serialized report must NOT contain "email" or "phone" raw
+    // Sanity: serialized report must NOT contain raw email or hash strings
     const json = JSON.stringify(report);
-    expect(json).not.toMatch(/@/); // no email-like value
-    expect(json).not.toMatch(/[a-f0-9]{40,}/); // no hash leaked
+    expect(json).not.toMatch(/@/);
+    expect(json).not.toMatch(/[a-f0-9]{40,}/);
   });
 
   it("preview envelope is dry_run true and carries notes warning about ML reuse", () => {
