@@ -250,98 +250,220 @@ function purchaseBlock(cfg: NativeCheckoutConfig): string {
 
   const sections: string[] = [];
 
-  // Bloco fixo: regra de checkout em duas etapas (Main + TMT/taxa/upsell)
-  sections.push(`### 4.0a Checkout em DUAS ETAPAS — Pedido Principal + TMT/Taxa/Upsell (CRÍTICO)
-Quando o checkout cobra **duas transações legítimas** no mesmo fluxo (pedido principal + taxa
-operacional/TMT/upsell de uma segunda tela), as duas precisam virar Purchase **separados,
-deduplicáveis e correlacionáveis**. Erros comuns que QUEBRAM atribuição:
+  // Bloco genérico: regra de checkout multi-etapas (Main + N pagamentos adicionais)
+  sections.push(`### 4.0a Checkout MULTI-ETAPAS — Pedido Principal + N Pagamentos Adicionais (CRÍTICO)
+Muitos checkouts cobram **mais de uma transação legítima** no mesmo fluxo: pedido principal
+\`+\` pagamentos adicionais (ex.: taxa de entrega, taxa de manipulação, seguro, frete express,
+prioridade, garantia estendida, upsell de uma segunda tela, complemento, **TMT**, etc.).
+Pode haver **2, 3, 5 ou mais etapas** com **qualquer nome de página/rota**.
 
-- ❌ Enviar a TMT com \`event_id\` cru tipo \`EV-20260425-XXXX\` (sem prefixo).
-- ❌ Usar o orderCode da PRÓPRIA TMT como event_id principal (\`purchase:<orderCodeTMT>\`)
-  em vez de referenciar o pedido pai.
-- ❌ TMT chegar no \`/track\` sem \`gclid/msclkid/fbp/utm_*/session_id\` (gateway criou a taxa
-  com metadata vazia e o backend não buscou o pedido pai).
-- ❌ TMT enviar \`value\` somando o valor do pedido principal (infla a receita reportada).
+> ⚠️ **TMT é apenas um exemplo de etapa adicional** — a regra abaixo é **genérica** para N
+> pagamentos. **Não assuma o nome "TMT"** — descubra dinamicamente todas as etapas pagas
+> que existem no projeto-alvo.
 
-**Regras obrigatórias:**
+#### Auditoria obrigatória das etapas pagas (faça PRIMEIRO)
+Antes de implementar tracking, **mapeie no código do projeto-alvo** todas as páginas/rotas/
+componentes/funções que criam pagamento ou checkout session. Liste cada etapa encontrada com:
 
-1. **\`event_id\` da TMT = \`purchase:<orderCodePrincipal>:tmt\`** — referencia o pedido **pai**,
-   nunca o orderCode da própria TMT. Se a TMT não conhece o pai, use \`externalReference =
-   "tmt-<orderCodePrincipal>"\` ao criar a cobrança no gateway.
-2. **\`parent_order_code\`**: a transação TMT precisa ter coluna/atributo \`parent_order_code\`
-   derivado de \`externalReference\` (\`tmt-<orderCode>\` → \`<orderCode>\`) ou do estado salvo no
-   checkout. **Persista no banco.**
-3. **\`value\` da TMT**: somente o valor da própria taxa. **NÃO** somar/repetir o valor do
-   pedido principal (cada Purchase reporta seu próprio value para os ads).
-4. **Herança de metadata**: a TMT herda do pedido pai TODOS os campos de atribuição:
-   \`gclid, gbraid, wbraid, fbclid, ttclid, msclkid, fbp, fbc, ga_client_id, session_id,
-   utm_source, utm_medium, utm_campaign, utm_content, utm_term, landing_page, referrer,
-   user_agent\` e \`client_ip\` quando disponível. Se o gateway criou a TMT com metadata
-   nula, o **webhook / check-pix-status / reconcile** deve buscar o pedido pai pelo
-   \`externalReference = tmt-<orderCodePrincipal>\` e completar os campos **antes** de
-   chamar \`/track\`.
-5. **Idempotência separada**: main e TMT podem coexistir, mas cada um precisa de trava
-   atômica própria — \`purchase_tracked_at\` para o pedido principal, \`tmt_tracked_at\`
-   (ou tabela \`event_id_sent\`) para a TMT. Reentrega de webhook, polling, reconcile
-   e F5 na thank-you **não podem** duplicar nenhum dos dois.
-6. **Fallback browser-side** (se existir): use exatamente \`purchase:<orderCodePrincipal>\`
-   para o main e \`purchase:<orderCodePrincipal>:tmt\` para a TMT — **nunca** event_id cru.
+| campo | descrição |
+|-------|-----------|
+| \`route/page/component\` | arquivo e rota onde a etapa é cobrada |
+| \`gateway/provider\` | gateway usado nessa etapa (pode variar entre etapas) |
+| \`product/description\` | o que está sendo cobrado |
+| \`value\` | valor isolado dessa etapa |
+| \`externalReference/metadata\` | como o gateway identifica a etapa |
+| \`status source\` | webhook? polling? confirmação síncrona? |
+| \`thank-you / next page\` | para onde o usuário vai após pagar |
+| \`step_key\` (sugerido) | identificador estável: \`main\`, \`shipping_fee\`, \`handling_fee\`, \`upsell_1\`, \`insurance\`, \`priority_fee\`, \`warranty\`, etc. |
+| \`relação com principal\` | é o pedido raiz, ou depende de um \`root_order_code\`? |
+
+#### Modelo canônico
+
+1. **\`root_order_code\` / \`root_checkout_id\`**: ID estável que representa a JORNADA inteira
+   (do início ao fim, abrangendo todas as cobranças). Costuma ser o orderCode do pedido
+   principal; se o checkout cria um \`checkoutId\` antes do pedido, esse vira o root.
+
+2. **Pedido principal**:
+   - \`step_key = "main"\`
+   - \`event_id = \\\`purchase:<root_order_code>\\\`\`
+
+3. **Cada pagamento adicional**:
+   - \`step_key\` **estável** derivado do tipo/rota/produto. Ex.: \`shipping_fee\`,
+     \`handling_fee\`, \`upsell_1\`, \`insurance\`, \`priority_fee\`, \`warranty\`, \`tmt\`.
+   - \`event_id = \\\`purchase:<root_order_code>:step:<step_key>\\\`\`.
+   - Se houver **repetições do mesmo tipo** no fluxo (ex.: 2 upsells), use índice
+     determinístico ou hash do \`transaction_id\` normalizado para evitar colisão:
+     \`purchase:<root>:step:upsell_2\` ou \`purchase:<root>:step:upsell:<txHash8>\`.
+
+4. **Erros que QUEBRAM atribuição (NUNCA fazer):**
+   - ❌ Enviar etapa adicional com \`event_id\` cru (\`EV-20260425-XXXX\`) sem prefixo \`purchase:\`.
+   - ❌ Usar o orderCode da **própria** etapa adicional como event_id principal
+     (\`purchase:<orderCodeDaTaxa>\`) em vez de referenciar o root.
+   - ❌ Etapa adicional chegar no \`/track\` sem \`gclid/msclkid/fbp/utm_*/session_id\`
+     (gateway criou cobrança com metadata vazia e o backend não buscou o root).
+   - ❌ Etapa adicional enviar \`value\` somando o valor do pedido principal
+     (infla a receita reportada).
+
+#### Relação pai → filho
+
+5. **\`parent_order_code\` / \`root_order_code\`** persistido no banco em **toda** etapa
+   adicional. \`externalReference\` no gateway deve seguir um padrão deterministico, ex.:
+   \`step:<step_key>:<root_order_code>\` ou \`<step_key>-<root_order_code>\` — documente
+   o padrão escolhido no código.
+6. **Webhook, polling e reconcile** devem identificar o root e o \`step_key\` mesmo
+   quando a página tem nome diferente (busca por \`externalReference\`, ou por
+   \`gateway_transaction_id → orders.parent_order_code\`).
+
+#### Atribuição (herança de metadata)
+
+7. O **pedido principal** captura e persiste: \`gclid, gbraid, wbraid, fbclid, ttclid,
+   msclkid, fbp, fbc, ga_client_id, session_id, utm_source, utm_medium, utm_campaign,
+   utm_content, utm_term, landing_page, referrer, user_agent\` e \`client_ip\` quando
+   disponível.
+8. **Toda etapa adicional** herda esses campos do pedido principal (root) **se não
+   vierem no metadata do gateway**. Lookup do root pelo \`externalReference\`/
+   \`parent_order_code\`. Se metadata da etapa adicional chegar vazia, o backend
+   (webhook/polling/reconcile) **completa antes** de chamar \`/track\`.
+
+#### Receita / conversão
+
+9. O pedido principal envia \`value\` do pedido principal.
+10. Cada etapa adicional envia \`value\` **somente daquela etapa**, sem somar/inflar
+    o pedido principal.
+11. Como reportar para os ads (cabeça do anunciante):
+    - Quer otimizar **só pelo pedido principal**? Trate as etapas adicionais como
+      eventos secundários (secondary conversion) ou apenas registre internamente.
+    - Quer otimizar **LTV / receita total**? Envie cada etapa como Purchase separado
+      com \`event_id\` único e \`value\` isolado.
+    - **Nunca** duplicar o mesmo Purchase para inflar receita.
+
+#### Idempotência multi-source (genérica para N etapas)
+
+12. **Trava por \`event_id\` / \`step_key\`**, não por uma única coluna
+    \`purchase_tracked_at\` (que bloquearia as adicionais). Recomendado:
+
+    \`\`\`sql
+    -- tabela genérica de despachos por evento (preferida quando N é dinâmico)
+    create table public.tracked_events (
+      event_id text primary key,
+      root_order_code text not null,
+      step_key text not null,
+      source text not null,
+      tracked_at timestamptz not null default now()
+    );
+    create index on public.tracked_events (root_order_code);
+    \`\`\`
+
+    Ou, se o número de etapas é **fixo e pequeno**, uma coluna por etapa
+    (\`purchase_tracked_at\`, \`shipping_fee_tracked_at\`, \`upsell_1_tracked_at\`).
+13. Webhook, polling, reconcile e fallback browser-side **passam pela mesma função
+    idempotente** por \`event_id\`. F5, reentrega de webhook, polling simultâneo e
+    reconcile **não podem duplicar**.
+
+#### Browser-side (fallback)
+
+14. Remover qualquer Purchase browser-side com \`event_id\` cru (sem prefixo).
+15. Se houver fallback no navegador (ex.: thank-you page), ele deve usar **exatamente
+    o mesmo** \`event_id\` server-side: main = \`purchase:<root_order_code>\`,
+    extras = \`purchase:<root_order_code>:step:<step_key>\`.
+16. \`sessionStorage\` deve ser **por event_id**, não uma flag única que bloqueia
+    todas as etapas:
+    \`\`\`ts
+    const fired = JSON.parse(sessionStorage.getItem("ct_fired_purchases") || "[]");
+    if (fired.includes(eventId)) return;
+    fired.push(eventId);
+    sessionStorage.setItem("ct_fired_purchases", JSON.stringify(fired));
+    \`\`\`
+
+#### Função genérica recomendada
 
 \`\`\`ts
-// supabase/functions/_shared/fire-purchase-tmt.ts
-export async function maybeFireTmtPurchase(parentOrderCode: string, source: string) {
-  // 1) Carrega o pedido PAI para herdar metadata de atribuição
-  const { data: parent } = await supabase
-    .from("orders").select("*").eq("order_code", parentOrderCode).maybeSingle();
-  if (!parent) { console.log({ source, parentOrderCode, skipped: "parent_not_found" }); return; }
+// supabase/functions/_shared/fire-step-purchase.ts
+// Genérica para QUALQUER etapa adicional (taxa, upsell, seguro, prioridade, TMT, etc.)
+export async function maybeFireStepPurchase(opts: {
+  rootOrderCode: string;
+  stepKey: string;          // "shipping_fee" | "handling_fee" | "upsell_1" | "insurance" | "tmt" | ...
+  stepOrderCode: string;    // orderCode da própria etapa adicional
+  source: string;           // "webhook" | "polling" | "reconcile" | "frontend"
+}) {
+  const { rootOrderCode, stepKey, stepOrderCode, source } = opts;
+  const eventId = \`purchase:\${rootOrderCode}:step:\${stepKey}\`;
 
-  // 2) Carrega a transação TMT (lookup por parent_order_code)
-  const { data: tmt, error } = await supabase
-    .from("orders")
-    .update({ tmt_tracked_at: new Date().toISOString(), tmt_tracked_source: source })
-    .eq("parent_order_code", parentOrderCode)
-    .is("tmt_tracked_at", null)
-    .select("*").maybeSingle();
-  if (error) throw error;
-  if (!tmt) { console.log({ source, parentOrderCode, skipped: "tmt_already_tracked" }); return; }
+  // 1) Trava atômica POR event_id (suporta N etapas sem colidir entre si)
+  const { data: lock, error: lockErr } = await supabase
+    .from("tracked_events")
+    .insert({ event_id: eventId, root_order_code: rootOrderCode, step_key: stepKey, source })
+    .select().maybeSingle();
+  if (lockErr) {
+    if (String(lockErr.message).includes("duplicate")) {
+      console.log({ source, eventId, skipped: "already_tracked" });
+      return { fired: false, reason: "already_tracked" };
+    }
+    throw lockErr;
+  }
 
-  // 3) event_id REFERENCIA o pedido pai + sufixo :tmt — NÃO usar orderCode da própria TMT
-  const eventId = \`purchase:\${parentOrderCode}:tmt\`;
+  // 2) Carrega o pedido raiz (atribuição)
+  const { data: root } = await supabase
+    .from("orders").select("*").eq("order_code", rootOrderCode).maybeSingle();
+  if (!root) {
+    console.log({ source, eventId, skipped: "root_not_found" });
+    return { fired: false, reason: "root_not_found" };
+  }
 
-  await fetch("${cfg.endpoint}", {
+  // 3) Carrega a transação da etapa adicional (valor isolado)
+  const { data: step } = await supabase
+    .from("orders").select("*").eq("order_code", stepOrderCode).maybeSingle();
+  if (!step) {
+    console.log({ source, eventId, skipped: "step_not_found" });
+    return { fired: false, reason: "step_not_found" };
+  }
+
+  // 4) Despacha — value APENAS desta etapa, metadata HERDADA do root
+  const r = await fetch("${cfg.endpoint}", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-api-key": "${cfg.publicKey || "<PUBLIC_KEY>"}" },
     body: JSON.stringify({
       event_name: "Purchase",
       event_id: eventId,
-      order_id: tmt.order_code,                  // orderCode da TMT
-      parent_order_id: parentOrderCode,          // referência ao principal
-      transaction_id: tmt.gateway_transaction_id,
-      value: tmt.total,                          // ⚠️ SOMENTE o valor da TMT
-      currency: tmt.currency || "BRL",
+      order_id: stepOrderCode,
+      parent_order_id: rootOrderCode,
+      step_key: stepKey,
+      transaction_id: step.gateway_transaction_id,
+      value: step.total,                         // ⚠️ APENAS o valor desta etapa
+      currency: step.currency || "BRL",
       payment_status: "paid",
       action_source: source === "frontend" ? "website" : "system_generated",
-      // Metadata HERDADA do pedido pai (case-sensitive, sem normalização):
-      gclid: parent.gclid, gbraid: parent.gbraid, wbraid: parent.wbraid,
-      fbclid: parent.fbclid, ttclid: parent.ttclid, msclkid: parent.msclkid,
-      fbp: parent.fbp, fbc: parent.fbc,
-      ga_client_id: parent.ga_client_id, client_id: parent.ga_client_id,
-      session_id: parent.session_id,
-      utm_source: parent.utm_source, utm_medium: parent.utm_medium,
-      utm_campaign: parent.utm_campaign, utm_content: parent.utm_content,
-      utm_term: parent.utm_term,
-      landing_page: parent.landing_page, referrer: parent.referrer,
-      user_agent: parent.user_agent, client_ip: parent.client_ip,
-      // PII hashada server-side pelo CapiTrack:
-      email: parent.customer_email, phone: parent.customer_phone,
+      // Metadata HERDADA do root (case-sensitive, sem normalização):
+      gclid: root.gclid, gbraid: root.gbraid, wbraid: root.wbraid,
+      fbclid: root.fbclid, ttclid: root.ttclid, msclkid: root.msclkid,
+      fbp: root.fbp, fbc: root.fbc,
+      ga_client_id: root.ga_client_id, client_id: root.ga_client_id,
+      session_id: root.session_id,
+      utm_source: root.utm_source, utm_medium: root.utm_medium,
+      utm_campaign: root.utm_campaign, utm_content: root.utm_content,
+      utm_term: root.utm_term,
+      landing_page: root.landing_page, referrer: root.referrer,
+      user_agent: root.user_agent, client_ip: root.client_ip,
+      email: root.customer_email, phone: root.customer_phone,
     }),
   });
 
-  console.log({ source, parentOrderCode, eventId, fired: true, value: tmt.total });
+  // 5) Se o POST falhar, REMOVA a trava para a próxima fonte tentar
+  if (!r.ok) {
+    await supabase.from("tracked_events").delete().eq("event_id", eventId);
+    throw new Error(\`fire failed: \${r.status}\`);
+  }
+
+  console.log({ source, eventId, rootOrderCode, stepKey, fired: true, value: step.total });
+  return { fired: true, eventId };
 }
 \`\`\`
 
-> 🔒 **Logs sem PII**: registre apenas \`orderCode, parent_order_code, event_id, value, source,
+> 💡 **Exemplo concreto** com TMT (apenas um dentre N possíveis):
+> \`maybeFireStepPurchase({ rootOrderCode, stepKey: "tmt", stepOrderCode: tmtOrderCode, source: "pix-webhook" })\`
+> → gera \`event_id = purchase:<rootOrderCode>:step:tmt\`.
+
+> 🔒 **Logs sem PII**: registre apenas \`root_order_code, step_key, event_id, value, source,
 > provider, status\`. Nunca CPF, e-mail, telefone, endereço, PIX copia-e-cola ou QR code.`);
 
   // Função compartilhada — central de Purchase idempotente
