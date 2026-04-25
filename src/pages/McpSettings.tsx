@@ -451,7 +451,7 @@ export default function McpSettings() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-yellow-500" /> Confirmar criação
+              <AlertTriangle className="w-5 h-5 text-warning" /> Confirmar criação
             </AlertDialogTitle>
             <AlertDialogDescription>
               Este token concederá acesso persistente ao agente Codex no workspace
