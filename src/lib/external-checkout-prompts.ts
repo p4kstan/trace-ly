@@ -399,6 +399,8 @@ O CapiTrack:
 7. UTMs / gclid / fbclid / msclkid aparecem persistidos no \`order\` mostrado em /orders.
 8. \`client_ip\` aparece no \`event_deliveries.request_json\` (capturado server-side, nunca do browser).
 
+${PASSO_M_HARDENING_BLOCK}
+
 ## Não faça
 - Não dispare Purchase apenas na thank-you (cliente fecha aba e some).
 - Não use \`<external_id>:Purchase\` como event_id — agora é \`purchase:<order_id>\`.

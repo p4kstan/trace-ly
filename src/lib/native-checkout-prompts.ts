@@ -820,6 +820,8 @@ ${cfg.methods.map(m => `- **${PAYMENT_META[m].label}**: ${PAYMENT_META[m].hint}`
     \`event_id\` correto, \`order_id\`, \`parent_order_id\` (em adicionais), \`step_key\`,
     \`transaction_id\`, \`session_id\`, \`gclid\` (case preservado), \`fbp\`, \`user_agent\`, \`client_ip\`.
 
+${PASSO_M_HARDENING_BLOCK}
+
 ## Não faça
 - Não use mais \`<externalId>:Purchase\` como event_id padrão.
 - Não envie event_id cru tipo \`EV-...\` (sem prefixo \`purchase:\`).
