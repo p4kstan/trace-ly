@@ -34,6 +34,23 @@ function nextRetryDelay(attempt: number): number {
   return Math.min(baseMs * Math.pow(4, attempt), 2 * 60 * 60 * 1000) + jitter;
 }
 
+async function updateTrackedEventStatus(items: any[], status: "delivered" | "retry" | "dead_letter") {
+  // Best-effort sync of tracked_events.status — keeps idempotency table in sync
+  // with actual delivery outcome. Silently ignored when the row doesn't exist
+  // (older queue items predating tracked_events).
+  for (const item of items) {
+    if (!item.event_id) continue;
+    await supabase.from("tracked_events").update({
+      status,
+      last_seen_at: new Date().toISOString(),
+    })
+      .eq("workspace_id", item.workspace_id)
+      .eq("event_id", item.event_id)
+      .eq("provider", item.provider)
+      .eq("destination", item.destination || "default");
+  }
+}
+
 async function handleFailure(item: any, errorMsg: string, stats: { failed: number; deadLettered: number }) {
   const newAttempt = item.attempt_count + 1;
   if (newAttempt >= item.max_attempts) {
@@ -49,6 +66,7 @@ async function handleFailure(item: any, errorMsg: string, stats: { failed: numbe
     if (item.event_id) {
       await supabase.from("events").update({ processing_status: "failed" }).eq("id", item.event_id);
     }
+    await updateTrackedEventStatus([item], "dead_letter");
     stats.deadLettered++;
   } else {
     const nextRetry = new Date(Date.now() + nextRetryDelay(newAttempt)).toISOString();
@@ -57,6 +75,7 @@ async function handleFailure(item: any, errorMsg: string, stats: { failed: numbe
       next_retry_at: nextRetry, last_error: errorMsg,
       updated_at: new Date().toISOString(),
     }).eq("id", item.id);
+    await updateTrackedEventStatus([item], "retry");
     stats.failed++;
   }
 }
@@ -70,6 +89,7 @@ async function markDelivered(items: any[], stats: { delivered: number }) {
   if (eventIds.length) {
     await supabase.from("events").update({ processing_status: "delivered" }).in("id", eventIds);
   }
+  await updateTrackedEventStatus(items, "delivered");
   stats.delivered += items.length;
 }
 
