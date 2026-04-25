@@ -47,7 +47,12 @@ import {
   buildDestinationDescriptors,
   type RegistryRow,
 } from "@/lib/ad-destination-registry";
-import { simulateRule, type AutomationRuleRow } from "@/lib/automation-rule-simulator";
+import {
+  simulateRule,
+  simulateRulesForScope,
+  type AutomationRuleRow,
+} from "@/lib/automation-rule-simulator";
+import { Button } from "@/components/ui/button";
 
 /**
  * Data Reuse Center — Passo P + Q.
