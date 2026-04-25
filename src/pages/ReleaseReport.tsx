@@ -13,6 +13,8 @@ import {
   GATEWAY_ADAPTER_CONTRACTS,
   type GatewayAdapterContract,
 } from "@/lib/gateway-adapter-contracts";
+import { GATEWAY_FAST_PATH_GUIDES } from "@/lib/gateway-fast-path-guides";
+
 
 /**
  * Operational Release Report — Passo M.
