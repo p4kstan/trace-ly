@@ -4299,6 +4299,7 @@ export type Database = {
         Row: {
           acknowledged: boolean
           acknowledged_at: string | null
+          acknowledged_by: string | null
           alert_type: string
           created_at: string
           destination: string
@@ -4310,12 +4311,14 @@ export type Database = {
           occurrences: number
           provider: string
           severity: string
+          status: string
           window_minutes: number
           workspace_id: string
         }
         Insert: {
           acknowledged?: boolean
           acknowledged_at?: string | null
+          acknowledged_by?: string | null
           alert_type: string
           created_at?: string
           destination?: string
@@ -4327,12 +4330,14 @@ export type Database = {
           occurrences?: number
           provider?: string
           severity?: string
+          status?: string
           window_minutes?: number
           workspace_id: string
         }
         Update: {
           acknowledged?: boolean
           acknowledged_at?: string | null
+          acknowledged_by?: string | null
           alert_type?: string
           created_at?: string
           destination?: string
@@ -4344,6 +4349,7 @@ export type Database = {
           occurrences?: number
           provider?: string
           severity?: string
+          status?: string
           window_minutes?: number
           workspace_id?: string
         }
@@ -4384,6 +4390,42 @@ export type Database = {
           user_id?: string | null
           window_seconds?: number
           window_start?: string
+          workspace_id?: string | null
+        }
+        Relationships: []
+      }
+      rate_limit_configs: {
+        Row: {
+          created_at: string
+          fail_closed: boolean
+          id: string
+          max_hits: number
+          notes: string | null
+          route: string
+          updated_at: string
+          window_seconds: number
+          workspace_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          fail_closed?: boolean
+          id?: string
+          max_hits?: number
+          notes?: string | null
+          route: string
+          updated_at?: string
+          window_seconds?: number
+          workspace_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          fail_closed?: boolean
+          id?: string
+          max_hits?: number
+          notes?: string | null
+          route?: string
+          updated_at?: string
+          window_seconds?: number
           workspace_id?: string | null
         }
         Relationships: []
@@ -5014,6 +5056,10 @@ export type Database = {
       }
     }
     Functions: {
+      acknowledge_queue_health_alert: {
+        Args: { _alert_id: string; _note?: string }
+        Returns: Json
+      }
       cleanup_expired_ga4_cache: { Args: never; Returns: number }
       cleanup_rate_limit_buckets: { Args: never; Returns: number }
       compute_attribution: {
