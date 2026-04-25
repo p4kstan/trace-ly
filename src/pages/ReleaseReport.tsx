@@ -99,10 +99,10 @@ export default function ReleaseReport() {
         </CardContent>
       </Card>
 
-      <Card className="border-amber-500/30 bg-amber-500/5">
+      <Card className="border-warning/30 bg-warning/5">
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-500" />
+            <AlertTriangle className="w-4 h-4 text-warning" />
             Auditoria semântica de RLS
           </CardTitle>
           <CardDescription>
@@ -154,7 +154,7 @@ export default function ReleaseReport() {
         </CardContent>
       </Card>
 
-      <Card className="border-emerald-500/20 bg-emerald-500/5">
+      <Card className="border-success/20 bg-success/5">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Alertas externos (opt-in)</CardTitle>
           <CardDescription>
