@@ -17,13 +17,16 @@ import { describe, it, expect } from "vitest";
 describe("rate_limit_hit contract", () => {
   it("window-aligned bucket boundary is deterministic per windowSeconds", () => {
     const windowSeconds = 60;
-    const t1 = 1_700_000_005; // 5 s into a minute
-    const t2 = 1_700_000_059; // 59 s into the same minute
+    // Pick a guaranteed minute-aligned anchor.
+    const anchor = 1_700_000_040; // 1_700_000_040 % 60 === 0
+    const t1 = anchor + 5;  // 5 s into the bucket
+    const t2 = anchor + 55; // 55 s into the same bucket
     const bucket1 = Math.floor(t1 / windowSeconds) * windowSeconds;
     const bucket2 = Math.floor(t2 / windowSeconds) * windowSeconds;
-    expect(bucket1).toBe(bucket2);
+    expect(bucket1).toBe(anchor);
+    expect(bucket2).toBe(anchor);
     // Crossing the boundary opens a NEW bucket — never mutates the old one.
-    const t3 = t2 + 2;
+    const t3 = anchor + 60 + 1;
     const bucket3 = Math.floor(t3 / windowSeconds) * windowSeconds;
     expect(bucket3).toBeGreaterThan(bucket1);
   });
