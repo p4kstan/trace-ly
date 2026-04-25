@@ -297,7 +297,7 @@ function NewConfigForm({
           <Plus className="w-4 h-4" /> Nova política
         </CardTitle>
       </CardHeader>
-      <CardContent className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+      <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
         <div className="md:col-span-2">
           <label className="text-xs text-muted-foreground">rota (Edge Function)</label>
           <Input
