@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, GitBranch, MonitorDot, ScrollText, Bug, Settings,
   Zap, Brain, CreditCard, HeartPulse, Key, LogOut, ShoppingCart, Webhook, Inbox, BookOpen, Cpu, Gauge,
-  Shield, TrendingUp, Lightbulb, Filter, Radio, Send, Code, FileText, HelpCircle, Layers, BarChart3, Wand2,
+  Shield, ShieldCheck, TrendingUp, Lightbulb, Filter, Radio, Send, Code, FileText, HelpCircle, Layers, BarChart3, Wand2,
   Megaphone, Music2, Copy,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
