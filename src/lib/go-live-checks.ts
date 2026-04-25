@@ -154,13 +154,25 @@ export const GO_LIVE_CHECKS: CertificationCheck[] = [
     id: "prompts-installable",
     scope: "all",
     area: "prompts",
-    title: "Prompts nativo + externo sincronizados (Passo M)",
+    title: "Prompts nativo + externo sincronizados (Passo M+Q)",
     description:
-      "Geradores incluem root_order_code/step_key, event_id canônico, test_mode, replay seguro, rate-limit, queue-health, retention dry-run, RLS, PII report, export preview/hash-only, consentimento, multi-destination e IA em recommendation com guardrails.",
+      "Geradores incluem root_order_code/step_key, event_id canônico, test_mode, replay seguro, rate-limit, queue-health, retention dry-run, RLS, PII report, export preview/hash-only, consentimento, multi-destination, IA em recommendation com guardrails, Data Reuse Center com paginação/preview por provider/coverage por click ID/multi-destination consistency/simulador dry-run.",
     enforcedBy:
       "src/lib/native-checkout-prompts.ts + external-checkout-prompts.ts + go-live-checks.ts",
     status: "enforced",
     link: { to: "/prompt-generator", label: "Abrir gerador de prompts" },
+  },
+  {
+    id: "data-reuse-center-q",
+    scope: "all",
+    area: "export",
+    title: "Data Reuse Center operacional (Passo Q)",
+    description:
+      "Paginação configurável, preview por provider (Google Ads / GA4 / Meta / TikTok / Microsoft via msclkid) hash-only com amostras mascaradas, coverage por click ID/UTM, multi-destination consistency e simulador dry-run com guardrails (auto bloqueado por default).",
+    enforcedBy:
+      "src/lib/data-reuse-providers.ts + multi-destination-consistency.ts + automation-simulator.ts + src/pages/DataReuseCenter.tsx",
+    status: "enforced",
+    link: { to: "/data-reuse-center", label: "Abrir Data Reuse Center" },
   },
 ];
 

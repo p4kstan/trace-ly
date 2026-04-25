@@ -849,7 +849,7 @@ ${PASSO_M_HARDENING_BLOCK}
 // IA em recommendation por padrão.
 // ──────────────────────────────────────────────────────────────────────────
 export const PASSO_M_HARDENING_BLOCK = `
-## 🔐 Controles de release endurecidos (Passo M+N+O+P — sincronizado)
+## 🔐 Controles de release endurecidos (Passo M+N+O+P+Q — sincronizado)
 Aplique TODOS no projeto-alvo:
 - **test_mode / replay seguro**: \`webhook-replay-test\` exige owner/admin, valida bounds, NÃO grava \`event_deliveries\` reais e usa rate-limit DB-backed sem IP cru. Nunca exponha \`CRON_SECRET\` no frontend.
 - **webhook-auth (Passo N)**: gateway-webhook EXIGE assinatura HMAC válida em produção (Stripe/Yampi/Shopify/Paddle/QuantumPay/genéricos com secret configurado). Sem assinatura ⇒ 401. \`event-replay\` e \`webhook-replay-test\` exigem JWT + workspace admin via \`requireUserJwt\`/\`requireWorkspaceAccess\`.
@@ -862,7 +862,7 @@ Aplique TODOS no projeto-alvo:
 - **Multi-destination**: cada Purchase pode espelhar para Meta/Google/TikTok/GA4 com dedup 4-col \`(workspace, event_id, provider, destination)\` — cada \`destination_id\`/\`account_id\`/\`conversion_action_id\` retém status e retry separados.
 - **IA em recommendation por padrão**: ações automatizadas só com guardrails explícitos; IA sugere, humano confirma — auto apenas com \`automation_rules.execution_mode='auto'\` (NÃO em \`action_json\`) + \`guardrails_json\` (cooldown_hours, max_items_per_run, min_conversions, min_bid_factor/max_bid_factor, allow_pause).
 - **Fast-path por gateway (Passo N+O)**: WooCommerce/Braip/CartPanda/PerfectPay seguem \`gateway-fast-path-guides.ts\` — webhook canônico \`?provider=generic\`, secret HMAC obrigatório, propagação de \`root_order_code\`/\`step_key\`/\`external_reference\`. Docs em \`/gateway-docs\`.
-- **Data Reuse Center (Passo P)**: \`/data-reuse-center\` mostra cobertura first-party (gclid/gbraid/wbraid/fbclid/ttclid/msclkid + email/phone hash) e elegibilidade offline conversion por provider. Preview hash-only, sem PII. Reuso NUNCA é cópia de aprendizado interno (ML) das plataformas — apenas calibração inicial via Customer Match / Custom Audience / lookalike / GA4↔Google Ads link.
+- **Data Reuse Center (Passo P+Q)**: \`/data-reuse-center\` mostra cobertura first-party (gclid/gbraid/wbraid/fbclid/ttclid/msclkid/ga_client_id/utm + email/phone hash) e elegibilidade offline conversion por provider. Tem paginação configurável (200/500/1000/2000/5000), preview por provider hash-only com amostras mascaradas, coverage report por click ID, verificador multi-destination consistency (duplicate/missing credential_ref/consent_gate) e simulador de automações dry-run com guardrails (min_conversions, cooldown_hours, max_budget_change_percent, max_bid_change_percent, rollback_plan). Auto bloqueado por padrão. Reuso NUNCA é cópia de aprendizado interno (ML).
 - **PII report + audit viewer**: confira em \`/pii-release-report\` e \`/audit-logs\` (com redaction client-side de email/CPF/CNPJ/JWT/IP).
 - **Relatório operacional**: status consolidado em \`/release-report\` (inclui marcador \`RLS semantic audit\` quando indisponível por falta de PGHOST em CI). Painel de RLS em \`/rls-warnings\`.
 `;

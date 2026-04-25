@@ -27,6 +27,7 @@ const REQUIRED_CONTROLS: Array<{ key: string; matcher: RegExp }> = [
   { key: "release-report",  matcher: /release-?report|relatório operacional/i },
   { key: "data-reuse",      matcher: /Data Reuse Center|data-reuse-center|reuso de dados/i },
   { key: "execution-mode",  matcher: /automation_rules\.execution_mode/i },
+  { key: "data-reuse-q",    matcher: /paginação|preview por provider|coverage.*click ID|multi-destination consistency|simulador.*dry-?run/i },
 ];
 
 function expectAllMentioned(label: string, body: string) {
