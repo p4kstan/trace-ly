@@ -24,6 +24,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.103.0";
 import { installSafeConsole } from "../_shared/install-safe-console.ts";
+import { checkRateLimit } from "../_shared/rate-limit.ts";
 
 installSafeConsole("webhook-replay-test");
 
@@ -35,25 +36,11 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-// ── Ad-hoc in-memory rate limit ─────────────────────────────────────────
-// Backend has no shared rate-limiter primitive yet; this is best-effort and
-// per-instance only. Window: 60s, max 30 replays per (workspace|user|ip) key.
-// Test harness only — production webhooks are NOT rate-limited here.
-const RL_WINDOW_MS = 60_000;
+// ── Persistent rate-limit (DB-backed via _shared/rate-limit.ts) ─────────
+// Window: 60s, max 30 replays per (workspace|user|ip_hash). Raw IP is hashed
+// before any DB write — this module never persists raw IP addresses.
+const RL_WINDOW_SECONDS = 60;
 const RL_MAX = 30;
-const rlBuckets = new Map<string, number[]>();
-function rateLimitHit(key: string): { ok: boolean; retryAfter: number } {
-  const now = Date.now();
-  const arr = (rlBuckets.get(key) || []).filter((t) => now - t < RL_WINDOW_MS);
-  if (arr.length >= RL_MAX) {
-    const retryAfter = Math.ceil((RL_WINDOW_MS - (now - arr[0])) / 1000);
-    rlBuckets.set(key, arr);
-    return { ok: false, retryAfter: Math.max(retryAfter, 1) };
-  }
-  arr.push(now);
-  rlBuckets.set(key, arr);
-  return { ok: true, retryAfter: 0 };
-}
 
 const FORBIDDEN_PII_KEYS = [
   "email", "phone", "telephone", "cpf", "cnpj", "document",
@@ -147,24 +134,28 @@ Deno.serve(async (req) => {
     });
   }
 
-  // ── Rate limit (best-effort, per-instance) ──────────────────────────
-  // Key includes user, workspace and best-effort client IP. We never store
-  // the IP — it only lives in this in-memory map for the 60s window.
+  // ── Rate limit (persistent, DB-backed) ──────────────────────────────
+  // Raw IP is hashed before storage. Never persisted in cleartext.
   const ipHdr = req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip") || "";
-  const ip = ipHdr.split(",")[0].trim() || "unknown";
-  const rlKey = `${workspace_id}:${user.id}:${ip}`;
-  const rl = rateLimitHit(rlKey);
-  if (!rl.ok) {
+  const rl = await checkRateLimit({
+    route: "webhook-replay-test",
+    workspaceId: workspace_id,
+    userId: user.id,
+    rawIp: ipHdr,
+    windowSeconds: RL_WINDOW_SECONDS,
+    maxHits: RL_MAX,
+  });
+  if (!rl.allowed) {
     return new Response(JSON.stringify({
       error: "rate_limited",
-      hint: `max ${RL_MAX} replays / ${RL_WINDOW_MS / 1000}s per workspace+user+ip`,
-      retry_after_seconds: rl.retryAfter,
+      hint: `max ${RL_MAX} replays / ${RL_WINDOW_SECONDS}s per workspace+user+ip`,
+      retry_after_seconds: rl.retryAfterSeconds,
     }), {
       status: 429,
       headers: {
         ...corsHeaders,
         "Content-Type": "application/json",
-        "Retry-After": String(rl.retryAfter),
+        "Retry-After": String(rl.retryAfterSeconds),
       },
     });
   }
