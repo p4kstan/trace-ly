@@ -38,6 +38,9 @@
  *   }
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { installSafeConsole } from "../_shared/install-safe-console.ts";
+
+installSafeConsole("audience-seed-export");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
