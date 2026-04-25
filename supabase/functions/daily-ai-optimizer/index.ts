@@ -145,7 +145,7 @@ async function callLovableAi(prompt: string): Promise<unknown> {
   }
 }
 
-async function processWorkspace(supabase: ReturnType<typeof createClient>, workspaceId: string) {
+async function processWorkspace(supabase: any, workspaceId: string) {
   const agg = await aggregateForWorkspace(supabase, workspaceId);
   if (agg.totals.conversions === 0 && agg.totals.touches === 0) {
     return { workspace_id: workspaceId, skipped: "no_data" };
