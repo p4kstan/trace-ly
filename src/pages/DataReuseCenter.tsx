@@ -38,12 +38,16 @@ import {
 } from "@/lib/data-reuse-providers";
 import {
   checkMultiDestinationConsistency,
-  type DestinationDescriptor,
 } from "@/lib/multi-destination-consistency";
 import {
   simulateAutomationChange,
   type SimulationKind,
 } from "@/lib/automation-simulator";
+import {
+  buildDestinationDescriptors,
+  type RegistryRow,
+} from "@/lib/ad-destination-registry";
+import { simulateRule, type AutomationRuleRow } from "@/lib/automation-rule-simulator";
 
 /**
  * Data Reuse Center — Passo P + Q.
