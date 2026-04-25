@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Copy, Check, KeyRound, AlertTriangle, Trash2, Cpu, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
+import { copyToClipboard } from "@/lib/clipboard";
 
 const MCP_ENDPOINT = "https://xpgsipmyrwyjerjvbhmb.supabase.co/functions/v1/traffic-agent-mcp";
 
@@ -52,13 +53,13 @@ function CopyButton({ value, label }: { value: string; label?: string }) {
       size="sm"
       className="shrink-0"
       onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(value);
+        const ok = await copyToClipboard(value);
+        if (ok) {
           setCopied(true);
           toast.success(label ? `${label} copiado` : "Copiado");
           setTimeout(() => setCopied(false), 1500);
-        } catch {
-          toast.error("Falha ao copiar");
+        } else {
+          toast.error("Falha ao copiar — selecione e use Ctrl+C");
         }
       }}
     >
