@@ -59,9 +59,9 @@ export const CreateOptimizationPlanArgs = z.object({
         action_type: z.string(),
         priority: z.number().int().min(1).max(5).default(3),
         confidence: z.number().min(0).max(1).default(0.5),
-        expected_impact: z.record(z.unknown()).default({}),
+        expected_impact: z.record(z.string(), z.unknown()).default({}),
         rationale: z.string().default(""),
-        evidence_json: z.record(z.unknown()).default({}),
+        evidence_json: z.record(z.string(), z.unknown()).default({}),
         rag_refs: z.array(z.unknown()).default([]),
       }),
     )
@@ -72,7 +72,7 @@ export const CreateOptimizationPlanArgs = z.object({
 export const SimulateCampaignActionArgs = z.object({
   workspace_id: z.string().uuid(),
   recommendation_id: z.string().uuid(),
-  override_payload: z.record(z.unknown()).optional(),
+  override_payload: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const ApplyCampaignActionArgs = z.object({
@@ -93,7 +93,7 @@ export const LogAgentDecisionArgs = z.object({
   run_id: z.string().uuid().optional(),
   level: z.enum(["debug", "info", "warn", "error"]).default("info"),
   message: z.string().min(1).max(2000),
-  metadata: z.record(z.unknown()).default({}),
+  metadata: z.record(z.string(), z.unknown()).default({}),
 });
 
 // ---- Tool registry -------------------------------------------------------
