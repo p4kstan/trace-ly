@@ -48,6 +48,7 @@ const connectionsItems = [
   { title: "Pixels", url: "/pixels", icon: MonitorDot },
   { title: "Fontes de Tracking", url: "/tracking-sources", icon: Radio },
   { title: "Destinos", url: "/destinations", icon: Send },
+  { title: "Registry de Destinos", url: "/destination-registry", icon: Send },
 ];
 
 // 4b. INSTALAÇÃO — passo-a-passo por plataforma
