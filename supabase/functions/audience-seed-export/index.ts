@@ -218,7 +218,7 @@ Deno.serve(async (req) => {
       // Pull identities (potentially has hashed columns already; if not, hash here)
       let idQ = service
         .from("identities")
-        .select("id, email, email_hash, phone, phone_hash, external_id, external_id_hash, ads_consent_granted")
+        .select("id, email, email_hash, phone, phone_hash, external_id, ads_consent_granted")
         .eq("workspace_id", workspaceId)
         .in("id", identityIds);
       if (requireConsent) {
@@ -242,11 +242,9 @@ Deno.serve(async (req) => {
           const norm = normPhone(i.phone);
           if (norm) phoneHash = looksHashed(norm) ? norm : await sha256Hex(norm);
         }
-        let externalIdHash: string | null = i.external_id_hash || null;
-        if (!externalIdHash) {
-          const norm = normExternal(i.external_id);
-          if (norm) externalIdHash = looksHashed(norm) ? norm : await sha256Hex(norm);
-        }
+        let externalIdHash: string | null = null;
+        const extNorm = normExternal(i.external_id);
+        if (extNorm) externalIdHash = looksHashed(extNorm) ? extNorm : await sha256Hex(extNorm);
 
         if (!emailHash && !phoneHash && !externalIdHash) continue;
         hashes.push({ email_hash: emailHash, phone_hash: phoneHash, external_id_hash: externalIdHash });
