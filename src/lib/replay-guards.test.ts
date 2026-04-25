@@ -3,49 +3,46 @@ import {
   decideReplay,
   detectRawPII,
   shouldSkipExternalDispatch,
+  type ReplayDecision,
 } from "./replay-guards";
+
+function reject(d: ReplayDecision): { reason: string; details?: string[] } {
+  if (d.allow) throw new Error("expected reject decision but got allow");
+  return { reason: d.reason, details: d.details };
+}
 
 describe("replay-guards (Passo O)", () => {
   it("rejects calls without a JWT", () => {
-    const r = decideReplay({
+    expect(reject(decideReplay({
       hasJwt: false, isWorkspaceAdmin: false, testMode: true, payload: {},
-    });
-    expect(r.allow).toBe(false);
-    if (!r.allow) expect(r.reason).toBe("missing_jwt");
+    })).reason).toBe("missing_jwt");
   });
 
   it("rejects callers that are not workspace admin", () => {
-    const r = decideReplay({
+    expect(reject(decideReplay({
       hasJwt: true, isWorkspaceAdmin: false, testMode: true, payload: {},
-    });
-    expect(r.allow).toBe(false);
-    if (!r.allow) expect(r.reason).toBe("not_workspace_admin");
+    })).reason).toBe("not_workspace_admin");
   });
 
   it("requires test_mode === true (no truthy strings, no missing field)", () => {
     for (const tm of [false, undefined, null, "true", 1, 0]) {
-      const r = decideReplay({
+      expect(reject(decideReplay({
         hasJwt: true, isWorkspaceAdmin: true, testMode: tm, payload: {},
-      });
-      expect(r.allow).toBe(false);
-      if (!r.allow) expect(r.reason).toBe("test_mode_required");
+      })).reason).toBe("test_mode_required");
     }
   });
 
   it("rejects raw PII anywhere in the payload tree", () => {
-    const r = decideReplay({
+    const r = reject(decideReplay({
       hasJwt: true, isWorkspaceAdmin: true, testMode: true,
       payload: {
         order: { customer: { email: "leak@example.com", cpf: "12345678901" } },
       },
-    });
-    expect(r.allow).toBe(false);
-    if (!r.allow) {
-      expect(r.reason).toBe("raw_pii_detected");
-      expect(r.details).toEqual(
-        expect.arrayContaining(["order.customer.email", "order.customer.cpf"]),
-      );
-    }
+    }));
+    expect(r.reason).toBe("raw_pii_detected");
+    expect(r.details).toEqual(
+      expect.arrayContaining(["order.customer.email", "order.customer.cpf"]),
+    );
   });
 
   it("ALLOWS hashed identifiers (email_hash / phone_sha256)", () => {
@@ -54,12 +51,10 @@ describe("replay-guards (Passo O)", () => {
   });
 
   it("rejects production traffic without verified signature", () => {
-    const r = decideReplay({
+    expect(reject(decideReplay({
       hasJwt: true, isWorkspaceAdmin: true, testMode: true, payload: { ok: 1 },
       productionTraffic: true, signatureVerified: false,
-    });
-    expect(r.allow).toBe(false);
-    if (!r.allow) expect(r.reason).toBe("missing_signature");
+    })).reason).toBe("missing_signature");
   });
 
   it("accepts a clean replay request from a workspace admin", () => {
