@@ -330,10 +330,13 @@ Deno.serve(async (req) => {
       ...(emailHash ? { em: emailHash } : {}),
       ...(phoneHash ? { ph: phoneHash } : {}),
       ...(ipHash ? { client_ip_hash: ipHash } : {}),
+      // Raw IP — Meta CAPI / TikTok / GA4 client_ip_address (NEVER hashed).
+      ...(ip && ip !== "unknown" ? { client_ip: ip } : {}),
       ...(userAgent ? { client_user_agent: userAgent } : {}),
       ...(body.fbp ? { fbp: body.fbp } : {}),
       ...(body.fbc ? { fbc: body.fbc } : {}),
       ...(body.external_id ? { external_id: body.external_id } : {}),
+      ...(gaClientId ? { ga_client_id: gaClientId } : {}),
     };
 
     const deduplicationKey = body.event_id
@@ -350,6 +353,7 @@ Deno.serve(async (req) => {
       ...(body.fbclid ? { fbclid: body.fbclid } : {}),
       ...(body.ttclid ? { ttclid: body.ttclid } : {}),
       ...(body.msclkid ? { msclkid: body.msclkid } : {}),
+      ...(gaClientId ? { ga_client_id: gaClientId } : {}),
       ...(body.utm_source ? { utm_source: body.utm_source } : {}),
       ...(body.utm_medium ? { utm_medium: body.utm_medium } : {}),
       ...(body.utm_campaign ? { utm_campaign: body.utm_campaign } : {}),
