@@ -11,7 +11,7 @@
  *   Live mutation is HARD-BLOCKED in this delivery (no external HTTP to Google/Meta/TikTok).
  */
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.103.0";
-import { requireUserJwt } from "../_shared/edge-auth.ts";
+import { requireMcpAuth, hasScope } from "../_shared/mcpAuth.ts";
 import { redactValue } from "../_shared/traffic-agent-redact.ts";
 import { evaluateGuardrails, type Guardrails } from "../_shared/traffic-agent-guardrails.ts";
 
