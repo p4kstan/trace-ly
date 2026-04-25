@@ -838,6 +838,53 @@ export type Database = {
         }
         Relationships: []
       }
+      dispatch_decision_log: {
+        Row: {
+          created_at: string
+          decision: string
+          destination_id: string | null
+          event_id: string | null
+          id: string
+          matched_registry_rows: number
+          provider: string
+          reasons: Json
+          test_mode: boolean
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          decision: string
+          destination_id?: string | null
+          event_id?: string | null
+          id?: string
+          matched_registry_rows?: number
+          provider: string
+          reasons?: Json
+          test_mode?: boolean
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          decision?: string
+          destination_id?: string | null
+          event_id?: string | null
+          id?: string
+          matched_registry_rows?: number
+          provider?: string
+          reasons?: Json
+          test_mode?: boolean
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dispatch_decision_log_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       duplicate_detections: {
         Row: {
           action_taken: string
@@ -5240,6 +5287,26 @@ export type Database = {
           test_mode_default: boolean
         }[]
       }
+      list_dispatch_decisions: {
+        Args: {
+          _decision?: string
+          _destination_id?: string
+          _limit?: number
+          _provider?: string
+          _workspace_id: string
+        }
+        Returns: {
+          created_at: string
+          decision: string
+          destination_id: string
+          event_id: string
+          id: string
+          matched_registry_rows: number
+          provider: string
+          reasons: Json
+          test_mode: boolean
+        }[]
+      }
       rate_limit_hit: {
         Args: {
           _ip_hash: string
@@ -5250,6 +5317,19 @@ export type Database = {
           _workspace_id: string
         }
         Returns: Json
+      }
+      record_dispatch_decision: {
+        Args: {
+          _decision: string
+          _destination_id: string
+          _event_id: string
+          _matched_rows: number
+          _provider: string
+          _reasons: Json
+          _test_mode: boolean
+          _workspace_id: string
+        }
+        Returns: string
       }
       retention_cron_status: { Args: never; Returns: Json }
       upsert_queue_health_alert: {

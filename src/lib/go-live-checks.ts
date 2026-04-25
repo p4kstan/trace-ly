@@ -210,6 +210,18 @@ export const GO_LIVE_CHECKS: CertificationCheck[] = [
     status: "enforced",
     link: { to: "/destination-registry", label: "Abrir Registry + Testar dispatch" },
   },
+  {
+    id: "dispatch-audit-hardening-u",
+    scope: "all",
+    area: "dedup",
+    title: "Cache TTL + workspace selector + auditoria dedicada (Passo U)",
+    description:
+      "process-events usa cache TTL (REGISTRY_CACHE_TTL_MS, default 60s) no registry, evitando isolate stale. Workspace selector aparece em /destination-registry e /data-reuse-center quando há múltiplas workspaces. Auditoria dedicada em dispatch_decision_log (RLS member-read, escrita só service via record_dispatch_decision) com RPC list_dispatch_decisions (filtros provider/destination/decision, sem PII/segredos). test_mode/dry_run é hard-stop — nenhum fetch real para Meta/Google/TikTok/GA4.",
+    enforcedBy:
+      "supabase/functions/process-events/index.ts + supabase/migrations (dispatch_decision_log) + src/components/WorkspaceSelector.tsx",
+    status: "enforced",
+    link: { to: "/destination-registry", label: "Abrir Registry + Auditoria" },
+  },
 ];
 
 export interface CertificationSummary {

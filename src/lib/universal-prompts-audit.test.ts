@@ -36,6 +36,7 @@ const REQUIRED_CONTROLS: Array<{ key: string; matcher: RegExp }> = [
   { key: "multi-rule-simulator-s", matcher: /simulateRulesForScope|Multi-?rule simulator|todas as automation_rules/i },
   { key: "dispatch-gate-s",        matcher: /destination-dispatch-gate|decideDispatch|dispatch gate/i },
   { key: "dispatch-gate-wired-t",  matcher: /process-events.*dispatch|dispatch-test|Testar dispatch|dispatch_decision/i },
+  { key: "passo-u-hardening",      matcher: /Passo U|dispatch_decision_log|REGISTRY_CACHE_TTL_MS|Workspace selector/i },
 ];
 
 function expectAllMentioned(label: string, body: string) {

@@ -113,36 +113,99 @@ async function processInParallel<T>(items: T[], concurrency: number, fn: (item: 
 }
 
 // ══════════════════════════════════════════════════════════════
-// DESTINATION DISPATCH GATE (Passo T)
+// DESTINATION DISPATCH GATE (Passo T+U)
 // Loads ad_conversion_destinations registry per workspace+provider and
 // applies decideDispatch() BEFORE any external call. Empty registry ⇒
 // fallback to legacy heuristic dispatcher (no regression).
+//
+// Passo U — TTL-bounded cache. The registry is cached per
+// workspace+provider for `REGISTRY_CACHE_TTL_MS` (default 60s, override via
+// REGISTRY_CACHE_TTL_MS env). This prevents stale registry rows from
+// surviving an isolate that lives for hours, while still avoiding
+// per-event SELECTs.
 // ══════════════════════════════════════════════════════════════
 
-const registryCache = new Map<string, RegistryDispatchRow[]>();
+const REGISTRY_CACHE_TTL_MS = (() => {
+  const raw = Number(Deno.env.get("REGISTRY_CACHE_TTL_MS") ?? "60000");
+  if (!Number.isFinite(raw) || raw < 1000) return 60_000;
+  return Math.min(raw, 5 * 60_000);
+})();
+
+interface RegistryCacheEntry {
+  rows: RegistryDispatchRow[];
+  expiresAt: number;
+}
+const registryCache = new Map<string, RegistryCacheEntry>();
 
 async function loadRegistry(workspaceId: string, provider: string): Promise<RegistryDispatchRow[]> {
   const key = `${workspaceId}::${provider}`;
   const hit = registryCache.get(key);
-  if (hit) return hit;
+  if (hit && hit.expiresAt > Date.now()) return hit.rows;
   const { data } = await supabase
     .from("ad_conversion_destinations")
-    .select("id,provider,destination_id,account_id,conversion_action_id,event_name,credential_ref,status,consent_gate_required,send_enabled,test_mode_default")
+    .select("id,provider,destination_id,account_id,conversion_action_id,event_name,credential_ref,status,consent_gate_required,send_enabled,test_mode_default,updated_at")
     .eq("workspace_id", workspaceId)
     .eq("provider", provider);
   const rows: RegistryDispatchRow[] = (data ?? []) as never;
-  registryCache.set(key, rows);
+  registryCache.set(key, { rows, expiresAt: Date.now() + REGISTRY_CACHE_TTL_MS });
   return rows;
 }
 
-/** Per-item gate. Returns the decision and list of items still allowed. */
+/**
+ * Passo U — fire-and-forget dispatch decision recorder. Writes to the
+ * dedicated `dispatch_decision_log` via SECURITY DEFINER RPC. NEVER
+ * includes PII or credentials. Failures are swallowed so that audit
+ * problems never block a real delivery.
+ */
+async function recordDecisionLog(args: {
+  workspaceId: string;
+  eventId: string | null;
+  provider: string;
+  destinationId: string | null;
+  decision: "allow" | "block" | "dry_run" | "test_mode" | "fallback";
+  reasons: string[];
+  matchedRows: number;
+  testMode: boolean;
+}): Promise<void> {
+  try {
+    await supabase.rpc("record_dispatch_decision" as never, {
+      _workspace_id: args.workspaceId,
+      _event_id: args.eventId,
+      _provider: args.provider,
+      _destination_id: args.destinationId,
+      _decision: args.decision,
+      _reasons: args.reasons,
+      _matched_rows: args.matchedRows,
+      _test_mode: args.testMode,
+    } as never);
+  } catch {
+    /* audit best-effort — never break a delivery */
+  }
+}
+
+/**
+ * Per-item gate. Returns:
+ *   - allowed:  items that may proceed to the external dispatcher
+ *   - blocked:  items rejected by registry rules (no external call)
+ *   - dryRun:   items that are in test_mode/dry_run — NEVER hit the network,
+ *               recorded as `dry_run` and marked delivered locally.
+ *   - usedFallback: at least one item used the legacy fallback (registry empty)
+ *
+ * Side-effect (Passo U): every decision is also written to
+ * `dispatch_decision_log` via `record_dispatch_decision` RPC, no PII.
+ */
 async function gateItems(
   provider: string,
   workspaceId: string,
   destinationId: string,
   items: any[],
   globalTestMode: boolean,
-): Promise<{ allowed: any[]; blocked: Array<{ item: any; decision: DispatchDecision; reasons: string[] }>; usedFallback: boolean }> {
+): Promise<{
+  allowed: any[];
+  blocked: Array<{ item: any; decision: DispatchDecision; reasons: string[] }>;
+  dryRun: Array<{ item: any; decision: DispatchDecision }>;
+  usedFallback: boolean;
+}> {
   const registry = await loadRegistry(workspaceId, provider);
   // Restrict to the destination_id this batch was reserved for.
   const scoped = registry.filter((r) =>
@@ -152,7 +215,9 @@ async function gateItems(
 
   const allowed: any[] = [];
   const blocked: Array<{ item: any; decision: DispatchDecision; reasons: string[] }> = [];
+  const dryRun: Array<{ item: any; decision: DispatchDecision }> = [];
   let usedFallback = false;
+  const auditPromises: Promise<void>[] = [];
 
   for (const item of items) {
     const p = item.payload_json || {};
@@ -164,22 +229,96 @@ async function gateItems(
       consent_granted: consent,
       test_mode: itemTestMode,
     });
-    if (decision.fallback) {
-      usedFallback = true;
-      // No registry rows for provider: preserve legacy behaviour.
-      allowed.push(item);
+
+    // Passo U — Hard guarantee: when test_mode/dry_run is active, NEVER
+    // hand the item to the network dispatcher, regardless of registry state.
+    if (itemTestMode) {
+      dryRun.push({ item, decision });
+      auditPromises.push(recordDecisionLog({
+        workspaceId, eventId: item.event_id ?? null, provider,
+        destinationId: destinationId || null,
+        decision: decision.fallback ? "fallback" : "test_mode",
+        reasons: decision.fallback ? ["fallback_registry_empty"] : ["test_mode_active"],
+        matchedRows: decision.matched_registry_rows,
+        testMode: true,
+      }));
       continue;
     }
-    // If at least one target survives, allow the item; record skipped destinations
-    // (other than the one we're currently dispatching to) only as audit.
+
+    if (decision.fallback) {
+      usedFallback = true;
+      allowed.push(item);
+      auditPromises.push(recordDecisionLog({
+        workspaceId, eventId: item.event_id ?? null, provider,
+        destinationId: destinationId || null,
+        decision: "fallback",
+        reasons: ["fallback_registry_empty"],
+        matchedRows: 0,
+        testMode: false,
+      }));
+      continue;
+    }
+
     if (decision.targets.length > 0) {
       allowed.push(item);
+      auditPromises.push(recordDecisionLog({
+        workspaceId, eventId: item.event_id ?? null, provider,
+        destinationId: destinationId || null,
+        decision: "allow",
+        reasons: [],
+        matchedRows: decision.matched_registry_rows,
+        testMode: false,
+      }));
     } else {
       const reasons = decision.skipped.flatMap((s) => s.reasons);
       blocked.push({ item, decision, reasons });
+      auditPromises.push(recordDecisionLog({
+        workspaceId, eventId: item.event_id ?? null, provider,
+        destinationId: destinationId || null,
+        decision: "block",
+        reasons,
+        matchedRows: decision.matched_registry_rows,
+        testMode: false,
+      }));
     }
   }
-  return { allowed, blocked, usedFallback };
+  // Audit writes are best-effort and not blocking — but await before
+  // returning so tests can assert log entries deterministically.
+  await Promise.all(auditPromises);
+  return { allowed, blocked, dryRun, usedFallback };
+}
+
+async function recordDryRun(
+  provider: string,
+  destinationId: string,
+  dryRun: Array<{ item: any; decision: DispatchDecision }>,
+  stats: { skipped?: number },
+) {
+  if (dryRun.length === 0) return;
+  const ids = dryRun.map((b) => b.item.id);
+  await supabase.from("event_queue").update({
+    status: "skipped",
+    last_error: "dispatch_gate_dry_run: test_mode_active",
+    updated_at: new Date().toISOString(),
+  }).in("id", ids);
+  const deliveries = dryRun.map((b) => ({
+    event_id: b.item.event_id || crypto.randomUUID(),
+    workspace_id: b.item.workspace_id,
+    provider,
+    destination: destinationId,
+    status: "skipped",
+    attempt_count: 1,
+    last_attempt_at: new Date().toISOString(),
+    request_json: {
+      dispatch_decision: "dry_run",
+      reasons: ["test_mode_active"],
+      matched_registry_rows: b.decision.matched_registry_rows,
+    },
+    response_json: null,
+    error_message: "dispatch_gate_dry_run: test_mode_active",
+  }));
+  await supabase.from("event_deliveries").insert(deliveries);
+  stats.skipped = (stats.skipped || 0) + dryRun.length;
 }
 
 async function recordBlockedDecisions(
@@ -301,11 +440,11 @@ async function processMetaBatch(
 ) {
   const [workspaceId, pixelId] = pixelKey.split("::");
 
-  // Passo T — destination dispatch gate (Meta). Empty registry ⇒ legacy behaviour.
+  // Passo T+U — destination dispatch gate (Meta). Empty registry ⇒ legacy behaviour.
+  // test_mode/dry_run items are diverted to recordDryRun and NEVER reach the network.
   const gate = await gateItems("meta", workspaceId, pixelId, items, globalTestMode);
-  if (gate.blocked.length > 0) {
-    await recordBlockedDecisions("meta", pixelId, gate.blocked, stats);
-  }
+  if (gate.dryRun.length > 0) await recordDryRun("meta", pixelId, gate.dryRun, stats);
+  if (gate.blocked.length > 0) await recordBlockedDecisions("meta", pixelId, gate.blocked, stats);
   items = gate.allowed;
   if (items.length === 0) return;
 
@@ -438,11 +577,11 @@ async function processNonMetaBatch(
   stats: { delivered: number; failed: number; deadLettered: number; skipped?: number },
   globalTestMode = false,
 ) {
-  // Passo T — destination dispatch gate. Empty registry ⇒ legacy fallback.
+  // Passo T+U — destination dispatch gate. Empty registry ⇒ legacy fallback.
+  // test_mode/dry_run items are diverted to recordDryRun and NEVER reach the network.
   const gate = await gateItems(provider, workspaceId, destinationId, items, globalTestMode);
-  if (gate.blocked.length > 0) {
-    await recordBlockedDecisions(provider, destinationId, gate.blocked, stats);
-  }
+  if (gate.dryRun.length > 0) await recordDryRun(provider, destinationId, gate.dryRun, stats);
+  if (gate.blocked.length > 0) await recordBlockedDecisions(provider, destinationId, gate.blocked, stats);
   items = gate.allowed;
   if (items.length === 0) return;
 
