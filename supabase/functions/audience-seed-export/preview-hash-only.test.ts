@@ -10,7 +10,7 @@ import { resolve } from "node:path";
  * even without a Deno runtime.
  */
 const SOURCE = readFileSync(
-  resolve(__dirname, "../../supabase/functions/audience-seed-export/index.ts"),
+  resolve(__dirname, "./index.ts"),
   "utf8",
 );
 
