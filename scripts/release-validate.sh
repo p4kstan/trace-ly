@@ -180,6 +180,24 @@ if grep -nE "execute['\"]?\s*[:=]\s*['\"]?(1|true)" supabase/migrations/*.sql 2>
 fi
 ok "retention cron remains dry-run/monitor only"
 
+# Passo J — Audit log viewer + role-gated RL configs + alert SLA panel.
+log "4k/7  Passo J controls (audit viewer, role gate, SLA, auto-resolve tests)"
+[ -f src/pages/AuditLogViewer.tsx ] || fail "MISSING src/pages/AuditLogViewer.tsx"
+grep -q "/audit-logs" src/App.tsx || fail "/audit-logs route not wired"
+grep -q "/audit-logs" src/components/AppSidebar.tsx || fail "/audit-logs missing from sidebar"
+grep -q "useWorkspaceRole" src/pages/RateLimitConfigs.tsx \
+  || fail "RateLimitConfigs must role-gate edits via useWorkspaceRole"
+grep -q "canEditRateLimitConfigs" src/hooks/use-workspace-role.ts \
+  || fail "MISSING canEditRateLimitConfigs helper"
+grep -q "AlertSlaPanel" src/pages/RetryObservability.tsx \
+  || fail "RetryObservability must surface AlertSlaPanel"
+[ -f supabase/functions/queue-health/auto-resolve.test.ts ] \
+  || fail "MISSING auto-resolve.test.ts contract tests"
+# Audit viewer must redact PII in the frontend.
+grep -q "PII_KEY_RE" src/pages/AuditLogViewer.tsx \
+  || fail "AuditLogViewer must redact PII keys"
+ok "Passo J controls wired"
+
 # ─── 5. Critical routes ─────────────────────────────────────────────────
 log "5/7  Critical UI routes wired"
 for route in "/canonical-audit" "/retry-observability" "/go-live-checklist"; do
