@@ -34,6 +34,23 @@ function nextRetryDelay(attempt: number): number {
   return Math.min(baseMs * Math.pow(4, attempt), 2 * 60 * 60 * 1000) + jitter;
 }
 
+async function updateTrackedEventStatus(items: any[], status: "delivered" | "retry" | "dead_letter") {
+  // Best-effort sync of tracked_events.status — keeps idempotency table in sync
+  // with actual delivery outcome. Silently ignored when the row doesn't exist
+  // (older queue items predating tracked_events).
+  for (const item of items) {
+    if (!item.event_id) continue;
+    await supabase.from("tracked_events").update({
+      status,
+      last_seen_at: new Date().toISOString(),
+    })
+      .eq("workspace_id", item.workspace_id)
+      .eq("event_id", item.event_id)
+      .eq("provider", item.provider)
+      .eq("destination", item.destination || "default");
+  }
+}
+
 async function handleFailure(item: any, errorMsg: string, stats: { failed: number; deadLettered: number }) {
   const newAttempt = item.attempt_count + 1;
   if (newAttempt >= item.max_attempts) {
@@ -49,6 +66,7 @@ async function handleFailure(item: any, errorMsg: string, stats: { failed: numbe
     if (item.event_id) {
       await supabase.from("events").update({ processing_status: "failed" }).eq("id", item.event_id);
     }
+    await updateTrackedEventStatus([item], "dead_letter");
     stats.deadLettered++;
   } else {
     const nextRetry = new Date(Date.now() + nextRetryDelay(newAttempt)).toISOString();
@@ -57,6 +75,7 @@ async function handleFailure(item: any, errorMsg: string, stats: { failed: numbe
       next_retry_at: nextRetry, last_error: errorMsg,
       updated_at: new Date().toISOString(),
     }).eq("id", item.id);
+    await updateTrackedEventStatus([item], "retry");
     stats.failed++;
   }
 }
@@ -70,6 +89,7 @@ async function markDelivered(items: any[], stats: { delivered: number }) {
   if (eventIds.length) {
     await supabase.from("events").update({ processing_status: "delivered" }).in("id", eventIds);
   }
+  await updateTrackedEventStatus(items, "delivered");
   stats.delivered += items.length;
 }
 
@@ -288,7 +308,7 @@ async function dispatchToProvider(
 }
 
 async function processNonMetaBatch(
-  provider: string, workspaceId: string, items: any[],
+  provider: string, workspaceId: string, destinationId: string, items: any[],
   destCache: Map<string, any>,
   stats: { delivered: number; failed: number; deadLettered: number; skipped?: number }
 ) {
@@ -304,9 +324,16 @@ async function processNonMetaBatch(
     for (const item of items) await handleFailure(item, `No active ${provider} destination configured`, stats);
     return;
   }
-  for (const dest of destinations) {
-    await dispatchToProvider(provider, items, dest, stats);
+  // Dispatch ONLY to the destination this batch was reserved for. Prevents
+  // sending the same conversion to every connected account.
+  const dest = destinations.find((d: any) =>
+    d.destination_id === destinationId || d.id === destinationId,
+  ) || (destinationId === "default" ? destinations[0] : null);
+  if (!dest) {
+    for (const item of items) await handleFailure(item, `${provider} destination ${destinationId} not found`, stats);
+    return;
   }
+  await dispatchToProvider(provider, items, dest, stats);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -381,7 +408,7 @@ Deno.serve(async (req) => {
 
     // Group items by provider
     const metaBatches = new Map<string, any[]>();
-    const nonMetaBatches = new Map<string, { provider: string; workspaceId: string; items: any[] }>();
+    const nonMetaBatches = new Map<string, { provider: string; workspaceId: string; destination: string; items: any[] }>();
     const workspaceIds = new Set<string>();
 
     for (const item of queueItems) {
@@ -393,9 +420,12 @@ Deno.serve(async (req) => {
         if (!metaBatches.has(key)) metaBatches.set(key, []);
         metaBatches.get(key)!.push(item);
       } else {
-        const key = `${provider}::${item.workspace_id}`;
+        // Group by provider + workspace + destination so each batch
+        // dispatches ONLY to its target account (no cross-account fan-out).
+        const dest = item.destination || "default";
+        const key = `${provider}::${item.workspace_id}::${dest}`;
         if (!nonMetaBatches.has(key)) {
-          nonMetaBatches.set(key, { provider, workspaceId: item.workspace_id, items: [] });
+          nonMetaBatches.set(key, { provider, workspaceId: item.workspace_id, destination: dest, items: [] });
         }
         nonMetaBatches.get(key)!.items.push(item);
       }
@@ -412,8 +442,8 @@ Deno.serve(async (req) => {
       processInParallel(metaEntries, CONCURRENCY, async ([pixelKey, items]) => {
         await processMetaBatch(pixelKey, items, pixelCache, stats);
       }),
-      processInParallel(nonMetaEntries, CONCURRENCY, async ({ provider, workspaceId, items }) => {
-        await processNonMetaBatch(provider, workspaceId, items, destCache, stats);
+      processInParallel(nonMetaEntries, CONCURRENCY, async ({ provider, workspaceId, destination, items }) => {
+        await processNonMetaBatch(provider, workspaceId, destination, items, destCache, stats);
       }),
     ]);
 

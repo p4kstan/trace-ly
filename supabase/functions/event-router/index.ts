@@ -89,12 +89,17 @@ async function getActiveDestinations(workspaceId: string) {
     _source: "integration_destinations",
   }));
 
-  // Dedupe por provider — prioriza integration_destinations (mais novo) sobre gateway_integrations
-  const byProvider = new Map<string, any>();
-  for (const d of fromGateway) byProvider.set(d.provider, d);
-  for (const d of fromDestinations) byProvider.set(d.provider, d); // overwrite
+  // Dedupe por provider+destination_id/id — preserva multi-conta (2 contas Google
+  // Ads, 2 pixels Meta, etc). Quando o mesmo destino aparece em legacy
+  // gateway_integrations + integration_destinations, prioriza o novo.
+  const byKey = new Map<string, any>();
+  for (const d of fromGateway) byKey.set(`${d.provider}::${d.id}`, d);
+  for (const d of fromDestinations) {
+    const key = `${d.provider}::${d.destination_id || d.id}`;
+    byKey.set(key, d);
+  }
 
-  return Array.from(byProvider.values());
+  return Array.from(byKey.values());
 }
 
 async function getRoutingRules(workspaceId: string, eventName: string) {
@@ -451,12 +456,12 @@ Deno.serve(async (req) => {
     await Promise.all(routePromises);
 
     if (queueRows.length > 0) {
-      // P0: upsert com ignoreDuplicates evita inserir 2x quando webhook é reentregue
-      // pelo gateway. Unique index parcial em (workspace_id, event_id, provider) garante a dedup.
+      // Upsert deduplicado por (workspace, event_id, provider, destination)
+      // — permite múltiplas contas do mesmo provider sem colisão.
       const { error: qErr } = await supabase
         .from("event_queue")
         .upsert(queueRows, {
-          onConflict: "workspace_id,event_id,provider",
+          onConflict: "workspace_id,event_id,provider,destination",
           ignoreDuplicates: true,
         });
       if (qErr) {

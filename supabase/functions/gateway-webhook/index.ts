@@ -523,8 +523,9 @@ async function enqueueForOtherProviders(
       continue;
     }
 
+    await supabase.from("event_queue").upsert({
       workspace_id: workspaceId, event_id: eventId, order_id: orderId,
-      provider: dest.provider, destination: dest.destination_id, status: "queued",
+      provider: dest.provider, destination: dest.destination_id || "default", status: "queued",
       payload_json: {
         marketing_event: marketingEvent,
         dedup_key: dedupKey,
@@ -620,6 +621,19 @@ Deno.serve(async (req) => {
     const externalEventId = str(payload.id || payload.event_id || payload.notification_id || order.external_order_id);
     const dedupKey = `${provider}:${eventType}:${externalEventId}`;
 
+    // ── Canonical event identity (multi-step model) ──
+    // Resolves purchase:<root_order_code> or purchase:<root_order_code>:step:<step_key>
+    // for paid Purchase events; deterministic fallback for everything else.
+    const marketingEventForCanonical =
+      INTERNAL_TO_META[internalEvent as keyof typeof INTERNAL_TO_META] || "Purchase";
+    const canonicalIdentity = buildCanonicalEventIdentity({
+      order,
+      eventName: marketingEventForCanonical,
+      internalEvent,
+      provider,
+      externalEventId: externalEventId || null,
+    });
+
     // ── Webhook log ──
     const headersJson: Record<string, string> = {};
     req.headers.forEach((v, k) => { headersJson[k] = v; });
@@ -678,6 +692,12 @@ Deno.serve(async (req) => {
       landing_page: tk.landing_page || null, referrer: tk.referrer || null,
       // Persist for retro lookups (Etapa 1 added these columns + unique index).
       ga_client_id: tk.ga_client_id || null,
+      msclkid: tk.msclkid || null,
+      // Multi-step canonical model — saved on every order so retries/extra
+      // payments can be reconciled to the same root.
+      root_order_code: canonicalIdentity.rootOrderCode || null,
+      step_key: canonicalIdentity.stepKey || null,
+      canonical_event_id: canonicalIdentity.eventId || null,
       client_ip: order.customer.ip || tk.ip || inboundIp,
       user_agent: order.customer.user_agent || tk.user_agent || inboundUa,
     };
@@ -780,12 +800,14 @@ Deno.serve(async (req) => {
       marketingEvent = defaultMapping?.external_event_name || INTERNAL_TO_META[internalEvent] || null;
     }
 
-    // ── Create event (reusing browser event_id when present) ──
+    // ── Create event (canonical multi-step event_id) ──
     let eventId: string | null = null;
     if (marketingEvent || internalEvent) {
       const evtName = marketingEvent || internalEvent;
       const browserEventId = (order.tracking?.event_id || "").trim();
-      const persistedEventId = browserEventId || crypto.randomUUID();
+      // Canonical event_id: purchase:<root>[:step:<key>] for paid Purchase,
+      // deterministic <event>:<external>:<provider> otherwise. Never random UUID.
+      const persistedEventId = canonicalIdentity.eventId;
 
       // Pre-hash em/ph once for the event row so providers can read identifiers
       // directly from `events.user_data_json` without hitting `identities` again.
@@ -807,11 +829,18 @@ Deno.serve(async (req) => {
           transaction_id: order.external_order_id,
           payment_method: order.payment_method, internal_event: internalEvent,
           browser_event_id: browserEventId || null,
+          // Multi-step canonical metadata — surfaced for downstream dispatchers.
+          canonical_event_id: canonicalIdentity.eventId,
+          root_order_code: canonicalIdentity.rootOrderCode,
+          step_key: canonicalIdentity.stepKey,
+          canonical_source: canonicalIdentity.source,
+          external_reference: order.tracking?.external_reference || null,
           // Click IDs propagate to providers via the queue payload normalization.
           gclid: order.tracking?.gclid || null,
           gbraid: order.tracking?.gbraid || null,
           wbraid: order.tracking?.wbraid || null,
           fbclid: order.tracking?.fbclid || null,
+          msclkid: order.tracking?.msclkid || null,
           ttclid: order.tracking?.ttclid || null,
           ga_client_id: order.tracking?.ga_client_id || null,
           utm_source: order.tracking?.utm_source || null,
@@ -844,7 +873,9 @@ Deno.serve(async (req) => {
         },
         deduplication_key: dedupKey,
       }).select("id").single();
-      eventId = evt?.id || null;
+      // Use canonical event_id downstream so the queue/dedup keys align
+      // with the multi-step model (purchase:<root>[:step:<key>]).
+      eventId = canonicalIdentity.eventId;
 
       if (["Purchase", "Lead", "Subscribe"].includes(evtName) || isPaid) {
         await supabase.from("conversions").insert({
