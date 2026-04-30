@@ -6,6 +6,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+class ReconnectRequiredError extends Error {
+  constructor(message: string) { super(message); this.name = "ReconnectRequiredError"; }
+}
+
 async function refreshAccessToken(refreshToken: string) {
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -23,13 +27,23 @@ async function refreshAccessToken(refreshToken: string) {
 async function getValidToken(service: any, cred: any) {
   const expiresAt = cred.token_expires_at ? new Date(cred.token_expires_at).getTime() : 0;
   if (Date.now() < expiresAt - 30_000) return cred.access_token;
-  if (!cred.refresh_token) throw new Error("No refresh_token available — reconnect GA4");
+  if (!cred.refresh_token) throw new ReconnectRequiredError("no_refresh_token");
   const refreshed = await refreshAccessToken(cred.refresh_token);
-  if (refreshed.error) throw new Error(`refresh failed: ${refreshed.error}`);
+  if (refreshed.error) {
+    // Mark credential as needing reconnect on invalid_grant
+    if (refreshed.error === "invalid_grant") {
+      await service.from("ga4_credentials").update({
+        last_error: "invalid_grant — refresh token revoked or expired, reconnect required",
+      }).eq("id", cred.id);
+      throw new ReconnectRequiredError("invalid_grant");
+    }
+    throw new Error(`refresh failed: ${refreshed.error}`);
+  }
   const newExpires = new Date(Date.now() + (refreshed.expires_in - 60) * 1000).toISOString();
   await service.from("ga4_credentials").update({
     access_token: refreshed.access_token,
     token_expires_at: newExpires,
+    last_error: null,
   }).eq("id", cred.id);
   return refreshed.access_token;
 }
@@ -190,7 +204,13 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ cached: false, ...result }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e) {
+  } catch (e: any) {
+    if (e?.name === "ReconnectRequiredError") {
+      return new Response(
+        JSON.stringify({ error: "GA4 reconnect required", reason: e.message, reconnect: true }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
     console.error("ga4-data-reports error", e);
     return new Response(JSON.stringify({ error: String(e) }), { status: 500, headers: corsHeaders });
   }
