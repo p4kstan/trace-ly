@@ -415,6 +415,7 @@ export default function GA4Analytics() {
           </Alert>
         )}
 
+        {ga4SetupIssue?.isConfigurationIssue && (
           <Alert className="border-border bg-muted/30">
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Falta ativar a API do Google Analytics</AlertTitle>
