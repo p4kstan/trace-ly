@@ -713,11 +713,42 @@ Deno.serve(async (req) => {
     if (isCanceled) orderData.canceled_at = new Date().toISOString();
 
     // Idempotent upsert keyed on (workspace_id, gateway, gateway_order_id) —
-    // unique index added in Etapa 1. Webhook retries from the gateway no
-    // longer create duplicate `orders` rows.
-    const { data: savedOrder } = await supabase.from("orders")
-      .upsert(orderData, { onConflict: "workspace_id,gateway,gateway_order_id" })
-      .select("id").single();
+    // unique index `uq_orders_gateway_order` is PARTIAL (WHERE gateway_order_id IS NOT NULL).
+    // Postgres ON CONFLICT cannot match a partial unique index without the same
+    // predicate, so when gateway_order_id is missing OR when PostgREST refuses
+    // the partial conflict target we fall back to manual lookup + insert/update.
+    let savedOrder: { id: string } | null = null;
+    if (orderData.gateway_order_id) {
+      const upsertRes = await supabase.from("orders")
+        .upsert(orderData, { onConflict: "workspace_id,gateway,gateway_order_id" })
+        .select("id").single();
+      if (upsertRes.error) {
+        console.error("[gateway-webhook] upsert orders failed", {
+          provider, gateway: orderData.gateway, ext: orderData.gateway_order_id,
+          error: upsertRes.error.message, code: upsertRes.error.code,
+        });
+      } else {
+        savedOrder = upsertRes.data;
+      }
+    }
+    if (!savedOrder) {
+      // Fallback: manual find-or-insert (handles missing gateway_order_id and
+      // partial-index ON CONFLICT failures).
+      const findQ = supabase.from("orders").select("id")
+        .eq("workspace_id", workspaceId).eq("gateway", orderData.gateway);
+      const found = orderData.gateway_order_id
+        ? await findQ.eq("gateway_order_id", orderData.gateway_order_id).maybeSingle()
+        : { data: null, error: null };
+      if (found.data?.id) {
+        const upd = await supabase.from("orders").update(orderData).eq("id", found.data.id).select("id").single();
+        if (upd.error) console.error("[gateway-webhook] update orders failed", upd.error);
+        else savedOrder = upd.data;
+      } else {
+        const ins = await supabase.from("orders").insert(orderData).select("id").single();
+        if (ins.error) console.error("[gateway-webhook] insert orders failed", ins.error);
+        else savedOrder = ins.data;
+      }
+    }
 
     // ── Payment (idempotent on (workspace_id, gateway, gateway_payment_id))
     const paymentStatus = isPaid ? "paid"
