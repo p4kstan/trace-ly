@@ -69,6 +69,21 @@ function extractGa4SetupIssue(error: unknown) {
   };
 }
 
+async function detectReconnectError(error: unknown): Promise<boolean> {
+  if (!error) return false;
+  // FunctionsHttpError exposes the original Response on `.context`
+  const ctx: any = (error as any)?.context;
+  if (ctx && typeof ctx.json === "function") {
+    try {
+      const body = await ctx.clone().json();
+      if (body?.reconnect === true) return true;
+      if (typeof body?.error === "string" && /invalid_grant|reconnect/i.test(body.error)) return true;
+    } catch { /* ignore */ }
+  }
+  const msg = error instanceof Error ? error.message : String(error);
+  return /invalid_grant|reconnect required|no_refresh_token/i.test(msg);
+}
+
 function MetricBox({ icon: Icon, label, value, color }: any) {
   return (
     <Card className="glass-card">
