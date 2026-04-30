@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useWorkspace } from "@/hooks/use-tracking-data";
@@ -211,6 +211,22 @@ export default function GA4Analytics() {
 
   const [newEventName, setNewEventName] = useState("");
   const ga4SetupIssue = extractGa4SetupIssue(reportError || dataStreamsError || conversionEventsError);
+
+  const [needsReconnect, setNeedsReconnect] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const errs = [reportError, dataStreamsError, conversionEventsError];
+      for (const e of errs) {
+        if (await detectReconnectError(e)) {
+          if (!cancelled) setNeedsReconnect(true);
+          return;
+        }
+      }
+      if (!cancelled) setNeedsReconnect(false);
+    })();
+    return () => { cancelled = true; };
+  }, [reportError, dataStreamsError, conversionEventsError]);
 
   if (credLoading) return <Skeleton className="h-96" />;
 
