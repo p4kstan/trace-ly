@@ -395,7 +395,26 @@ export default function GA4Analytics() {
         </div>
       </div>
 
-        {ga4SetupIssue?.isConfigurationIssue && (
+        {needsReconnect && (
+          <Alert className="border-amber-500/40 bg-amber-500/10">
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            <AlertTitle>Reconexão com o Google necessária</AlertTitle>
+            <AlertDescription className="space-y-3">
+              <p className="text-sm">
+                O token de acesso ao GA4 foi revogado ou expirou (<code>invalid_grant</code>). Reconecte sua conta Google para continuar lendo relatórios.
+              </p>
+              <Button
+                size="sm"
+                onClick={() => connect.mutate()}
+                disabled={connect.isPending}
+              >
+                <Plug className="w-4 h-4 mr-2" />
+                {connect.isPending ? "Redirecionando..." : "Reconectar com Google"}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
           <Alert className="border-border bg-muted/30">
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Falta ativar a API do Google Analytics</AlertTitle>
