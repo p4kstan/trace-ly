@@ -156,7 +156,9 @@ export default function GoogleAdsCampaigns() {
       if (error) {
         let info: any = null;
         try { info = await (error as any)?.context?.json?.(); } catch { /* ignore */ }
-        throw new Error(info?.error || error.message);
+        const err = new Error(info?.error || error.message) as Error & { reconnect?: boolean; customerId?: string };
+        if (info?.reconnect) { err.reconnect = true; err.customerId = info.customer_id; }
+        throw err;
       }
       return data as { ok: true; rows: ReportRow[]; totals: Totals; count: number };
     },
