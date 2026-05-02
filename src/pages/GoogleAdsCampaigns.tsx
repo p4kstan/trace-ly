@@ -224,6 +224,25 @@ export default function GoogleAdsCampaigns() {
   };
 
   const errMsg = error instanceof Error ? error.message : "";
+  const needsReconnect = (error as any)?.reconnect === true;
+  const reconnectCustomerId = (error as any)?.customerId || customerId;
+
+  const reconnectGoogle = async () => {
+    if (!workspace?.id || !reconnectCustomerId) return;
+    try {
+      const { data, error: oauthErr } = await supabase.functions.invoke("google-ads-oauth-initiate", {
+        body: {
+          workspace_id: workspace.id,
+          customer_id: reconnectCustomerId,
+          return_url: window.location.pathname + window.location.search,
+        },
+      });
+      if (oauthErr) throw oauthErr;
+      if (data?.auth_url) window.location.href = data.auth_url;
+    } catch (e: any) {
+      toast.error(`Erro ao iniciar reconexão: ${e.message}`);
+    }
+  };
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-5">
