@@ -34,13 +34,18 @@ export function useGoogleAdsReport({
       if (parentId) body.parent_id = parentId;
       const { data, error } = await supabase.functions.invoke("google-ads-reports", { body });
       if (error) {
-        let info: { error?: string } | null = null;
+        let info: { error?: string; reconnect?: boolean; customer_id?: string } | null = null;
         try {
-          info = await (error as { context?: { json?: () => Promise<{ error?: string }> } })?.context?.json?.() || null;
+          info = await (error as { context?: { json?: () => Promise<any> } })?.context?.json?.() || null;
         } catch {
           /* ignore */
         }
-        throw new Error(info?.error || error.message);
+        const err = new Error(info?.error || error.message) as Error & { reconnect?: boolean; customerId?: string };
+        if (info?.reconnect) {
+          err.reconnect = true;
+          err.customerId = info.customer_id;
+        }
+        throw err;
       }
       return data as { ok: true; rows: any[]; totals: any; count: number };
     },

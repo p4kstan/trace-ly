@@ -156,7 +156,9 @@ export default function GoogleAdsCampaigns() {
       if (error) {
         let info: any = null;
         try { info = await (error as any)?.context?.json?.(); } catch { /* ignore */ }
-        throw new Error(info?.error || error.message);
+        const err = new Error(info?.error || error.message) as Error & { reconnect?: boolean; customerId?: string };
+        if (info?.reconnect) { err.reconnect = true; err.customerId = info.customer_id; }
+        throw err;
       }
       return data as { ok: true; rows: ReportRow[]; totals: Totals; count: number };
     },
@@ -222,6 +224,25 @@ export default function GoogleAdsCampaigns() {
   };
 
   const errMsg = error instanceof Error ? error.message : "";
+  const needsReconnect = (error as any)?.reconnect === true;
+  const reconnectCustomerId = (error as any)?.customerId || customerId;
+
+  const reconnectGoogle = async () => {
+    if (!workspace?.id || !reconnectCustomerId) return;
+    try {
+      const { data, error: oauthErr } = await supabase.functions.invoke("google-ads-oauth-initiate", {
+        body: {
+          workspace_id: workspace.id,
+          customer_id: reconnectCustomerId,
+          return_url: window.location.pathname + window.location.search,
+        },
+      });
+      if (oauthErr) throw oauthErr;
+      if (data?.auth_url) window.location.href = data.auth_url;
+    } catch (e: any) {
+      toast.error(`Erro ao iniciar reconexão: ${e.message}`);
+    }
+  };
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-5">
@@ -370,12 +391,22 @@ export default function GoogleAdsCampaigns() {
               <Loader2 className="w-5 h-5 animate-spin mr-2" /> Carregando dados do Google Ads…
             </div>
           ) : errMsg ? (
-            <div className="m-4 flex items-start gap-2 text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded p-3">
+            <div className={`m-4 flex items-start gap-2 text-xs rounded p-3 border ${needsReconnect ? "text-amber-400 bg-amber-500/10 border-amber-500/30" : "text-rose-400 bg-rose-500/10 border-rose-500/20"}`}>
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium mb-1">Erro ao carregar</p>
-                <p className="break-all opacity-80">{errMsg}</p>
-                <Button size="sm" variant="outline" onClick={sync} className="mt-2 h-7 text-xs">Tentar sync e reconectar se necessário</Button>
+                <p className="font-medium mb-1">{needsReconnect ? "Reconexão necessária" : "Erro ao carregar"}</p>
+                <p className="break-all opacity-80">
+                  {needsReconnect
+                    ? `O token do Google Ads para a conta ${reconnectCustomerId} foi revogado ou expirou. Reconecte para continuar.`
+                    : errMsg}
+                </p>
+                {needsReconnect ? (
+                  <Button size="sm" variant="outline" onClick={reconnectGoogle} className="mt-2 h-7 text-xs border-amber-500/40 text-amber-400 hover:bg-amber-500/10">
+                    Reconectar com Google
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="outline" onClick={sync} className="mt-2 h-7 text-xs">Tentar sync e reconectar se necessário</Button>
+                )}
               </div>
             </div>
           ) : !report?.rows?.length ? (
