@@ -157,8 +157,8 @@ Deno.serve(async (req) => {
 
         // Aggregate account totals + per-campaign in parallel
         const [accRes, campRes] = await Promise.all([
-          fetch(`${apiBase}/googleAds:search`, { method: "POST", headers, body: JSON.stringify({ query: gaqlAccount, pageSize: 1000 }) }),
-          fetch(`${apiBase}/googleAds:search`, { method: "POST", headers, body: JSON.stringify({ query: gaqlCampaigns, pageSize: 1000 }) }),
+          fetch(`${apiBase}/googleAds:search`, { method: "POST", headers, body: JSON.stringify({ query: gaqlAccount }) }),
+          fetch(`${apiBase}/googleAds:search`, { method: "POST", headers, body: JSON.stringify({ query: gaqlCampaigns }) }),
         ]);
         const accJson = await accRes.json();
         const campJson = await campRes.json();
