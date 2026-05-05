@@ -22,6 +22,42 @@ const json = (b: unknown, s = 200) =>
 
 const PERIOD_DAYS: Record<string, number> = { "7d": 7, "14d": 14, "30d": 30, "90d": 90 };
 
+function normalizeCustomerId(value: string | null | undefined) {
+  const cleaned = String(value ?? "").replace(/\D/g, "");
+  return cleaned || null;
+}
+
+function formatCustomerId(value: string) {
+  const cleaned = normalizeCustomerId(value) || value;
+  return cleaned.length === 10
+    ? `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}-${cleaned.slice(6)}`
+    : value;
+}
+
+function extractGoogleAdsErrors(detail: any) {
+  return detail?.error?.details?.flatMap((item: any) => item?.errors || []) || [];
+}
+
+function getFriendlyGoogleAdsError(detail: any, customerId: string, loginCustomerId: string | null) {
+  const errors = extractGoogleAdsErrors(detail);
+  const messages = [detail?.error?.message, ...errors.map((item: any) => item?.message)]
+    .filter(Boolean)
+    .join(" | ");
+
+  if (messages.includes("login-customer-id") || errors.some((item: any) => item?.errorCode?.authorizationError === "USER_PERMISSION_DENIED")) {
+    if (!loginCustomerId) {
+      return "Essa conta parece estar vinculada a uma MCC. Abra a conta conectada e salve o login-customer-id da gerenciadora.";
+    }
+    return `MCC inválida ou sem acesso à conta ${formatCustomerId(customerId)}. Verifique o login-customer-id ${formatCustomerId(loginCustomerId)} e a vinculação da conta cliente no Google Ads.`;
+  }
+
+  if (messages.includes("CUSTOMER_NOT_FOUND") || messages.includes("not found")) {
+    return "MCC não encontrada. Revise o login-customer-id informado na conta conectada.";
+  }
+
+  return messages || "Google Ads API error";
+}
+
 async function refresh(refreshToken: string) {
   const r = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
