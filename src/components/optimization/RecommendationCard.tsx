@@ -1,10 +1,14 @@
 import { useState } from "react";
-import { AlertTriangle, TrendingUp, TrendingDown, Pause, Plus, Eye, Loader2, Link2 } from "lucide-react";
+import { AlertTriangle, TrendingUp, TrendingDown, Pause, Plus, Eye, Loader2, Link2, Sparkles, Image as ImageIcon, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Link } from "react-router-dom";
 import type { Recommendation } from "@/hooks/api/use-google-ads-recommendations";
+import type { MetaRecommendation } from "@/hooks/api/use-meta-ads-recommendations";
+
+export type AnyRecommendation = Recommendation | MetaRecommendation;
+export type RecPlatform = "google_ads" | "meta_ads";
 
 const severityStyle: Record<string, string> = {
   critical: "border-l-4 border-l-destructive bg-destructive/5",
@@ -20,25 +24,38 @@ const severityVariant: Record<string, "destructive" | "default" | "secondary" | 
 };
 const typeIcon: Record<string, any> = {
   pause: Pause,
+  pause_campaign: Pause,
+  pause_adset: Pause,
   scale_up: TrendingUp,
   scale_down: TrendingDown,
   budget_change: TrendingUp,
   bid_change: TrendingUp,
   negative_keyword: Plus,
+  creative_swap: ImageIcon,
+  audience_review: Users,
   review: Eye,
 };
 
 interface Props {
-  rec: Recommendation;
+  rec: AnyRecommendation;
+  platform: RecPlatform;
   onApply: () => void;
   onReject: () => void;
   isApplying?: boolean;
 }
 
-export function RecommendationCard({ rec, onApply, onReject, isApplying }: Props) {
+export function RecommendationCard({ rec, platform, onApply, onReject, isApplying }: Props) {
   const [showConfirm, setShowConfirm] = useState(false);
   const Icon = typeIcon[rec.type] || AlertTriangle;
   const isReview = rec.type === "review";
+  const platformLabel = platform === "google_ads" ? "Google" : "Meta";
+  const platformBadgeClass = platform === "google_ads"
+    ? "bg-blue-500/15 text-blue-400 border-blue-500/30"
+    : "bg-purple-500/15 text-purple-400 border-purple-500/30";
+  const targetAny = rec.target as any;
+  const reviewLink = platform === "google_ads"
+    ? `/contas-conectadas/google/${rec.target.account_id}`
+    : `/contas-conectadas`;
 
   return (
     <>
@@ -47,6 +64,9 @@ export function RecommendationCard({ rec, onApply, onReject, isApplying }: Props
           <Icon className="w-5 h-5 mt-0.5 shrink-0 text-foreground" />
           <div className="flex-1 min-w-0 space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
+              <Badge variant="outline" className={`text-[10px] uppercase ${platformBadgeClass}`}>
+                <Sparkles className="w-2.5 h-2.5 mr-1" />{platformLabel}
+              </Badge>
               <Badge variant={severityVariant[rec.severity]} className="text-[10px] uppercase">
                 {rec.severity}
               </Badge>
@@ -57,9 +77,9 @@ export function RecommendationCard({ rec, onApply, onReject, isApplying }: Props
             </div>
             <h4 className="text-sm font-semibold text-foreground leading-snug">{rec.action.description}</h4>
             <p className="text-xs text-muted-foreground leading-relaxed">{rec.diagnosis}</p>
-            {rec.target.campaign_name && (
+            {(rec.target.campaign_name || targetAny.adset_name) && (
               <p className="text-[11px] text-muted-foreground/80">
-                <span className="font-mono">{rec.target.account_id}</span> · {rec.target.campaign_name}
+                <span className="font-mono">{rec.target.account_id}</span> · {rec.target.campaign_name || targetAny.adset_name}
               </p>
             )}
             <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
@@ -70,7 +90,7 @@ export function RecommendationCard({ rec, onApply, onReject, isApplying }: Props
             <div className="flex items-center gap-2 pt-1">
               {isReview ? (
                 <Button size="sm" asChild>
-                  <Link to={`/contas-conectadas/google/${rec.target.account_id}`}>
+                  <Link to={reviewLink}>
                     <Link2 className="w-3 h-3 mr-1" /> Corrigir conta
                   </Link>
                 </Button>
@@ -89,7 +109,7 @@ export function RecommendationCard({ rec, onApply, onReject, isApplying }: Props
       <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirmar ação</DialogTitle>
+            <DialogTitle>Confirmar ação ({platformLabel})</DialogTitle>
             <DialogDescription>{rec.action.description}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 text-sm">
