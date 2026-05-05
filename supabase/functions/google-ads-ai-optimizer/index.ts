@@ -158,6 +158,19 @@ async function logUsage(service: any, workspace_id: string, fn: string, usage: a
   } catch (_) { /* */ }
 }
 
+function withSafeMutation(rec: any, workspaceId: string) {
+  const mutation = rec?.action?.mutation && Object.keys(rec.action.mutation).length > 0 ? rec.action.mutation : null;
+  if (mutation) return rec;
+
+  const target = rec?.target || {};
+  let fallback: Record<string, unknown> | null = null;
+  if (rec?.type === "pause" && target.account_id && target.campaign_id) {
+    fallback = { workspace_id: workspaceId, customer_id: target.account_id, action: "update_campaign_status", campaign_id: target.campaign_id, status: "PAUSED" };
+  }
+  if (!fallback) return { ...rec, type: "review" };
+  return { ...rec, action: { ...rec.action, mutation: fallback } };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -239,7 +252,7 @@ Deno.serve(async (req) => {
 
       // Add UUIDs to each recommendation
       const recommendations = (parsed.recommendations || []).map((r: any) => ({
-        ...r,
+        ...withSafeMutation(r, workspace_id),
         id: crypto.randomUUID(),
       }));
 
