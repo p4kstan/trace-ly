@@ -300,11 +300,19 @@ export default function GoogleAdsAccountsManager({ workspaceId }: { workspaceId:
                     )}
                   </a>
                   <div className="flex flex-col gap-1.5">
-                    {(acc.status === "error" || acc.status === "pending" || acc.last_error) && (
-                      <Button size="sm" variant="outline" onClick={() => reconnect(acc)} title="Reconectar conta" className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10">
-                        <Link2 className="w-3.5 h-3.5" />
-                      </Button>
-                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => reconnect(acc)}
+                      title="Reconectar conta no Google (renova o refresh token)"
+                      className={
+                        acc.status === "error" || acc.last_error
+                          ? "border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+                          : ""
+                      }
+                    >
+                      <Link2 className="w-3.5 h-3.5 mr-1" /> Reconectar
+                    </Button>
                     {!acc.is_default && (
                       <Button size="sm" variant="ghost" onClick={() => setDefault(acc)} title="Definir como padrão">
                         <Star className="w-3.5 h-3.5" />
