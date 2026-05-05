@@ -67,8 +67,8 @@ export function useApplyRecommendation() {
         target_campaign_id: rec.target.campaign_id ?? null,
         target_campaign_name: rec.target.campaign_name ?? null,
         diagnosis: rec.diagnosis,
-        mutation_payload: mutation,
-        before_snapshot: before,
+        mutation_payload: mutation as any,
+        before_snapshot: before as any,
         status: "approved",
         approved_at: new Date().toISOString(),
       }).select().single();
