@@ -240,7 +240,7 @@ Deno.serve(async (req) => {
       impressions: Number(r.metrics?.impressions ?? 0),
       clicks: Number(r.metrics?.clicks ?? 0),
       ctr: Number(r.metrics?.ctr ?? 0),
-      average_cpc_micros: Number(r.metrics?.averageCpc ?? 0),
+      average_cpc_micros: Math.round(Number(r.metrics?.averageCpc ?? 0)),
       conversions: Number(r.metrics?.conversions ?? 0),
       conversion_value: Number(r.metrics?.conversionsValue ?? 0),
       search_impression_share: r.metrics?.searchImpressionShare ? Number(r.metrics.searchImpressionShare) : null,

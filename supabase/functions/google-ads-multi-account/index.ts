@@ -22,6 +22,42 @@ const json = (b: unknown, s = 200) =>
 
 const PERIOD_DAYS: Record<string, number> = { "7d": 7, "14d": 14, "30d": 30, "90d": 90 };
 
+function normalizeCustomerId(value: string | null | undefined) {
+  const cleaned = String(value ?? "").replace(/\D/g, "");
+  return cleaned || null;
+}
+
+function formatCustomerId(value: string) {
+  const cleaned = normalizeCustomerId(value) || value;
+  return cleaned.length === 10
+    ? `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}-${cleaned.slice(6)}`
+    : value;
+}
+
+function extractGoogleAdsErrors(detail: any) {
+  return detail?.error?.details?.flatMap((item: any) => item?.errors || []) || [];
+}
+
+function getFriendlyGoogleAdsError(detail: any, customerId: string, loginCustomerId: string | null) {
+  const errors = extractGoogleAdsErrors(detail);
+  const messages = [detail?.error?.message, ...errors.map((item: any) => item?.message)]
+    .filter(Boolean)
+    .join(" | ");
+
+  if (messages.includes("login-customer-id") || errors.some((item: any) => item?.errorCode?.authorizationError === "USER_PERMISSION_DENIED")) {
+    if (!loginCustomerId) {
+      return "Essa conta parece estar vinculada a uma MCC. Abra a conta conectada e salve o login-customer-id da gerenciadora.";
+    }
+    return `MCC inválida ou sem acesso à conta ${formatCustomerId(customerId)}. Verifique o login-customer-id ${formatCustomerId(loginCustomerId)} e a vinculação da conta cliente no Google Ads.`;
+  }
+
+  if (messages.includes("CUSTOMER_NOT_FOUND") || messages.includes("not found")) {
+    return "MCC não encontrada. Revise o login-customer-id informado na conta conectada.";
+  }
+
+  return messages || "Google Ads API error";
+}
+
 async function refresh(refreshToken: string) {
   const r = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -110,17 +146,24 @@ Deno.serve(async (req) => {
             token_expires_at: new Date(Date.now() + (r.expires_in - 60) * 1000).toISOString(),
           }).eq("workspace_id", workspace_id).eq("customer_id", cred.customer_id);
         }
-        const headers = { "Authorization": `Bearer ${token}`, "developer-token": developerToken, "Content-Type": "application/json" };
+        const loginCustomerId = normalizeCustomerId(cred.login_customer_id as string | null);
+        const headers: Record<string, string> = {
+          "Authorization": `Bearer ${token}`,
+          "developer-token": developerToken,
+          "Content-Type": "application/json",
+        };
+        if (loginCustomerId) headers["login-customer-id"] = loginCustomerId;
         const apiBase = `https://googleads.googleapis.com/v21/customers/${cred.customer_id}`;
 
         // Aggregate account totals + per-campaign in parallel
         const [accRes, campRes] = await Promise.all([
-          fetch(`${apiBase}/googleAds:search`, { method: "POST", headers, body: JSON.stringify({ query: gaqlAccount, pageSize: 1000 }) }),
-          fetch(`${apiBase}/googleAds:search`, { method: "POST", headers, body: JSON.stringify({ query: gaqlCampaigns, pageSize: 1000 }) }),
+          fetch(`${apiBase}/googleAds:search`, { method: "POST", headers, body: JSON.stringify({ query: gaqlAccount }) }),
+          fetch(`${apiBase}/googleAds:search`, { method: "POST", headers, body: JSON.stringify({ query: gaqlCampaigns }) }),
         ]);
         const accJson = await accRes.json();
         const campJson = await campRes.json();
-        if (!accRes.ok) throw new Error(JSON.stringify(accJson).slice(0, 200));
+        if (!accRes.ok) throw new Error(getFriendlyGoogleAdsError(accJson, cred.customer_id, loginCustomerId));
+        if (!campRes.ok) throw new Error(getFriendlyGoogleAdsError(campJson, cred.customer_id, loginCustomerId));
 
         const accTotals = empty();
         let name = cred.account_name || cred.customer_id;
@@ -165,7 +208,7 @@ Deno.serve(async (req) => {
           customer_id: cred.customer_id,
           name: cred.account_name || cred.customer_id,
           status: "error" as const,
-          error: String(e instanceof Error ? e.message : e).slice(0, 200),
+          error: String(e instanceof Error ? e.message : e).slice(0, 300),
           totals: finalize(empty()),
           campaigns: [] as any[],
         };

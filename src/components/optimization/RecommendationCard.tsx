@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { AlertTriangle, TrendingUp, TrendingDown, Pause, Plus, Eye, Loader2 } from "lucide-react";
+import { AlertTriangle, TrendingUp, TrendingDown, Pause, Plus, Eye, Loader2, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Link } from "react-router-dom";
 import type { Recommendation } from "@/hooks/api/use-google-ads-recommendations";
 
 const severityStyle: Record<string, string> = {
@@ -37,6 +38,7 @@ interface Props {
 export function RecommendationCard({ rec, onApply, onReject, isApplying }: Props) {
   const [showConfirm, setShowConfirm] = useState(false);
   const Icon = typeIcon[rec.type] || AlertTriangle;
+  const isReview = rec.type === "review";
 
   return (
     <>
@@ -66,10 +68,18 @@ export function RecommendationCard({ rec, onApply, onReject, isApplying }: Props
               </span>
             </div>
             <div className="flex items-center gap-2 pt-1">
-              <Button size="sm" onClick={() => setShowConfirm(true)} disabled={isApplying}>
-                {isApplying ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
-                Aplicar
-              </Button>
+              {isReview ? (
+                <Button size="sm" asChild>
+                  <Link to={`/contas-conectadas/google/${rec.target.account_id}`}>
+                    <Link2 className="w-3 h-3 mr-1" /> Corrigir conta
+                  </Link>
+                </Button>
+              ) : (
+                <Button size="sm" onClick={() => setShowConfirm(true)} disabled={isApplying}>
+                  {isApplying ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+                  Aplicar
+                </Button>
+              )}
               <Button size="sm" variant="ghost" onClick={onReject}>Ignorar</Button>
             </div>
           </div>
