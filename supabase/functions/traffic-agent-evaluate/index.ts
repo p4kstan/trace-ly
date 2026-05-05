@@ -50,7 +50,11 @@ Deno.serve(async (req) => {
   const since = new Date(Date.now() - days * 86400_000);
 
   const { data: g } = await svc.rpc("get_or_create_traffic_agent_guardrails", { _workspace_id: wid });
-  const guardrails = g as any;
+  const gRow = Array.isArray(g) ? g[0] : g;
+  const guardrails = {
+    min_conversions: gRow?.min_conversions ?? 5,
+    min_spend_cents: gRow?.min_spend_cents ?? 10000,
+  };
 
   // Create run
   const { data: run, error: runErr } = await svc.from("traffic_agent_runs").insert({
