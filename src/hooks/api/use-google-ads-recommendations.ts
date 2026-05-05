@@ -54,7 +54,7 @@ export function useApplyRecommendation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ rec, workspaceId }: { rec: Recommendation; workspaceId: string }) => {
-      const mutation = rec.action.mutation as Record<string, unknown>;
+      const mutation: Record<string, any> = { customer_id: rec.target.account_id, ...(rec.action.mutation as Record<string, unknown>) };
       // Snapshot before-state when possible
       let before: any = null;
       if (mutation.action === "update_campaign_status") before = { status: mutation.status === "PAUSED" ? "ENABLED" : "PAUSED" };
