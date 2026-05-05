@@ -30,7 +30,8 @@ const intelligenceItems = [
   { title: "MCP & Codex", url: "/mcp-settings", icon: Cpu },
   { title: "Atribuição", url: "/attribution", icon: GitBranch },
   { title: "Predições", url: "/predictions", icon: TrendingUp },
-  { title: "Otimização", url: "/optimization", icon: Lightbulb },
+  { title: "Otimização AI", url: "/optimization", icon: Lightbulb },
+  { title: "Histórico AI", url: "/ai-actions-log", icon: ScrollText },
   { title: "Centro de Reuso de Dados", url: "/data-reuse-center", icon: Layers },
 ];
 

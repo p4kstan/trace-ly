@@ -1,173 +1,139 @@
 import { useState } from "react";
 import { useWorkspace } from "@/hooks/use-tracking-data";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { Lightbulb, TrendingUp, TrendingDown, Pause, RefreshCw, Zap } from "lucide-react";
+import { RefreshCw, Sparkles, Activity, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-
-const actionIcons: Record<string, any> = {
-  increase_budget: TrendingUp,
-  decrease_budget: TrendingDown,
-  pause_channel: Pause,
-};
-const actionColors: Record<string, string> = {
-  increase_budget: "text-success",
-  decrease_budget: "text-warning",
-  pause_channel: "text-destructive",
-};
+import { Link } from "react-router-dom";
+import {
+  useGoogleAdsRecommendations,
+  useApplyRecommendation,
+  type RecPeriod,
+  type Recommendation,
+} from "@/hooks/api/use-google-ads-recommendations";
+import { RecommendationCard } from "@/components/optimization/RecommendationCard";
+import { AICopilotChat } from "@/components/optimization/AICopilotChat";
 
 export default function Optimization() {
   const { data: workspace } = useWorkspace();
-  const [running, setRunning] = useState(false);
+  const [period, setPeriod] = useState<RecPeriod>("30d");
+  const [rejected, setRejected] = useState<Set<string>>(new Set());
 
-  const { data: recommendations, isLoading, refetch } = useQuery({
-    queryKey: ["optimization-recs", workspace?.id],
-    enabled: !!workspace?.id,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("optimization_recommendations")
-        .select("*")
-        .eq("workspace_id", workspace!.id)
-        .order("created_at", { ascending: false })
-        .limit(50);
-      return data || [];
-    },
-  });
+  const { data, isLoading, isFetching, refetch, error } = useGoogleAdsRecommendations(workspace?.id, period);
+  const apply = useApplyRecommendation();
 
-  const { data: hybridAttr } = useQuery({
-    queryKey: ["hybrid-attribution", workspace?.id],
-    enabled: !!workspace?.id,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("attribution_hybrid")
-        .select("*")
-        .eq("workspace_id", workspace!.id)
-        .order("hybrid_credit", { ascending: false })
-        .limit(20);
-      return data || [];
-    },
-  });
+  const visibleRecs: Recommendation[] = (data?.recommendations || []).filter((r) => !rejected.has(r.id));
+  const score = data?.health_score ?? 0;
+  const scoreColor = score >= 70 ? "text-success" : score >= 40 ? "text-warning" : "text-destructive";
 
-  const handleOptimize = async () => {
+  const handleApply = async (rec: Recommendation) => {
     if (!workspace?.id) return;
-    setRunning(true);
     try {
-      const { data, error } = await supabase.functions.invoke("optimization-engine", {
-        body: { workspace_id: workspace.id },
+      await apply.mutateAsync({ rec, workspaceId: workspace.id });
+      toast.success("Ação aplicada com sucesso", {
+        action: { label: "Ver histórico", onClick: () => (window.location.href = "/ai-actions-log") },
       });
-      if (error) throw error;
-      toast.success(`${data.recommendations} recomendações • ${data.hybrid_attribution} atribuições híbridas`);
-      refetch();
+      setRejected((s) => new Set(s).add(rec.id));
     } catch (e: any) {
-      toast.error(e.message || "Erro na otimização");
+      toast.error(e.message || "Falha ao aplicar");
     }
-    setRunning(false);
   };
-
-  const pending = recommendations?.filter(r => r.status === "pending") || [];
-  const high = pending.filter(r => r.priority === "high");
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Otimização de Budget</h1>
-          <p className="text-muted-foreground text-sm mt-1">Recomendações de otimização e atribuição híbrida</p>
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+            <Sparkles className="w-6 h-6 text-primary" />
+            Otimização AI · Google Ads
+          </h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            Recomendações estruturadas geradas por IA com aprovação antes de aplicar.
+          </p>
         </div>
-        <Button onClick={handleOptimize} disabled={running} size="sm">
-          <RefreshCw className={`w-4 h-4 mr-1 ${running ? "animate-spin" : ""}`} />
-          {running ? "Analisando..." : "Otimizar Agora"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Select value={period} onValueChange={(v) => setPeriod(v as RecPeriod)}>
+            <SelectTrigger className="w-[120px] h-9"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7d">Últimos 7d</SelectItem>
+              <SelectItem value="14d">Últimos 14d</SelectItem>
+              <SelectItem value="30d">Últimos 30d</SelectItem>
+              <SelectItem value="90d">Últimos 90d</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button onClick={() => refetch()} disabled={isFetching} size="sm">
+            <RefreshCw className={`w-4 h-4 mr-1 ${isFetching ? "animate-spin" : ""}`} />
+            {isFetching ? "Analisando…" : "Analisar agora"}
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/ai-actions-log">Histórico</Link>
+          </Button>
+        </div>
       </div>
 
-      {/* Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          { label: "Recomendações", value: String(pending.length), icon: Lightbulb, color: "text-primary" },
-          { label: "Alta Prioridade", value: String(high.length), icon: Zap, color: "text-destructive" },
-          { label: "Canais Híbridos", value: String(hybridAttr?.length || 0), icon: TrendingUp, color: "text-success" },
-          { label: "Ações de Budget", value: String(recommendations?.length || 0), icon: Lightbulb, color: "text-warning" },
-        ].map(c => (
-          <div key={c.label} className="surface-elevated p-4 text-center">
-            <c.icon className={`w-5 h-5 mx-auto mb-2 ${c.color}`} />
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{c.label}</p>
-            <p className="text-lg font-bold text-foreground mt-1 tabular-nums">{c.value}</p>
-          </div>
-        ))}
-      </div>
-
-      {isLoading ? <Skeleton className="h-[300px]" /> : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Recommendations */}
-          <div className="surface-elevated p-5">
-            <h3 className="text-sm font-medium text-foreground mb-4">Recomendações de Budget</h3>
-            {pending.length > 0 ? (
-              <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                {pending.map((r: any) => {
-                  const Icon = actionIcons[r.action] || Lightbulb;
-                  const color = actionColors[r.action] || "text-muted-foreground";
-                  return (
-                    <div key={r.id} className="bg-muted/20 rounded-lg p-3 border border-border/30">
-                      <div className="flex items-start gap-3">
-                        <Icon className={`w-4 h-4 mt-0.5 ${color}`} />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-sm font-medium text-foreground">{r.channel}</span>
-                            <Badge variant={r.priority === "high" ? "destructive" : "secondary"} className="text-[10px]">
-                              {r.priority}
-                            </Badge>
-                          </div>
-                          <p className="text-xs text-muted-foreground">{r.reason}</p>
-                          {r.estimated_impact && (
-                            <p className="text-xs text-success mt-1">
-                              Impacto estimado: R$ {Number(r.estimated_impact).toLocaleString("pt-BR")}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-sm text-center py-8">Sem recomendações pendentes</p>
-            )}
-          </div>
-
-          {/* Hybrid Attribution */}
-          <div className="surface-elevated p-5">
-            <h3 className="text-sm font-medium text-foreground mb-4">Atribuição Híbrida</h3>
-            {(hybridAttr?.length || 0) > 0 ? (
-              <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                {hybridAttr!.map((h: any) => (
-                  <div key={h.id} className="bg-muted/20 rounded-lg p-3 border border-border/30">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-foreground">{h.source || "Direct"}</span>
-                      <span className="text-xs text-primary font-mono">{((h.hybrid_credit || 0) * 100).toFixed(1)}%</span>
-                    </div>
-                    <div className="grid grid-cols-4 gap-1 text-[10px] text-muted-foreground">
-                      <span>Markov: {((h.markov_credit || 0) * 100).toFixed(0)}%</span>
-                      <span>Shapley: {((h.shapley_credit || 0) * 100).toFixed(0)}%</span>
-                      <span>T.Decay: {((h.time_decay_credit || 0) * 100).toFixed(0)}%</span>
-                      <span>Linear: {((h.linear_credit || 0) * 100).toFixed(0)}%</span>
-                    </div>
-                    {h.hybrid_value && (
-                      <p className="text-xs text-success mt-1 font-mono">
-                        R$ {Number(h.hybrid_value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                      </p>
-                    )}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-4">
+          {isLoading ? (
+            <>
+              <Skeleton className="h-32 rounded-xl" />
+              <Skeleton className="h-40 rounded-xl" />
+              <Skeleton className="h-40 rounded-xl" />
+            </>
+          ) : error ? (
+            <div className="surface-elevated p-6 text-center space-y-3">
+              <AlertTriangle className="w-8 h-8 text-destructive mx-auto" />
+              <p className="text-sm text-foreground">{(error as Error).message}</p>
+              <Button onClick={() => refetch()} size="sm" variant="outline">Tentar novamente</Button>
+            </div>
+          ) : data ? (
+            <>
+              <div className="surface-elevated p-5">
+                <div className="flex items-center gap-4 mb-3">
+                  <Activity className={`w-5 h-5 ${scoreColor}`} />
+                  <div className="flex-1">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Health score</p>
+                    <p className={`text-3xl font-bold tabular-nums ${scoreColor}`}>{score}<span className="text-sm text-muted-foreground">/100</span></p>
                   </div>
-                ))}
+                </div>
+                <p className="text-sm text-muted-foreground leading-relaxed">{data.summary}</p>
               </div>
-            ) : (
-              <p className="text-muted-foreground text-sm text-center py-8">Execute o otimizador para gerar</p>
-            )}
-          </div>
+
+              {visibleRecs.length === 0 ? (
+                <div className="surface-elevated p-8 text-center">
+                  <Sparkles className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    {data.recommendations.length === 0
+                      ? "Nenhuma recomendação no momento — suas campanhas parecem saudáveis."
+                      : "Todas recomendações foram tratadas."}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {visibleRecs.map((rec) => (
+                    <RecommendationCard
+                      key={rec.id}
+                      rec={rec}
+                      onApply={() => handleApply(rec)}
+                      onReject={() => setRejected((s) => new Set(s).add(rec.id))}
+                      isApplying={apply.isPending}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="surface-elevated p-8 text-center space-y-3">
+              <Sparkles className="w-8 h-8 text-primary mx-auto" />
+              <p className="text-sm text-muted-foreground">Clique em "Analisar agora" para gerar recomendações IA das suas contas Google Ads.</p>
+            </div>
+          )}
         </div>
-      )}
+
+        <div className="lg:col-span-1">
+          {workspace?.id && <AICopilotChat workspaceId={workspace.id} period={period} />}
+        </div>
+      </div>
     </div>
   );
 }

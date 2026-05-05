@@ -88,6 +88,77 @@ export type Database = {
           },
         ]
       }
+      ai_actions_log: {
+        Row: {
+          action_type: string
+          applied_at: string | null
+          approved_at: string | null
+          before_snapshot: Json | null
+          created_at: string
+          diagnosis: string | null
+          id: string
+          mutation_payload: Json | null
+          mutation_response: Json | null
+          rollback_payload: Json | null
+          rolled_back_at: string | null
+          status: string
+          target_account_id: string | null
+          target_campaign_id: string | null
+          target_campaign_name: string | null
+          target_platform: string
+          user_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          action_type: string
+          applied_at?: string | null
+          approved_at?: string | null
+          before_snapshot?: Json | null
+          created_at?: string
+          diagnosis?: string | null
+          id?: string
+          mutation_payload?: Json | null
+          mutation_response?: Json | null
+          rollback_payload?: Json | null
+          rolled_back_at?: string | null
+          status?: string
+          target_account_id?: string | null
+          target_campaign_id?: string | null
+          target_campaign_name?: string | null
+          target_platform?: string
+          user_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          action_type?: string
+          applied_at?: string | null
+          approved_at?: string | null
+          before_snapshot?: Json | null
+          created_at?: string
+          diagnosis?: string | null
+          id?: string
+          mutation_payload?: Json | null
+          mutation_response?: Json | null
+          rollback_payload?: Json | null
+          rolled_back_at?: string | null
+          status?: string
+          target_account_id?: string | null
+          target_campaign_id?: string | null
+          target_campaign_name?: string | null
+          target_platform?: string
+          user_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_actions_log_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_conversations: {
         Row: {
           created_at: string
@@ -165,6 +236,44 @@ export type Database = {
           workspace_id?: string
         }
         Relationships: []
+      }
+      ai_usage_log: {
+        Row: {
+          cost_estimate_usd: number | null
+          created_at: string
+          function_name: string
+          id: string
+          tokens_input: number | null
+          tokens_output: number | null
+          workspace_id: string
+        }
+        Insert: {
+          cost_estimate_usd?: number | null
+          created_at?: string
+          function_name: string
+          id?: string
+          tokens_input?: number | null
+          tokens_output?: number | null
+          workspace_id: string
+        }
+        Update: {
+          cost_estimate_usd?: number | null
+          created_at?: string
+          function_name?: string
+          id?: string
+          tokens_input?: number | null
+          tokens_output?: number | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_log_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       allowed_domains: {
         Row: {
