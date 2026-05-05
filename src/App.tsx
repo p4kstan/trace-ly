@@ -51,6 +51,8 @@ const GoogleAdsCampaigns = lazy(() => import("@/pages/GoogleAdsCampaigns"));
 const GoogleAdsOverview = lazy(() => import("@/pages/GoogleAdsOverview"));
 const GoogleAdsCampaignDetail = lazy(() => import("@/pages/GoogleAdsCampaignDetail"));
 const FacebookAdsCampaigns = lazy(() => import("@/pages/FacebookAdsCampaigns"));
+const MetaAdsAccountDetail = lazy(() => import("@/pages/MetaAdsAccountDetail"));
+const MetaAdsCampaignDetail = lazy(() => import("@/pages/MetaAdsCampaignDetail"));
 const TikTokAdsCampaigns = lazy(() => import("@/pages/TikTokAdsCampaigns"));
 const PromptGenerator = lazy(() => import("@/pages/PromptGenerator"));
 const GA4Analytics = lazy(() => import("@/pages/GA4Analytics"));
@@ -119,6 +121,8 @@ function ProtectedRoutes() {
           <Route path="/google-ads-overview" element={<GoogleAdsOverview />} />
           <Route path="/google-ads-campaigns/:customerId/:campaignId" element={<GoogleAdsCampaignDetail />} />
           <Route path="/facebook-ads-campaigns" element={<FacebookAdsCampaigns />} />
+          <Route path="/meta-ads/account/:account_id" element={<MetaAdsAccountDetail />} />
+          <Route path="/meta-ads/campaign/:account_id/:campaign_id" element={<MetaAdsCampaignDetail />} />
           <Route path="/tiktok-ads-campaigns" element={<TikTokAdsCampaigns />} />
           <Route path="/plans" element={<Plans />} />
           <Route path="/usage" element={<Usage />} />
