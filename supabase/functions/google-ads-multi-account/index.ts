@@ -146,7 +146,13 @@ Deno.serve(async (req) => {
             token_expires_at: new Date(Date.now() + (r.expires_in - 60) * 1000).toISOString(),
           }).eq("workspace_id", workspace_id).eq("customer_id", cred.customer_id);
         }
-        const headers = { "Authorization": `Bearer ${token}`, "developer-token": developerToken, "Content-Type": "application/json" };
+        const loginCustomerId = normalizeCustomerId(cred.login_customer_id as string | null);
+        const headers: Record<string, string> = {
+          "Authorization": `Bearer ${token}`,
+          "developer-token": developerToken,
+          "Content-Type": "application/json",
+        };
+        if (loginCustomerId) headers["login-customer-id"] = loginCustomerId;
         const apiBase = `https://googleads.googleapis.com/v21/customers/${cred.customer_id}`;
 
         // Aggregate account totals + per-campaign in parallel
@@ -156,7 +162,8 @@ Deno.serve(async (req) => {
         ]);
         const accJson = await accRes.json();
         const campJson = await campRes.json();
-        if (!accRes.ok) throw new Error(JSON.stringify(accJson).slice(0, 200));
+        if (!accRes.ok) throw new Error(getFriendlyGoogleAdsError(accJson, cred.customer_id, loginCustomerId));
+        if (!campRes.ok) throw new Error(getFriendlyGoogleAdsError(campJson, cred.customer_id, loginCustomerId));
 
         const accTotals = empty();
         let name = cred.account_name || cred.customer_id;
@@ -201,7 +208,7 @@ Deno.serve(async (req) => {
           customer_id: cred.customer_id,
           name: cred.account_name || cred.customer_id,
           status: "error" as const,
-          error: String(e instanceof Error ? e.message : e).slice(0, 200),
+          error: String(e instanceof Error ? e.message : e).slice(0, 300),
           totals: finalize(empty()),
           campaigns: [] as any[],
         };
