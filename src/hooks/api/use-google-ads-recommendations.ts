@@ -59,7 +59,7 @@ export function useApplyRecommendation() {
       let before: any = null;
       if (mutation.action === "update_campaign_status") before = { status: mutation.status === "PAUSED" ? "ENABLED" : "PAUSED" };
 
-      const { data: log, error: logErr } = await supabase.from("ai_actions_log").insert({
+      const { data: log, error: logErr } = await (supabase.from("ai_actions_log") as any).insert({
         workspace_id: workspaceId,
         action_type: rec.type,
         target_platform: "google_ads",
