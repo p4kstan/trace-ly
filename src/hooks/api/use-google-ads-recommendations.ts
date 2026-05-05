@@ -59,7 +59,7 @@ export function useApplyRecommendation() {
       let before: any = null;
       if (mutation.action === "update_campaign_status") before = { status: mutation.status === "PAUSED" ? "ENABLED" : "PAUSED" };
 
-      const { data: log, error: logErr } = await (supabase.from("ai_actions_log") as any).insert({
+      const { data: log, error: logErr } = await ((supabase.from("ai_actions_log") as any) as any).insert({
         workspace_id: workspaceId,
         action_type: rec.type,
         target_platform: "google_ads",
@@ -79,7 +79,7 @@ export function useApplyRecommendation() {
       });
 
       const finalStatus = mutErr ? "failed" : "applied";
-      await supabase.from("ai_actions_log").update({
+      await (supabase.from("ai_actions_log") as any).update({
         status: finalStatus,
         applied_at: new Date().toISOString(),
         mutation_response: result || { error: mutErr?.message },
@@ -118,7 +118,7 @@ export function useAIActionsLog(workspaceId: string | undefined, statusFilter?: 
     queryKey: ["ai-actions-log", workspaceId, statusFilter],
     enabled: !!workspaceId,
     queryFn: async () => {
-      let q = supabase.from("ai_actions_log").select("*")
+      let q = (supabase.from("ai_actions_log") as any).select("*")
         .eq("workspace_id", workspaceId!)
         .order("created_at", { ascending: false })
         .limit(100);
