@@ -72,6 +72,7 @@ const DataReuseCenter = lazy(() => import("@/pages/DataReuseCenter"));
 const DestinationRegistry = lazy(() => import("@/pages/DestinationRegistry"));
 const TrafficAgent = lazy(() => import("@/pages/TrafficAgent"));
 const McpSettings = lazy(() => import("@/pages/McpSettings"));
+const AIActionsLog = lazy(() => import("@/pages/AIActionsLog"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -104,6 +105,7 @@ function ProtectedRoutes() {
           <Route path="/realtime" element={<RealTimeAnalytics />} />
           <Route path="/predictions" element={<Predictions />} />
           <Route path="/optimization" element={<Optimization />} />
+          <Route path="/ai-actions-log" element={<AIActionsLog />} />
           <Route path="/funnels" element={<Funnels />} />
           <Route path="/tracking-sources" element={<TrackingSources />} />
           <Route path="/destinations" element={<Destinations />} />
