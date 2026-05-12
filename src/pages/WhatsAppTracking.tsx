@@ -144,13 +144,26 @@ capitrack.whatsapp('${phoneClean}', { message: '${message.replace(/'/g, "\\'")}'
         </div>
       </div>
 
+      <Card className="border-primary/30 bg-primary/5">
+        <CardContent className="pt-4 pb-4 flex items-start gap-3">
+          <CheckCircle2 className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+          <div className="text-sm">
+            <strong>Cada clique no WhatsApp = 1 conversão automática</strong> no Google Ads, Meta e GA4
+            (com gclid/fbclid/utm preservados). Não precisa marcar nada manualmente — a contagem é por quantidade de cliques,
+            não por valor. O botão <em>"Marcar como vendido"</em> abaixo é <strong>opcional</strong>, só para quando você quiser
+            atribuir o <em>valor</em> da venda fechada (Purchase com receita). Se sua campanha otimiza por <em>Lead</em> /
+            quantidade, ignore.
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <MetricCard title="Cliques" value={stats.total.toLocaleString()} change={0} icon={MessageCircle} />
-        <MetricCard title="Conversões" value={stats.converted.toLocaleString()} change={0} icon={CheckCircle2} />
-        <MetricCard title="Taxa" value={`${stats.rate.toFixed(1)}%`} change={0} icon={Clock} />
+        <MetricCard title="Cliques (= conversões Lead)" value={stats.total.toLocaleString()} change={0} icon={MessageCircle} />
+        <MetricCard title="Vendas marcadas" value={stats.converted.toLocaleString()} change={0} icon={CheckCircle2} />
+        <MetricCard title="Taxa de venda" value={`${stats.rate.toFixed(1)}%`} change={0} icon={Clock} />
         <MetricCard
           title="Receita atribuída"
-          value={`R$ ${stats.revenue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
+          value={stats.revenue > 0 ? stats.revenue.toLocaleString(undefined, { minimumFractionDigits: 2 }) : "—"}
           change={0}
           icon={CheckCircle2}
         />
