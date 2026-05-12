@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "value must be a non-negative number" }, 400);
     }
 
-    const currency = String(body.currency ?? "BRL").toUpperCase().slice(0, 3);
+    const currency = String(body.currency ?? "USD").toUpperCase().slice(0, 3);
     const sourceInput = String(body.source ?? "webhook") as ConversionSource;
     const source: ConversionSource = VALID_SOURCES.includes(sourceInput)
       ? sourceInput
