@@ -167,6 +167,20 @@ export const BUSINESS_PROFILES: Record<BusinessType, BusinessProfile> = {
     ],
     goals: ["Custo por orçamento qualificado", "Atribuição multi-touch (jornada longa)", "LTV por cliente"],
   },
+  whatsapp: {
+    id: "whatsapp",
+    label: "WhatsApp / Lead via Chat",
+    description: "Negócios que fecham venda no WhatsApp (clínicas, imobiliárias, infoproduto sem checkout próprio, prestadores de serviço, restaurantes que recebem pedido por chat).",
+    funnel: ["view_landing", "view_offer", "whatsapp_click", "whatsapp_conversation", "whatsapp_purchase"],
+    criticalEvents: [
+      { name: "view_landing", ga4: "page_view", meta: "PageView", when: "Visitante carrega a página/landing" },
+      { name: "view_offer", ga4: "view_item", meta: "ViewContent", when: "Vê oferta/serviço/produto específico (modal, popup, página de detalhe)" },
+      { name: "whatsapp_click", ga4: "generate_lead", meta: "Lead", when: "Clica em qualquer botão/link de WhatsApp (wa.me, api.whatsapp.com) — dispara via /whatsapp-click do CapiTrack" },
+      { name: "whatsapp_conversation", ga4: "contact", meta: "Contact", when: "Cliente respondeu no WhatsApp (opcional, via Business API webhook)" },
+      { name: "whatsapp_purchase", ga4: "purchase", meta: "Purchase", when: "Venda fechada no chat — disparado via /whatsapp-conversion (manual no painel, Zapier/n8n ou Business API)" },
+    ],
+    goals: ["Custo por clique-WhatsApp qualificado", "Taxa de fechamento clique→venda", "Lookalike de quem fechou venda", "Otimização de campanhas Meta/Google pra Purchase real (não só clique)"],
+  },
 };
 
 const GATEWAY_LABELS: Record<Gateway, string> = {
