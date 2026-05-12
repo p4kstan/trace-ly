@@ -17,6 +17,7 @@ import { MetricCard } from "@/components/MetricCard";
 import { toast } from "sonner";
 import { copyToClipboard } from "@/lib/clipboard";
 import { MessageCircle, Copy, CheckCircle2, Clock, ExternalLink, Code, ShieldCheck } from "lucide-react";
+import { GoogleAdsValidationPanel } from "@/components/whatsapp/GoogleAdsValidationPanel";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 
@@ -173,6 +174,7 @@ capitrack.whatsapp('${phoneClean}', { message: '${message.replace(/'/g, "\\'")}'
         <TabsList>
           <TabsTrigger value="clicks">Cliques</TabsTrigger>
           <TabsTrigger value="generator">Gerador de Botão</TabsTrigger>
+          <TabsTrigger value="validate">Validação Google Ads</TabsTrigger>
           <TabsTrigger value="setup">Setup avançado</TabsTrigger>
         </TabsList>
 
@@ -275,6 +277,10 @@ capitrack.whatsapp('${phoneClean}', { message: '${message.replace(/'/g, "\\'")}'
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="validate" className="mt-4">
+          {workspace?.id && <GoogleAdsValidationPanel workspaceId={workspace.id} />}
         </TabsContent>
 
         <TabsContent value="setup" className="mt-4 space-y-4">
