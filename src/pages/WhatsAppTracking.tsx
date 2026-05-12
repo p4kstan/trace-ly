@@ -56,6 +56,7 @@ export default function WhatsAppTracking() {
   const [message, setMessage] = useState("Olá! Tenho interesse, pode me ajudar?");
   const [convertDialog, setConvertDialog] = useState<WhatsAppClick | null>(null);
   const [convertValue, setConvertValue] = useState("");
+  const [convertCurrency, setConvertCurrency] = useState<string>(() => localStorage.getItem("wa_convert_currency") || "USD");
 
   const { data: clicks = [] } = useQuery({
     queryKey: ["wa-clicks", workspace?.id],
