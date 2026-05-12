@@ -143,12 +143,13 @@ capitrack.whatsapp('${phoneClean}', { message: '${message.replace(/'/g, "\\'")}'
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <MetricCard title="Cliques" value={stats.total.toLocaleString()} icon={MessageCircle} />
-        <MetricCard title="Conversões" value={stats.converted.toLocaleString()} icon={CheckCircle2} />
-        <MetricCard title="Taxa" value={`${stats.rate.toFixed(1)}%`} icon={Clock} />
+        <MetricCard title="Cliques" value={stats.total.toLocaleString()} change="" icon={MessageCircle} />
+        <MetricCard title="Conversões" value={stats.converted.toLocaleString()} change="" icon={CheckCircle2} />
+        <MetricCard title="Taxa" value={`${stats.rate.toFixed(1)}%`} change="" icon={Clock} />
         <MetricCard
           title="Receita atribuída"
           value={`R$ ${stats.revenue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
+          change=""
           icon={CheckCircle2}
         />
       </div>
