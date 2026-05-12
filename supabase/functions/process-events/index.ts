@@ -393,32 +393,79 @@ async function buildMetaEvent(item: any) {
   if (customer.zip_hash) userData.zp = [customer.zip_hash];
   if (customer.country_hash) userData.country = [customer.country_hash];
 
-  if (p.identity_id) userData.external_id = [p.identity_id];
-  if (session.fbp) userData.fbp = session.fbp;
-  if (session.fbc) userData.fbc = session.fbc;
+  // external_id — sempre hashar (Meta aceita hash ou raw, hash é privacy-safe)
+  if (p.identity_id) userData.external_id = [await sha256(String(p.identity_id))];
 
-  // Priority: session.ip_hash → webhook-provided IP from gateway
-  if (session.ip_hash) userData.client_ip_address = session.ip_hash;
-  else if (p.webhook_client_ip) userData.client_ip_address = p.webhook_client_ip;
+  if (session.fbp) userData.fbp = session.fbp;
+
+  // fbc: usar o cookie quando existir; caso não exista mas haja fbclid recente,
+  // construir no formato canônico fb.1.<event_time_ms>.<fbclid> (recomendação Meta).
+  if (session.fbc) {
+    userData.fbc = session.fbc;
+  } else {
+    const fbclid = session.fbclid || p.fbclid || (p.click_ids && p.click_ids.fbclid);
+    if (fbclid) {
+      const ts = new Date(item.created_at).getTime();
+      userData.fbc = `fb.1.${ts}.${fbclid}`;
+    }
+  }
+
+  // CRITICAL: client_ip_address must be RAW IP (Meta hashes server-side).
+  // Sending an SHA-256 hash here would NEVER match.
+  const rawIp = session.client_ip || p.webhook_client_ip || null;
+  if (rawIp) userData.client_ip_address = rawIp;
 
   if (session.user_agent) userData.client_user_agent = session.user_agent;
   else if (p.webhook_user_agent) userData.client_user_agent = p.webhook_user_agent;
 
-  return {
+  // ── Custom data: e-commerce completo ──
+  const customData: Record<string, unknown> = {
+    content_type: "product",
+  };
+  if (order.total_value != null) customData.value = Number(order.total_value);
+  if (order.currency) customData.currency = String(order.currency).toUpperCase();
+  if (order.external_order_id) customData.order_id = String(order.external_order_id);
+  if (order.items?.length) {
+    customData.num_items = order.items.length;
+    customData.contents = order.items.map((i: any) => {
+      const c: Record<string, unknown> = {
+        id: String(i.product_id || i.sku || i.product_name || "item"),
+        quantity: Number(i.quantity || 1),
+      };
+      if (i.unit_price != null || i.price != null) c.item_price = Number(i.unit_price ?? i.price);
+      if (i.product_name) c.title = String(i.product_name);
+      return c;
+    });
+    customData.content_ids = order.items.map((i: any) =>
+      String(i.product_id || i.sku || i.product_name || "item"),
+    );
+    customData.content_name = order.items[0]?.product_name || undefined;
+  }
+  if (order.predicted_ltv != null) customData.predicted_ltv = Number(order.predicted_ltv);
+  if (order.subscription_id) customData.subscription_id = String(order.subscription_id);
+  if (order.status) customData.status = String(order.status);
+
+  const evt: Record<string, unknown> = {
     event_name: p.marketing_event,
     event_time: Math.floor(new Date(item.created_at).getTime() / 1000),
     event_id: item.event_id || crypto.randomUUID(),
     action_source: "website",
     event_source_url: session.landing_page || undefined,
     user_data: userData,
-    custom_data: {
-      value: order.total_value, currency: order.currency,
-      order_id: order.external_order_id, content_type: "product",
-      num_items: order.items?.length || 1,
-      contents: order.items?.map((i: any) => ({ id: i.product_id || i.product_name || "item", quantity: i.quantity })),
-      content_ids: order.items?.map((i: any) => String(i.product_id || i.product_name)),
-    },
+    custom_data: customData,
   };
+
+  // LGPD/CCPA: opt-out & data processing options (per-event)
+  if (p.opt_out === true) (evt as any).opt_out = true;
+  if (Array.isArray(p.data_processing_options)) {
+    (evt as any).data_processing_options = p.data_processing_options;
+    if (p.data_processing_options_country != null)
+      (evt as any).data_processing_options_country = Number(p.data_processing_options_country);
+    if (p.data_processing_options_state != null)
+      (evt as any).data_processing_options_state = Number(p.data_processing_options_state);
+  }
+
+  return evt;
 }
 
 async function sendBatchToMeta(pixelId: string, accessToken: string, testEventCode: string | null, metaEvents: any[]) {
