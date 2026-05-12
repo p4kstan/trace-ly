@@ -7,8 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Plus, Star, Trash2, Settings, CheckCircle2 } from "lucide-react";
+import { Loader2, Plus, Star, Trash2, Settings, CheckCircle2, Search, Link2 } from "lucide-react";
 import RoutingRulesEditor, { RoutingRules } from "./RoutingRulesEditor";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface MetaAccount {
   id: string;
@@ -33,6 +34,19 @@ export default function MetaAccountsManager({ workspaceId }: { workspaceId: stri
   const [editing, setEditing] = useState<MetaAccount | null>(null);
   const [editLabel, setEditLabel] = useState("");
   const [editRules, setEditRules] = useState<RoutingRules>({ routing_mode: "all", routing_domains: [], routing_tags: [] });
+
+  // Discover (token-based) wizard state
+  const [discoverOpen, setDiscoverOpen] = useState(false);
+  const [discoverToken, setDiscoverToken] = useState("");
+  const [discovering, setDiscovering] = useState(false);
+  const [discovered, setDiscovered] = useState<{
+    user?: { id: string; name: string };
+    pixels: { id: string; name: string; ad_account_ids: string[] }[];
+    ad_accounts: { id: string; account_id: string; name: string; business_name?: string }[];
+  } | null>(null);
+  const [selPixel, setSelPixel] = useState<string>("");
+  const [selAdAccount, setSelAdAccount] = useState<string>("");
+  const [selLabel, setSelLabel] = useState("");
 
   const load = async () => {
     if (!workspaceId) return;
@@ -118,6 +132,51 @@ export default function MetaAccountsManager({ workspaceId }: { workspaceId: stri
     else { toast.success("Atualizada"); setEditing(null); load(); }
   };
 
+  const discover = async () => {
+    if (!discoverToken.trim()) { toast.error("Cole um Access Token"); return; }
+    setDiscovering(true);
+    setDiscovered(null);
+    const { data, error } = await supabase.functions.invoke("meta-list-assets", {
+      body: { access_token: discoverToken.trim() },
+    });
+    setDiscovering(false);
+    if (error || (data as any)?.error) {
+      toast.error((data as any)?.error || error?.message || "Falha ao validar token");
+      return;
+    }
+    const d = data as any;
+    setDiscovered({ user: d.user, pixels: d.pixels || [], ad_accounts: d.ad_accounts || [] });
+    if ((d.pixels || []).length === 1) setSelPixel(d.pixels[0].id);
+    if ((d.ad_accounts || []).length === 1) setSelAdAccount(d.ad_accounts[0].account_id);
+    toast.success(`Conectado como ${d.user?.name}. ${d.pixels?.length || 0} pixel(s), ${d.ad_accounts?.length || 0} conta(s).`);
+  };
+
+  const saveDiscovered = async () => {
+    if (!workspaceId) return;
+    if (!selPixel) { toast.error("Selecione um Pixel"); return; }
+    setSaving(true);
+    const isFirst = accounts.length === 0;
+    const { error } = await supabase.from("meta_ad_accounts").insert({
+      workspace_id: workspaceId,
+      account_label: selLabel.trim() || null,
+      pixel_id: selPixel,
+      access_token: discoverToken.trim(),
+      ad_account_id: selAdAccount ? `act_${selAdAccount}` : null,
+      status: "connected",
+      routing_mode: "all",
+      routing_domains: [],
+      routing_tags: [],
+      is_default: isFirst,
+    });
+    setSaving(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Conta Meta conectada");
+    setDiscoverOpen(false);
+    setDiscoverToken(""); setDiscovered(null); setSelPixel(""); setSelAdAccount(""); setSelLabel("");
+    load();
+  };
+
+
   if (loading) return <div className="flex items-center justify-center p-8"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>;
 
   return (
@@ -127,10 +186,93 @@ export default function MetaAccountsManager({ workspaceId }: { workspaceId: stri
           <h3 className="text-sm font-semibold text-foreground">Contas Meta / Facebook conectadas</h3>
           <p className="text-xs text-muted-foreground">{accounts.length} conta(s) — adicione quantos pixels precisar</p>
         </div>
-        <Dialog open={addOpen} onOpenChange={setAddOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm"><Plus className="w-4 h-4 mr-1" /> Adicionar conta</Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <Dialog open={discoverOpen} onOpenChange={setDiscoverOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm"><Link2 className="w-4 h-4 mr-1" /> Conectar via Token</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Conectar conta Meta Ads</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground space-y-1">
+                  <p className="text-foreground font-medium">Como obter o Access Token:</p>
+                  <ol className="list-decimal pl-4 space-y-0.5">
+                    <li>Abra <a href="https://business.facebook.com/settings/system-users" target="_blank" rel="noreferrer" className="text-primary underline">Business Settings → System Users</a></li>
+                    <li>Crie/selecione um System User com acesso ao Business.</li>
+                    <li>Clique em "Generate New Token", selecione o App, marque os escopos <code className="text-primary">ads_management</code> e <code className="text-primary">business_management</code>.</li>
+                    <li>Defina expiração "Never" (recomendado) e copie o token.</li>
+                  </ol>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Access Token *</Label>
+                  <div className="flex gap-2">
+                    <Input type="password" placeholder="EAAB..." value={discoverToken} onChange={(e) => setDiscoverToken(e.target.value)} className="font-mono" />
+                    <Button onClick={discover} disabled={discovering || !discoverToken.trim()}>
+                      {discovering ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Search className="w-4 h-4 mr-1" />Buscar</>}
+                    </Button>
+                  </div>
+                </div>
+
+                {discovered && (
+                  <div className="space-y-3 pt-2 border-t border-border">
+                    <div className="text-xs text-muted-foreground">
+                      Conectado como <span className="text-foreground font-medium">{discovered.user?.name}</span>
+                      {" • "}{discovered.pixels.length} pixel(s) • {discovered.ad_accounts.length} ad account(s)
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Pixel *</Label>
+                      <Select value={selPixel} onValueChange={setSelPixel}>
+                        <SelectTrigger><SelectValue placeholder="Selecione o Pixel" /></SelectTrigger>
+                        <SelectContent>
+                          {discovered.pixels.length === 0 && (
+                            <div className="p-2 text-xs text-muted-foreground">Nenhum pixel encontrado para este token.</div>
+                          )}
+                          {discovered.pixels.map(p => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.name} <span className="text-muted-foreground font-mono text-[10px]">({p.id})</span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Ad Account (opcional)</Label>
+                      <Select value={selAdAccount} onValueChange={setSelAdAccount}>
+                        <SelectTrigger><SelectValue placeholder="Selecione a Ad Account" /></SelectTrigger>
+                        <SelectContent>
+                          {discovered.ad_accounts.map(a => (
+                            <SelectItem key={a.account_id} value={a.account_id}>
+                              {a.name} {a.business_name ? `• ${a.business_name}` : ""} <span className="text-muted-foreground font-mono text-[10px]">(act_{a.account_id})</span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Apelido (opcional)</Label>
+                      <Input placeholder="Ex: Loja BR — Pixel principal" value={selLabel} onChange={(e) => setSelLabel(e.target.value)} />
+                    </div>
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setDiscoverOpen(false)}>Cancelar</Button>
+                <Button onClick={saveDiscovered} disabled={saving || !selPixel}>
+                  {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Salvar conexão
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={addOpen} onOpenChange={setAddOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" variant="outline"><Plus className="w-4 h-4 mr-1" /> Manual</Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Nova conta Meta CAPI</DialogTitle>
@@ -159,7 +301,8 @@ export default function MetaAccountsManager({ workspaceId }: { workspaceId: stri
               </Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       {accounts.length === 0 ? (
