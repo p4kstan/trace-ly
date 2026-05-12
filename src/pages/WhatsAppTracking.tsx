@@ -173,6 +173,7 @@ capitrack.whatsapp('${phoneClean}', { message: '${message.replace(/'/g, "\\'")}'
         <TabsList>
           <TabsTrigger value="clicks">Cliques</TabsTrigger>
           <TabsTrigger value="generator">Gerador de Botão</TabsTrigger>
+          <TabsTrigger value="validate">Validação Google Ads</TabsTrigger>
           <TabsTrigger value="setup">Setup avançado</TabsTrigger>
         </TabsList>
 
