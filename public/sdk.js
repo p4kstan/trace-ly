@@ -1008,6 +1008,42 @@
   }
 
   // ---- Public API ----
+  // ── E-commerce normalizer (GA4-style items[] → Meta CAPI contents[]) ──
+  // Aceita: { value, currency, items:[{ id|item_id, quantity, price|item_price, name|item_name }] }
+  // ou já estruturado: { content_ids, contents, ... }
+  function normalizeEcommerce(data) {
+    if (!data || typeof data !== 'object') return data;
+    var out = {};
+    for (var k in data) out[k] = data[k];
+    var items = data.items || data.contents;
+    if (Array.isArray(items) && items.length) {
+      var ids = [];
+      var contents = [];
+      var totalQty = 0;
+      for (var i = 0; i < items.length; i++) {
+        var it = items[i] || {};
+        var id = String(it.id || it.item_id || it.product_id || it.sku || '');
+        if (id) ids.push(id);
+        var qty = Number(it.quantity || 1);
+        totalQty += qty;
+        var c = { id: id || ('item_' + i), quantity: qty };
+        var price = it.item_price != null ? it.item_price : (it.price != null ? it.price : it.unit_price);
+        if (price != null) c.item_price = Number(price);
+        var title = it.title || it.name || it.item_name || it.product_name;
+        if (title) c.title = String(title);
+        contents.push(c);
+      }
+      if (!out.content_ids && ids.length) out.content_ids = ids;
+      if (!out.contents) out.contents = contents;
+      if (!out.content_type) out.content_type = 'product';
+      if (!out.num_items) out.num_items = totalQty || items.length;
+      if (!out.content_name && contents[0] && contents[0].title) out.content_name = contents[0].title;
+    }
+    if (data.transaction_id && !out.order_id) out.order_id = String(data.transaction_id);
+    if (out.currency) out.currency = String(out.currency).toUpperCase();
+    return out;
+  }
+
   function processCommand(command) {
     var args = Array.prototype.slice.call(arguments, 1);
     switch (command) {
