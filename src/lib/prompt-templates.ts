@@ -24,7 +24,8 @@ export type BusinessType =
   | "leadgen"
   | "delivery"
   | "marketplace"
-  | "agency";
+  | "agency"
+  | "whatsapp";
 
 export type Gateway =
   | "unknown"
