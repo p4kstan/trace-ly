@@ -81,16 +81,12 @@ const operationItems = [
 
 // 6. LOGS & DIAGNÓSTICO — tudo de observabilidade junto
 const logsItems = [
-  { title: "Logs de Eventos", url: "/logs", icon: ScrollText },
-  { title: "Logs de Integração", url: "/integration-logs", icon: FileText },
-  { title: "Logs Webhook", url: "/webhook-logs", icon: Webhook },
+  { title: "Logs (todos)", url: "/logs", icon: ScrollText },
   { title: "Duplicatas & Auditoria", url: "/duplicates", icon: Copy },
   { title: "Depurador", url: "/debugger", icon: Bug },
   { title: "Auditoria Canônica", url: "/canonical-audit", icon: Shield },
-  { title: "Retries & Dead-letter", url: "/retry-observability", icon: HeartPulse },
   { title: "Checklist Go-live", url: "/go-live-checklist", icon: Shield },
   { title: "Rate-limit", url: "/rate-limit-configs", icon: Shield },
-  { title: "Audit Log", url: "/audit-logs", icon: ScrollText },
   { title: "Relatório PII", url: "/pii-release-report", icon: Shield },
   { title: "Relatório de Release", url: "/release-report", icon: ShieldCheck },
   { title: "Saúde do Sistema", url: "/system-diagnostic", icon: HeartPulse },
