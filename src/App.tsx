@@ -151,6 +151,7 @@ function ProtectedRoutes() {
           <Route path="/traffic-agent" element={<TrafficAgent />} />
           <Route path="/mcp-settings" element={<McpSettings />} />
           <Route path="/whatsapp" element={<WhatsAppTracking />} />
+          <Route path="/emq-diagnostics" element={<EmqDiagnostics />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
         </RouteErrorBoundary>
