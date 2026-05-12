@@ -35,6 +35,19 @@ export default function MetaAccountsManager({ workspaceId }: { workspaceId: stri
   const [editLabel, setEditLabel] = useState("");
   const [editRules, setEditRules] = useState<RoutingRules>({ routing_mode: "all", routing_domains: [], routing_tags: [] });
 
+  // Discover (token-based) wizard state
+  const [discoverOpen, setDiscoverOpen] = useState(false);
+  const [discoverToken, setDiscoverToken] = useState("");
+  const [discovering, setDiscovering] = useState(false);
+  const [discovered, setDiscovered] = useState<{
+    user?: { id: string; name: string };
+    pixels: { id: string; name: string; ad_account_ids: string[] }[];
+    ad_accounts: { id: string; account_id: string; name: string; business_name?: string }[];
+  } | null>(null);
+  const [selPixel, setSelPixel] = useState<string>("");
+  const [selAdAccount, setSelAdAccount] = useState<string>("");
+  const [selLabel, setSelLabel] = useState("");
+
   const load = async () => {
     if (!workspaceId) return;
     setLoading(true);
