@@ -24,7 +24,8 @@ export type BusinessType =
   | "leadgen"
   | "delivery"
   | "marketplace"
-  | "agency";
+  | "agency"
+  | "whatsapp";
 
 export type Gateway =
   | "unknown"
@@ -166,6 +167,20 @@ export const BUSINESS_PROFILES: Record<BusinessType, BusinessProfile> = {
     ],
     goals: ["Custo por orçamento qualificado", "Atribuição multi-touch (jornada longa)", "LTV por cliente"],
   },
+  whatsapp: {
+    id: "whatsapp",
+    label: "WhatsApp / Lead via Chat",
+    description: "Negócios que fecham venda no WhatsApp (clínicas, imobiliárias, infoproduto sem checkout próprio, prestadores de serviço, restaurantes que recebem pedido por chat).",
+    funnel: ["view_landing", "view_offer", "whatsapp_click", "whatsapp_conversation", "whatsapp_purchase"],
+    criticalEvents: [
+      { name: "view_landing", ga4: "page_view", meta: "PageView", when: "Visitante carrega a página/landing" },
+      { name: "view_offer", ga4: "view_item", meta: "ViewContent", when: "Vê oferta/serviço/produto específico (modal, popup, página de detalhe)" },
+      { name: "whatsapp_click", ga4: "generate_lead", meta: "Lead", when: "Clica em qualquer botão/link de WhatsApp (wa.me, api.whatsapp.com) — dispara via /whatsapp-click do CapiTrack" },
+      { name: "whatsapp_conversation", ga4: "contact", meta: "Contact", when: "Cliente respondeu no WhatsApp (opcional, via Business API webhook)" },
+      { name: "whatsapp_purchase", ga4: "purchase", meta: "Purchase", when: "Venda fechada no chat — disparado via /whatsapp-conversion (manual no painel, Zapier/n8n ou Business API)" },
+    ],
+    goals: ["Custo por clique-WhatsApp qualificado", "Taxa de fechamento clique→venda", "Lookalike de quem fechou venda", "Otimização de campanhas Meta/Google pra Purchase real (não só clique)"],
+  },
 };
 
 const GATEWAY_LABELS: Record<Gateway, string> = {
@@ -255,10 +270,22 @@ export function generateAuditPrompt(cfg: ProjectConfig): string {
     cfg.hasTikTokAds && "TikTok Ads (Pixel + Events API)",
   ].filter(Boolean).join(", ") || "(definir)";
 
+  const whatsappAuditExtra = cfg.businessType === "whatsapp" ? `
+═══════════════════════════════════════════════
+AUDITORIA ESPECÍFICA — WHATSAPP TRACKING
+═══════════════════════════════════════════════
+- Liste TODOS os botões/links de WhatsApp do projeto (procure por: \`wa.me\`, \`api.whatsapp.com/send\`, \`whatsapp://\`, \`window.open\` com WhatsApp, \`<a href>\` com WhatsApp).
+- Para cada um informe: arquivo:linha + número de destino + se a mensagem é dinâmica.
+- Há alguma chamada ao endpoint \`/whatsapp-click\` do CapiTrack? Se sim, está usando a public key correta (\`pk_...\`)?
+- O click do WhatsApp dispara \`Lead\` (Meta) e \`generate_lead\` (GA4) hoje? Ou abre direto \`wa.me\` sem rastreamento?
+- Existe persistência de \`utm_*, gclid, gbraid, wbraid, fbclid, _fbp, _fbc\` em cookie/localStorage para sobreviver a navegação SPA?
+- Há fluxo de marcação de venda fechada? (manual no painel CapiTrack, Zapier/n8n, ou WhatsApp Business API webhook)
+` : "";
+
   return `${aiPreamble(cfg.targetAI)}
 
 Faça uma AUDITORIA COMPLETA de tracking neste projeto, SEM alterar nenhum arquivo. Responda em formato de relatório.
-${detectionBlock(cfg)}
+${detectionBlock(cfg)}${whatsappAuditExtra}
 ═══════════════════════════════════════════════
 CONTEXTO DO PROJETO
 ═══════════════════════════════════════════════
@@ -339,10 +366,155 @@ pushDataLayer("${e.ga4}", {
   items: [/* toGa4Item(produto, qtd) */],
 });`).join("\n\n");
 
+  const supabaseBase = cfg.endpoint.replace(/\/functions\/v1\/track\/?$/, "");
+  const whatsappFixBlock = cfg.businessType === "whatsapp" ? `
+
+═══════════════════════════════════════════════
+0.5) WHATSAPP TRACKING — RASTREIO COMPLETO DE CONVERSAS (CRÍTICO)
+═══════════════════════════════════════════════
+Esse projeto fecha venda no WhatsApp. Cada clique em botão de WhatsApp é um LEAD,
+e cada venda fechada no chat é um PURCHASE com a atribuição original (utm/gclid/fbclid/_fbp).
+
+**Por que isso importa pra otimização de campanhas:**
+- Sem isso, o Meta Ads e o Google Ads otimizam pelo CLIQUE no botão (vaidade).
+- Com isso, eles otimizam pela VENDA REAL fechada no WhatsApp → custo por aquisição cai
+  drasticamente porque o algoritmo aprende perfis que conversam E compram.
+
+**Crie o helper \`src/lib/whatsapp-tracking.ts\`** (substitua qualquer \`window.open(wa.me/...)\` existente):
+
+\`\`\`ts
+const CAPITRACK_WA_URL = "${supabaseBase}/functions/v1/whatsapp-click";
+const CAPITRACK_KEY = "${cfg.publicKey || "<COLE_SUA_PUBLIC_KEY>"}";
+
+function getCookie(name: string): string | null {
+  const m = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+  return m ? decodeURIComponent(m[2]) : null;
+}
+
+function getUTMs() {
+  const q = new URLSearchParams(window.location.search);
+  return {
+    utm_source: q.get("utm_source"),
+    utm_medium: q.get("utm_medium"),
+    utm_campaign: q.get("utm_campaign"),
+    utm_content: q.get("utm_content"),
+    utm_term: q.get("utm_term"),
+    gclid: q.get("gclid"),
+    gbraid: q.get("gbraid"),
+    wbraid: q.get("wbraid"),
+    fbclid: q.get("fbclid"),
+  };
+}
+
+export async function enviarWhatsApp({
+  telefone,         // ex: "5511999999999" — DDI + DDD + número, só dígitos
+  dados,            // { "Nome": "...", "Curso": "...", ... } → vira corpo da msg
+  titulo = "NOVO LEAD",
+  email,            // opcional — é hasheado server-side
+  userPhone,        // opcional — é hasheado server-side
+}: {
+  telefone: string;
+  dados: Record<string, string>;
+  titulo?: string;
+  email?: string;
+  userPhone?: string;
+}) {
+  const linhas = Object.entries(dados).map(([k, v]) => \`- \${k}: \${v}\`).join("\\n");
+  const mensagem = \`\${titulo}\\n\\n\${linhas}\\n\\nTenho interesse em saber mais!\`;
+
+  try {
+    const res = await fetch(CAPITRACK_WA_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Api-Key": CAPITRACK_KEY },
+      body: JSON.stringify({
+        phone: telefone,
+        message: mensagem,
+        url: window.location.href,
+        referrer: document.referrer,
+        ...getUTMs(),
+        fbp: getCookie("_fbp"),
+        fbc: getCookie("_fbc"),
+        email,
+        user_phone: userPhone,
+      }),
+    });
+    const json = await res.json();
+    if (json?.wa_url) {
+      // CapiTrack devolve a URL do WhatsApp já com [Ref: CT-XXXXXX] embutido na msg.
+      // Esse Ref permite casar a venda fechada com o clique original (atribuição).
+      window.open(json.wa_url, "_blank");
+      return;
+    }
+    throw new Error("no wa_url");
+  } catch (e) {
+    // Fallback — se CapiTrack falhar, abre o WhatsApp do mesmo jeito (não bloqueia o usuário).
+    const url = \`https://api.whatsapp.com/send?phone=\${telefone}&text=\${encodeURIComponent(mensagem)}\`;
+    window.open(url, "_blank");
+  }
+}
+\`\`\`
+
+**Substitua TODOS os \`window.open(wa.me/...)\` ou \`<a href="wa.me/...">\`** do projeto por chamadas
+ao \`enviarWhatsApp(...)\`. Exemplos típicos a procurar e refatorar:
+
+\`\`\`ts
+// ANTES (não rastreia):
+const url = \`https://api.whatsapp.com/send?phone=\${telefone}&text=\${encodeURIComponent(msg)}\`;
+window.open(url, "_blank");
+
+// DEPOIS (rastreia + dispara Lead pra Meta/Google/GA4 + preserva atribuição):
+import { enviarWhatsApp } from "@/lib/whatsapp-tracking";
+enviarWhatsApp({
+  telefone: "${"447785369424"}",
+  titulo: "INTERESSE NO PRODUTO X",
+  dados: {
+    "Nome": form.name,
+    "Interesse": form.interest,
+    // ...todo dado relevante pro vendedor responder
+  },
+  email: form.email,       // opcional, melhora EMQ no Meta
+  userPhone: form.phone,   // opcional
+});
+\`\`\`
+
+**Como fechar a conversão (3 caminhos — escolha o que tiver):**
+
+1. **Manual (mais simples)**: vendedor entra em \`/whatsapp\` no painel CapiTrack e clica
+   "marcar como vendido R$ X" na linha do clique. Dispara Purchase com a atribuição original.
+
+2. **Zapier / n8n / Make** (recomendado): quando o CRM/pipeline marcar venda como fechada,
+   faça um POST:
+   \`\`\`http
+   POST ${supabaseBase}/functions/v1/whatsapp-conversion
+   X-Api-Key: ${cfg.publicKey || "<PUBLIC_KEY>"}
+   Content-Type: application/json
+
+   {
+     "click_id": "CT-AB12CD",   // extrair do "Ref: CT-XXXXXX" na conversa
+     "value": 297.00,
+     "currency": "BRL",
+     "source": "webhook"
+   }
+   \`\`\`
+
+3. **WhatsApp Business Cloud API** (automático): configure webhook em
+   \`${supabaseBase}/functions/v1/whatsapp-business-webhook?key=<PUBLIC_KEY>\`
+   e use a public key como \`verify_token\`. O CapiTrack lê mensagens entrantes e,
+   quando detectar texto tipo \`"fechado: R$ 297"\` ou \`"vendido 150"\`, marca o
+   click_id (extraído do \`[Ref: CT-XXXXXX]\` na conversa) como convertido automaticamente.
+
+**Resultado para otimização de campanhas:**
+- Toda venda fechada vira \`Purchase\` enviado pra Meta CAPI + Google Ads + GA4
+- Com \`gclid/fbclid/_fbp\` originais → match quality alto, atribuição correta
+- Algoritmo de Meta/Google passa a otimizar pra perfis que **fecham venda no chat**,
+  não só por quem clica no botão
+- Use \`Purchase\` como conversão otimizada nas campanhas (não \`Lead\`/\`whatsapp_click\`)
+` : "";
+
   return `${aiPreamble(cfg.targetAI)}
 
 Aplique as correções de tracking abaixo, NA ORDEM, sem quebrar o que já funciona. Estratégia: ADITIVA (nunca remover chamadas existentes).
-${detectionBlock(cfg)}
+${detectionBlock(cfg)}${whatsappFixBlock}
 
 ═══════════════════════════════════════════════
 CONTEXTO

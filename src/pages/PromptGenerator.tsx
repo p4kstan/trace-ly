@@ -13,7 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import {
   Wand2, Copy, Search, Wrench, CheckCircle2, ShoppingBag, GraduationCap,
-  Cloud, Users, UtensilsCrossed, Store, Briefcase, Sparkles, Info, HelpCircle, Bot, ShoppingCart, Globe,
+  Cloud, Users, UtensilsCrossed, Store, Briefcase, Sparkles, Info, HelpCircle, Bot, ShoppingCart, Globe, MessageCircle,
 } from "lucide-react";
 import { NativeCheckoutBuilder } from "@/components/setup/NativeCheckoutBuilder";
 import { ExternalCheckoutBuilder } from "@/components/setup/ExternalCheckoutBuilder";
@@ -25,6 +25,7 @@ import {
 const BUSINESS_ICONS: Record<BusinessType, React.ComponentType<{ className?: string }>> = {
   ecommerce: ShoppingBag, infoproduct: GraduationCap, saas: Cloud,
   leadgen: Users, delivery: UtensilsCrossed, marketplace: Store, agency: Briefcase,
+  whatsapp: MessageCircle,
 };
 
 const GATEWAYS: { value: Gateway; label: string }[] = [
