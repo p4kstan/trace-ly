@@ -5744,6 +5744,155 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_clicks: {
+        Row: {
+          click_id: string
+          created_at: string
+          destination_phone: string
+          email_hash: string | null
+          fbc: string | null
+          fbclid: string | null
+          fbp: string | null
+          ga_client_id: string | null
+          gbraid: string | null
+          gclid: string | null
+          id: string
+          ip_hash: string | null
+          message_template: string | null
+          page_url: string | null
+          phone_hash: string | null
+          referrer: string | null
+          status: string
+          user_agent: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+          wbraid: string | null
+          workspace_id: string
+        }
+        Insert: {
+          click_id: string
+          created_at?: string
+          destination_phone: string
+          email_hash?: string | null
+          fbc?: string | null
+          fbclid?: string | null
+          fbp?: string | null
+          ga_client_id?: string | null
+          gbraid?: string | null
+          gclid?: string | null
+          id?: string
+          ip_hash?: string | null
+          message_template?: string | null
+          page_url?: string | null
+          phone_hash?: string | null
+          referrer?: string | null
+          status?: string
+          user_agent?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          wbraid?: string | null
+          workspace_id: string
+        }
+        Update: {
+          click_id?: string
+          created_at?: string
+          destination_phone?: string
+          email_hash?: string | null
+          fbc?: string | null
+          fbclid?: string | null
+          fbp?: string | null
+          ga_client_id?: string | null
+          gbraid?: string | null
+          gclid?: string | null
+          id?: string
+          ip_hash?: string | null
+          message_template?: string | null
+          page_url?: string | null
+          phone_hash?: string | null
+          referrer?: string | null
+          status?: string
+          user_agent?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          wbraid?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_clicks_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_conversions: {
+        Row: {
+          click_id: string
+          click_uuid: string | null
+          created_at: string
+          created_by: string | null
+          currency: string
+          event_id: string | null
+          id: string
+          notes: string | null
+          source: string
+          value: number
+          workspace_id: string
+        }
+        Insert: {
+          click_id: string
+          click_uuid?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          event_id?: string | null
+          id?: string
+          notes?: string | null
+          source?: string
+          value?: number
+          workspace_id: string
+        }
+        Update: {
+          click_id?: string
+          click_uuid?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          event_id?: string | null
+          id?: string
+          notes?: string | null
+          source?: string
+          value?: number
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_conversions_click_uuid_fkey"
+            columns: ["click_uuid"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_clicks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_conversions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspace_allowed_domains: {
         Row: {
           created_at: string
