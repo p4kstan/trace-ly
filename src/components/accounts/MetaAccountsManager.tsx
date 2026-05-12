@@ -301,7 +301,8 @@ export default function MetaAccountsManager({ workspaceId }: { workspaceId: stri
               </Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       {accounts.length === 0 ? (
