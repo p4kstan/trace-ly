@@ -425,8 +425,9 @@ Deno.serve(async (req) => {
       transaction_id: externalTxId,
       session_id: fpSession.session_id || fp.session_id || null,
       // monetary
-      value: fpOrder.total_value ?? fpCustom.value ?? null,
-      currency: fpOrder.currency || fpCustom.currency || null,
+      value: quantityOnly ? null : (fpOrder.total_value ?? fpCustom.value ?? null),
+      currency: quantityOnly ? null : (fpOrder.currency || fpCustom.currency || null),
+      quantity_only: quantityOnly,
       // click IDs / cookies / fingerprints (raw values, NOT PII)
       gclid: fpSession.gclid || fpCustom.gclid || null,
       gbraid: fpSession.gbraid || fpCustom.gbraid || null,
