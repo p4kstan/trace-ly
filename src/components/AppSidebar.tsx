@@ -94,6 +94,7 @@ const logsItems = [
   { title: "Relatório PII", url: "/pii-release-report", icon: Shield },
   { title: "Relatório de Release", url: "/release-report", icon: ShieldCheck },
   { title: "Saúde do Sistema", url: "/system-diagnostic", icon: HeartPulse },
+  { title: "Diagnóstico EMQ (Meta)", url: "/emq-diagnostics", icon: Activity },
 ];
 
 // 7. CONTA — tudo que é "minha conta"
