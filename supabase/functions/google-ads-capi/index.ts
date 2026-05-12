@@ -183,8 +183,16 @@ async function buildGoogleConversion(
     ...(wbraid ? { wbraid } : {}),
     conversion_action: `customers/${customerId}/conversionActions/${conversionLabel}`,
     conversion_date_time: formattedDate,
-    conversion_value: order.total_value || 0,
-    currency_code: order.currency || "BRL",
+    // quantity_only mode: omit conversion_value/currency_code so Google Ads
+    // counts the conversion as 1 unit (e.g. WhatsApp Lead clicks). Sending
+    // value=0 still optimizes for revenue=0; omitting both fields makes the
+    // conversion count purely by quantity.
+    ...(quantityOnly
+      ? {}
+      : {
+          conversion_value: order.total_value || 0,
+          currency_code: order.currency || "BRL",
+        }),
     order_id: order.external_order_id,
     user_identifiers: userIdentifiers.length > 0 ? userIdentifiers : undefined,
   };
