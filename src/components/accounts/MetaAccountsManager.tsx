@@ -7,8 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Plus, Star, Trash2, Settings, CheckCircle2 } from "lucide-react";
+import { Loader2, Plus, Star, Trash2, Settings, CheckCircle2, Search, Link2 } from "lucide-react";
 import RoutingRulesEditor, { RoutingRules } from "./RoutingRulesEditor";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface MetaAccount {
   id: string;
