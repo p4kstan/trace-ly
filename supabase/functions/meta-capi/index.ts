@@ -66,6 +66,10 @@ interface MetaEventData {
     status?: string;
     [key: string]: unknown;
   };
+  opt_out?: boolean;
+  data_processing_options?: string[];
+  data_processing_options_country?: number;
+  data_processing_options_state?: number;
 }
 
 async function hashSHA256(value: string): Promise<string> {
