@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -55,6 +56,7 @@ export default function WhatsAppTracking() {
   const [message, setMessage] = useState("Olá! Tenho interesse, pode me ajudar?");
   const [convertDialog, setConvertDialog] = useState<WhatsAppClick | null>(null);
   const [convertValue, setConvertValue] = useState("");
+  const [convertCurrency, setConvertCurrency] = useState<string>(() => localStorage.getItem("wa_convert_currency") || "USD");
 
   const { data: clicks = [] } = useQuery({
     queryKey: ["wa-clicks", workspace?.id],
@@ -93,11 +95,11 @@ export default function WhatsAppTracking() {
   }, [clicks, conversions]);
 
   const convert = useMutation({
-    mutationFn: async ({ click_id, value }: { click_id: string; value: number }) => {
+    mutationFn: async ({ click_id, value, currency }: { click_id: string; value: number; currency: string }) => {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-conversion`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Api-Key": publicKey },
-        body: JSON.stringify({ click_id, value, currency: "BRL", source: "manual" }),
+        body: JSON.stringify({ click_id, value, currency, source: "manual" }),
       });
       if (!res.ok) throw new Error(await res.text());
       return res.json();
@@ -290,7 +292,7 @@ Body:
 {
   "click_id": "CT-XXXXXX",     // ou "ref": "texto contendo CT-XXXXXX"
   "value": 297.00,
-  "currency": "BRL",
+  "currency": "USD",           // ISO-4217: USD, EUR, GBP, BRL, MXN…
   "source": "webhook"
 }`}</pre>
                 <Button size="sm" variant="outline" onClick={() => { copyToClipboard(webhookUrl); toast.success("URL copiada"); }}>
@@ -337,22 +339,38 @@ Body:
             <div className="text-xs text-muted-foreground">
               Click ID: <span className="font-mono">{convertDialog?.click_id}</span>
             </div>
-            <div className="space-y-2">
-              <Label>Valor da venda (R$)</Label>
-              <Input
-                type="number"
-                step="0.01"
-                placeholder="297.00"
-                value={convertValue}
-                onChange={(e) => setConvertValue(e.target.value)}
-                autoFocus
-              />
+            <div className="grid grid-cols-[1fr_120px] gap-2">
+              <div className="space-y-2">
+                <Label>Valor da venda</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="297.00"
+                  value={convertValue}
+                  onChange={(e) => setConvertValue(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Moeda</Label>
+                <Select
+                  value={convertCurrency}
+                  onValueChange={(v) => { setConvertCurrency(v); localStorage.setItem("wa_convert_currency", v); }}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {["USD","EUR","GBP","BRL","MXN","ARS","CLP","COP","PEN","CAD","AUD","JPY"].map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConvertDialog(null)}>Cancelar</Button>
             <Button
-              onClick={() => convertDialog && convert.mutate({ click_id: convertDialog.click_id, value: Number(convertValue) || 0 })}
+              onClick={() => convertDialog && convert.mutate({ click_id: convertDialog.click_id, value: Number(convertValue) || 0, currency: convertCurrency })}
               disabled={convert.isPending}
             >
               {convert.isPending ? "Enviando..." : "Confirmar venda"}

@@ -492,7 +492,7 @@ enviarWhatsApp({
    {
      "click_id": "CT-AB12CD",   // extrair do "Ref: CT-XXXXXX" na conversa
      "value": 297.00,
-     "currency": "BRL",
+     "currency": "USD",          // ISO-4217 da venda (USD, EUR, BRL, MXN, etc.)
      "source": "webhook"
    }
    \`\`\`
