@@ -74,6 +74,7 @@ const TrafficAgent = lazy(() => import("@/pages/TrafficAgent"));
 const McpSettings = lazy(() => import("@/pages/McpSettings"));
 const AIActionsLog = lazy(() => import("@/pages/AIActionsLog"));
 const WhatsAppTracking = lazy(() => import("@/pages/WhatsAppTracking"));
+const EmqDiagnostics = lazy(() => import("@/pages/EmqDiagnostics"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
