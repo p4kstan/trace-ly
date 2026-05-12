@@ -87,6 +87,7 @@ async function buildGoogleConversion(
   customerId: string,
   conversionLabel: string,
   workspaceId: string,
+  quantityOnly: boolean = false,
 ): Promise<GoogleConversionPayload | null> {
   const p = item.payload_json || {};
   const customer = p.customer || {};
@@ -182,8 +183,16 @@ async function buildGoogleConversion(
     ...(wbraid ? { wbraid } : {}),
     conversion_action: `customers/${customerId}/conversionActions/${conversionLabel}`,
     conversion_date_time: formattedDate,
-    conversion_value: order.total_value || 0,
-    currency_code: order.currency || "BRL",
+    // quantity_only mode: omit conversion_value/currency_code so Google Ads
+    // counts the conversion as 1 unit (e.g. WhatsApp Lead clicks). Sending
+    // value=0 still optimizes for revenue=0; omitting both fields makes the
+    // conversion count purely by quantity.
+    ...(quantityOnly
+      ? {}
+      : {
+          conversion_value: order.total_value || 0,
+          currency_code: order.currency || "BRL",
+        }),
     order_id: order.external_order_id,
     user_identifiers: userIdentifiers.length > 0 ? userIdentifiers : undefined,
   };
@@ -333,10 +342,14 @@ Deno.serve(async (req) => {
     }
 
     // Build conversions
+    const quantityOnly = config.quantity_only === true;
+    if (quantityOnly) {
+      console.log(`[google-ads-capi] quantity_only=ON for destination ${destination.destination_id || finalCustomerId} — value/currency will be OMITTED.`);
+    }
     const conversions: GoogleConversionPayload[] = [];
     const skipped: string[] = [];
     for (const item of items) {
-      const conv = await buildGoogleConversion(item, finalCustomerId, conversionLabel, wsId);
+      const conv = await buildGoogleConversion(item, finalCustomerId, conversionLabel, wsId, quantityOnly);
       if (conv) conversions.push(conv);
       else skipped.push(item.id || item.event_id || "unknown");
     }
@@ -412,8 +425,9 @@ Deno.serve(async (req) => {
       transaction_id: externalTxId,
       session_id: fpSession.session_id || fp.session_id || null,
       // monetary
-      value: fpOrder.total_value ?? fpCustom.value ?? null,
-      currency: fpOrder.currency || fpCustom.currency || null,
+      value: quantityOnly ? null : (fpOrder.total_value ?? fpCustom.value ?? null),
+      currency: quantityOnly ? null : (fpOrder.currency || fpCustom.currency || null),
+      quantity_only: quantityOnly,
       // click IDs / cookies / fingerprints (raw values, NOT PII)
       gclid: fpSession.gclid || fpCustom.gclid || null,
       gbraid: fpSession.gbraid || fpCustom.gbraid || null,
