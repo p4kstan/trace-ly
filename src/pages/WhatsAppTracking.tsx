@@ -17,6 +17,7 @@ import { MetricCard } from "@/components/MetricCard";
 import { toast } from "sonner";
 import { copyToClipboard } from "@/lib/clipboard";
 import { MessageCircle, Copy, CheckCircle2, Clock, ExternalLink, Code, ShieldCheck } from "lucide-react";
+import { GoogleAdsValidationPanel } from "@/components/whatsapp/GoogleAdsValidationPanel";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 
