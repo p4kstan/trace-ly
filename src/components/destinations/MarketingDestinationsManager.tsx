@@ -399,6 +399,7 @@ function EditGoogleAdsDialog({ dest, onSaved }: { dest: any; onSaved: () => void
   const [conversionId, setConversionId] = useState(dest.destination_id || "");
   const [conversionLabel, setConversionLabel] = useState(cfg.conversion_label || "");
   const [customerId, setCustomerId] = useState(cfg.customer_id || "");
+  const [quantityOnly, setQuantityOnly] = useState(!!cfg.quantity_only);
   const [saving, setSaving] = useState(false);
 
   async function save() {
