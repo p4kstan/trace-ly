@@ -470,6 +470,26 @@ function EditGoogleAdsDialog({ dest, onSaved }: { dest: any; onSaved: () => void
               Atual: customers/{customerId || "..."}/conversionActions/{conversionId}~{conversionLabel}
             </div>
           )}
+          <div className="rounded-md border border-border/60 bg-muted/30 p-3 space-y-2">
+            <div className="flex items-start gap-3">
+              <Switch
+                id="ga-quantity-only"
+                checked={quantityOnly}
+                onCheckedChange={setQuantityOnly}
+                className="mt-0.5"
+              />
+              <div className="space-y-1 flex-1">
+                <Label htmlFor="ga-quantity-only" className="text-xs cursor-pointer">
+                  Contar por quantidade (sem valor monetário)
+                </Label>
+                <p className="text-[10px] text-muted-foreground leading-snug">
+                  Ideal para WhatsApp/Lead: cada conversão conta como <strong>1 unidade</strong>.
+                  O payload é enviado <strong>sem</strong> <code>value</code> e <code>currency_code</code>,
+                  garantindo que o Google Ads otimize por <strong>quantidade</strong> de conversões e não por receita.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
