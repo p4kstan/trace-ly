@@ -470,7 +470,11 @@ async function buildMetaEvent(item: any) {
 
 async function sendBatchToMeta(pixelId: string, accessToken: string, testEventCode: string | null, metaEvents: any[]) {
   const url = `${GRAPH_API_BASE}/${GRAPH_API_VERSION}/${pixelId}/events`;
-  const body: Record<string, unknown> = { data: metaEvents, access_token: accessToken };
+  const body: Record<string, unknown> = {
+    data: metaEvents,
+    access_token: accessToken,
+    partner_agent: "capitrack-1.0",
+  };
   if (testEventCode) body.test_event_code = testEventCode;
   const res = await fetch(url, {
     method: "POST", headers: { "Content-Type": "application/json" },
