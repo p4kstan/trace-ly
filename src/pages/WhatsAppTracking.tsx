@@ -292,7 +292,7 @@ Body:
 {
   "click_id": "CT-XXXXXX",     // ou "ref": "texto contendo CT-XXXXXX"
   "value": 297.00,
-  "currency": "BRL",
+  "currency": "USD",           // ISO-4217: USD, EUR, GBP, BRL, MXN…
   "source": "webhook"
 }`}</pre>
                 <Button size="sm" variant="outline" onClick={() => { copyToClipboard(webhookUrl); toast.success("URL copiada"); }}>
