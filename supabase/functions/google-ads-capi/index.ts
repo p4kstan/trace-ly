@@ -342,10 +342,14 @@ Deno.serve(async (req) => {
     }
 
     // Build conversions
+    const quantityOnly = config.quantity_only === true;
+    if (quantityOnly) {
+      console.log(`[google-ads-capi] quantity_only=ON for destination ${destination.destination_id || finalCustomerId} — value/currency will be OMITTED.`);
+    }
     const conversions: GoogleConversionPayload[] = [];
     const skipped: string[] = [];
     for (const item of items) {
-      const conv = await buildGoogleConversion(item, finalCustomerId, conversionLabel, wsId);
+      const conv = await buildGoogleConversion(item, finalCustomerId, conversionLabel, wsId, quantityOnly);
       if (conv) conversions.push(conv);
       else skipped.push(item.id || item.event_id || "unknown");
     }
