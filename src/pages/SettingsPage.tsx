@@ -1,12 +1,40 @@
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { useWorkspace } from "@/hooks/use-tracking-data";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Copy } from "lucide-react";
+import { Copy, Mail, KeyRound, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function SettingsPage() {
   const { data: workspace, isLoading } = useWorkspace();
+  const [email, setEmail] = useState<string>("");
+  const [sendingReset, setSendingReset] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setEmail(data.user?.email || "");
+    });
+  }, []);
+
+  const handlePasswordReset = async () => {
+    if (!email) {
+      toast.error("Email não encontrado");
+      return;
+    }
+    setSendingReset(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setSendingReset(false);
+    if (error) {
+      toast.error("Erro ao enviar: " + error.message);
+    } else {
+      toast.success("Email de redefinição enviado! Verifique sua caixa de entrada.");
+    }
+  };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -27,6 +55,40 @@ export default function SettingsPage() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Configurações</h1>
         <p className="text-muted-foreground text-sm mt-1">Configurações do workspace</p>
+      </div>
+
+      <div className="glass-card p-6 space-y-5">
+        <h3 className="font-medium text-foreground flex items-center gap-2">
+          <Mail className="w-4 h-4 text-primary" /> Conta
+        </h3>
+        <div className="space-y-3">
+          <div>
+            <Label className="text-muted-foreground text-sm">Email cadastrado</Label>
+            <Input
+              value={email}
+              readOnly
+              className="mt-1 bg-muted border-border text-foreground"
+            />
+          </div>
+          <div className="pt-2">
+            <Button
+              onClick={handlePasswordReset}
+              disabled={sendingReset || !email}
+              variant="outline"
+              className="gap-2"
+            >
+              {sendingReset ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <KeyRound className="w-4 h-4" />
+              )}
+              Redefinir senha por email
+            </Button>
+            <p className="text-xs text-muted-foreground mt-2">
+              Enviaremos um link seguro para <strong>{email || "seu email"}</strong> com instruções para criar uma nova senha.
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="glass-card p-6 space-y-5">
