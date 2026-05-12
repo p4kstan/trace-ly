@@ -132,6 +132,51 @@ export default function MetaAccountsManager({ workspaceId }: { workspaceId: stri
     else { toast.success("Atualizada"); setEditing(null); load(); }
   };
 
+  const discover = async () => {
+    if (!discoverToken.trim()) { toast.error("Cole um Access Token"); return; }
+    setDiscovering(true);
+    setDiscovered(null);
+    const { data, error } = await supabase.functions.invoke("meta-list-assets", {
+      body: { access_token: discoverToken.trim() },
+    });
+    setDiscovering(false);
+    if (error || (data as any)?.error) {
+      toast.error((data as any)?.error || error?.message || "Falha ao validar token");
+      return;
+    }
+    const d = data as any;
+    setDiscovered({ user: d.user, pixels: d.pixels || [], ad_accounts: d.ad_accounts || [] });
+    if ((d.pixels || []).length === 1) setSelPixel(d.pixels[0].id);
+    if ((d.ad_accounts || []).length === 1) setSelAdAccount(d.ad_accounts[0].account_id);
+    toast.success(`Conectado como ${d.user?.name}. ${d.pixels?.length || 0} pixel(s), ${d.ad_accounts?.length || 0} conta(s).`);
+  };
+
+  const saveDiscovered = async () => {
+    if (!workspaceId) return;
+    if (!selPixel) { toast.error("Selecione um Pixel"); return; }
+    setSaving(true);
+    const isFirst = accounts.length === 0;
+    const { error } = await supabase.from("meta_ad_accounts").insert({
+      workspace_id: workspaceId,
+      account_label: selLabel.trim() || null,
+      pixel_id: selPixel,
+      access_token: discoverToken.trim(),
+      ad_account_id: selAdAccount ? `act_${selAdAccount}` : null,
+      status: "connected",
+      routing_mode: "all",
+      routing_domains: [],
+      routing_tags: [],
+      is_default: isFirst,
+    });
+    setSaving(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Conta Meta conectada");
+    setDiscoverOpen(false);
+    setDiscoverToken(""); setDiscovered(null); setSelPixel(""); setSelAdAccount(""); setSelLabel("");
+    load();
+  };
+
+
   if (loading) return <div className="flex items-center justify-center p-8"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>;
 
   return (
