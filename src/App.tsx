@@ -14,6 +14,7 @@ const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Attribution = lazy(() => import("@/pages/Attribution"));
 const Pixels = lazy(() => import("@/pages/Pixels"));
 const EventLogs = lazy(() => import("@/pages/EventLogs"));
+const UnifiedLogs = lazy(() => import("@/pages/UnifiedLogs"));
 const Debugger = lazy(() => import("@/pages/Debugger"));
 const AIAnalytics = lazy(() => import("@/pages/AIAnalytics"));
 const Integrations = lazy(() => import("@/pages/Integrations"));
@@ -94,7 +95,8 @@ function ProtectedRoutes() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/attribution" element={<Attribution />} />
           <Route path="/pixels" element={<Pixels />} />
-          <Route path="/logs" element={<EventLogs />} />
+          <Route path="/logs" element={<UnifiedLogs />} />
+          <Route path="/logs/events" element={<EventLogs />} />
           <Route path="/debugger" element={<Debugger />} />
           <Route path="/ai-analytics" element={<AIAnalytics />} />
           <Route path="/integrations" element={<Integrations />} />
