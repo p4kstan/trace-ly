@@ -422,6 +422,7 @@ function EditGoogleAdsDialog({ dest, onSaved }: { dest: any; onSaved: () => void
         customer_id: cid || null,
         conversion_action_id: conv || null,
         conversion_label: conversionLabel.trim() || null,
+        quantity_only: quantityOnly,
       },
     };
     const { error } = await supabase.from("integration_destinations").update(update).eq("id", dest.id);
