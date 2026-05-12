@@ -1008,6 +1008,42 @@
   }
 
   // ---- Public API ----
+  // ── E-commerce normalizer (GA4-style items[] → Meta CAPI contents[]) ──
+  // Aceita: { value, currency, items:[{ id|item_id, quantity, price|item_price, name|item_name }] }
+  // ou já estruturado: { content_ids, contents, ... }
+  function normalizeEcommerce(data) {
+    if (!data || typeof data !== 'object') return data;
+    var out = {};
+    for (var k in data) out[k] = data[k];
+    var items = data.items || data.contents;
+    if (Array.isArray(items) && items.length) {
+      var ids = [];
+      var contents = [];
+      var totalQty = 0;
+      for (var i = 0; i < items.length; i++) {
+        var it = items[i] || {};
+        var id = String(it.id || it.item_id || it.product_id || it.sku || '');
+        if (id) ids.push(id);
+        var qty = Number(it.quantity || 1);
+        totalQty += qty;
+        var c = { id: id || ('item_' + i), quantity: qty };
+        var price = it.item_price != null ? it.item_price : (it.price != null ? it.price : it.unit_price);
+        if (price != null) c.item_price = Number(price);
+        var title = it.title || it.name || it.item_name || it.product_name;
+        if (title) c.title = String(title);
+        contents.push(c);
+      }
+      if (!out.content_ids && ids.length) out.content_ids = ids;
+      if (!out.contents) out.contents = contents;
+      if (!out.content_type) out.content_type = 'product';
+      if (!out.num_items) out.num_items = totalQty || items.length;
+      if (!out.content_name && contents[0] && contents[0].title) out.content_name = contents[0].title;
+    }
+    if (data.transaction_id && !out.order_id) out.order_id = String(data.transaction_id);
+    if (out.currency) out.currency = String(out.currency).toUpperCase();
+    return out;
+  }
+
   function processCommand(command) {
     var args = Array.prototype.slice.call(arguments, 1);
     switch (command) {
@@ -1081,17 +1117,20 @@
         break;
 
       case 'purchase':
-        enqueueEvent(buildEvent('Purchase', args[0]));
+        enqueueEvent(buildEvent('Purchase', normalizeEcommerce(args[0])));
         // Confirmed conversion → start a fresh journey id for the next funnel.
         refreshJourneyEventId();
         log('Purchase');
         break;
       case 'lead': enqueueEvent(buildEvent('Lead', args[0])); log('Lead'); break;
-      case 'addToCart': enqueueEvent(buildEvent('AddToCart', args[0])); log('AddToCart'); break;
-      case 'initiateCheckout': enqueueEvent(buildEvent('InitiateCheckout', args[0])); log('InitiateCheckout'); break;
-      case 'viewContent': enqueueEvent(buildEvent('ViewContent', args[0])); log('ViewContent'); break;
+      case 'addToCart': enqueueEvent(buildEvent('AddToCart', normalizeEcommerce(args[0]))); log('AddToCart'); break;
+      case 'initiateCheckout': enqueueEvent(buildEvent('InitiateCheckout', normalizeEcommerce(args[0]))); log('InitiateCheckout'); break;
+      case 'addPaymentInfo': enqueueEvent(buildEvent('AddPaymentInfo', normalizeEcommerce(args[0]))); log('AddPaymentInfo'); break;
+      case 'viewContent': enqueueEvent(buildEvent('ViewContent', normalizeEcommerce(args[0]))); log('ViewContent'); break;
       case 'search': enqueueEvent(buildEvent('Search', args[0])); log('Search'); break;
       case 'completeRegistration': enqueueEvent(buildEvent('CompleteRegistration', args[0])); log('CompleteRegistration'); break;
+      case 'subscribe': enqueueEvent(buildEvent('Subscribe', normalizeEcommerce(args[0]))); log('Subscribe'); break;
+      case 'startTrial': enqueueEvent(buildEvent('StartTrial', normalizeEcommerce(args[0]))); log('StartTrial'); break;
 
       case 'getAttribution': return { firstTouch: getFirstTouch(), lastTouch: getLastTouch() };
       case 'getGa4ClientId': return getGa4ClientId();

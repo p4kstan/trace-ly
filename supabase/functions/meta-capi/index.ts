@@ -66,6 +66,10 @@ interface MetaEventData {
     status?: string;
     [key: string]: unknown;
   };
+  opt_out?: boolean;
+  data_processing_options?: string[];
+  data_processing_options_country?: number;
+  data_processing_options_state?: number;
 }
 
 async function hashSHA256(value: string): Promise<string> {
@@ -164,7 +168,7 @@ Deno.serve(async (req) => {
     // Get associated sessions for fbp/fbc
     const { data: sessions } = await supabase
       .from("sessions")
-      .select("id, identity_id, fbp, fbc, ip_hash, client_ip, user_agent")
+      .select("id, identity_id, fbp, fbc, ip_hash, client_ip, user_agent, fbclid")
       .in("identity_id", events.map(e => e.identity_id).filter(Boolean));
 
     const sessionMap = new Map(sessions?.map(s => [s.identity_id, s]) || []);
@@ -212,52 +216,87 @@ Deno.serve(async (req) => {
         const session = event.identity_id ? sessionMap.get(event.identity_id) : null;
         const userData = event.user_data_json || {};
         const customData = event.custom_data_json || {};
+        const eventTimeMs = new Date(event.event_time).getTime();
 
         // Build user_data with hashed PII.
         // CRITICAL: client_ip_address must be the RAW IP (Meta hashes it server-side).
-        // Sending an SHA-256 ip_hash here would NEVER match — leave it null instead.
         const rawIp = (session as any)?.client_ip || (userData.client_ip_address as string) || undefined;
+
+        // fbc: cookie real OR construir fb.1.<event_time_ms>.<fbclid>
+        let fbc = session?.fbc || (userData.fbc as string) || undefined;
+        if (!fbc) {
+          const fbclid = (session as any)?.fbclid || (userData.fbclid as string) || (customData.fbclid as string);
+          if (fbclid) fbc = `fb.1.${eventTimeMs}.${fbclid}`;
+        }
+
         const userDataPayload: MetaEventData["user_data"] = {
           client_ip_address: rawIp,
           client_user_agent: session?.user_agent || (userData.client_user_agent as string) || undefined,
-          fbc: session?.fbc || undefined,
-          fbp: session?.fbp || undefined,
+          fbc,
+          fbp: session?.fbp || (userData.fbp as string) || undefined,
         };
 
         if (identity?.email_hash) userDataPayload.em = [identity.email_hash];
         if (identity?.phone_hash) userDataPayload.ph = [identity.phone_hash];
-        if (identity?.external_id) userDataPayload.external_id = [identity.external_id];
+        // external_id: hashar (Meta aceita raw, mas hashing é privacy-safe e consistente)
+        if (identity?.external_id) userDataPayload.external_id = [await hashSHA256(String(identity.external_id))];
 
         if (userData.email) userDataPayload.em = [await hashSHA256(userData.email as string)];
-        if (userData.phone) userDataPayload.ph = [await hashSHA256(userData.phone as string)];
+        if (userData.phone) userDataPayload.ph = [await hashSHA256(String(userData.phone).replace(/\D/g, ""))];
         if (userData.first_name) userDataPayload.fn = [await hashSHA256(userData.first_name as string)];
         if (userData.last_name) userDataPayload.ln = [await hashSHA256(userData.last_name as string)];
-        if (userData.city) userDataPayload.ct = [await hashSHA256(userData.city as string)];
-        if (userData.state) userDataPayload.st = [await hashSHA256(userData.state as string)];
-        if (userData.zip) userDataPayload.zp = [await hashSHA256(userData.zip as string)];
-        if (userData.country) userDataPayload.country = [await hashSHA256(userData.country as string)];
+        if (userData.city) userDataPayload.ct = [await hashSHA256(String(userData.city).replace(/\s+/g, ""))];
+        if (userData.state) userDataPayload.st = [await hashSHA256(String(userData.state).replace(/\s+/g, ""))];
+        if (userData.zip) userDataPayload.zp = [await hashSHA256(String(userData.zip).replace(/\D/g, ""))];
+        if (userData.country) userDataPayload.country = [await hashSHA256(String(userData.country).slice(0, 2).toLowerCase())];
 
         const metaEvent: MetaEventData = {
           event_name: event.event_name,
-          event_time: Math.floor(new Date(event.event_time).getTime() / 1000),
+          event_time: Math.floor(eventTimeMs / 1000),
           // Prefer browser-supplied event_id (fbq eventID) for browser↔CAPI dedup.
-          // Fall back to DB UUID only when no browser event_id exists.
           event_id: event.event_id || (event as any).browser_event_id || event.id,
           event_source_url: event.event_source_url || undefined,
           action_source: event.action_source || "website",
           user_data: userDataPayload,
         };
 
-        if (customData.value || customData.currency || Object.keys(customData).length > 0) {
-          metaEvent.custom_data = {};
-          if (customData.value) metaEvent.custom_data.value = Number(customData.value);
-          if (customData.currency) metaEvent.custom_data.currency = String(customData.currency);
-          if (customData.content_name) metaEvent.custom_data.content_name = String(customData.content_name);
-          if (customData.content_category) metaEvent.custom_data.content_category = String(customData.content_category);
-          if (customData.content_ids) metaEvent.custom_data.content_ids = customData.content_ids;
-          if (customData.content_type) metaEvent.custom_data.content_type = String(customData.content_type);
-          if (customData.num_items) metaEvent.custom_data.num_items = Number(customData.num_items);
-          if (customData.order_id) metaEvent.custom_data.order_id = String(customData.order_id);
+        // ── Custom data: e-commerce completo ──
+        const cd: Record<string, unknown> = {};
+        if (customData.value != null) cd.value = Number(customData.value);
+        if (customData.currency) cd.currency = String(customData.currency).toUpperCase();
+        if (customData.content_name) cd.content_name = String(customData.content_name);
+        if (customData.content_category) cd.content_category = String(customData.content_category);
+        if (customData.content_ids) cd.content_ids = customData.content_ids;
+        if (customData.contents) {
+          cd.contents = (customData.contents as any[]).map((i: any) => {
+            const c: Record<string, unknown> = {
+              id: String(i.id || i.product_id || "item"),
+              quantity: Number(i.quantity || 1),
+            };
+            if (i.item_price != null || i.unit_price != null || i.price != null) {
+              c.item_price = Number(i.item_price ?? i.unit_price ?? i.price);
+            }
+            if (i.title || i.product_name) c.title = String(i.title || i.product_name);
+            return c;
+          });
+          cd.content_type = customData.content_type || "product";
+        }
+        if (customData.num_items != null) cd.num_items = Number(customData.num_items);
+        if (customData.order_id) cd.order_id = String(customData.order_id);
+        if (customData.search_string) cd.search_string = String(customData.search_string);
+        if (customData.status) cd.status = String(customData.status);
+        if (customData.predicted_ltv != null) cd.predicted_ltv = Number(customData.predicted_ltv);
+        if (customData.subscription_id) cd.subscription_id = String(customData.subscription_id);
+        if (Object.keys(cd).length > 0) metaEvent.custom_data = cd;
+
+        // LGPD/CCPA opt-out & data processing options
+        if ((customData as any).opt_out === true) (metaEvent as any).opt_out = true;
+        if (Array.isArray((customData as any).data_processing_options)) {
+          (metaEvent as any).data_processing_options = (customData as any).data_processing_options;
+          if ((customData as any).data_processing_options_country != null)
+            (metaEvent as any).data_processing_options_country = Number((customData as any).data_processing_options_country);
+          if ((customData as any).data_processing_options_state != null)
+            (metaEvent as any).data_processing_options_state = Number((customData as any).data_processing_options_state);
         }
 
         metaEvents.push(metaEvent);
@@ -267,10 +306,9 @@ Deno.serve(async (req) => {
       const requestBody: Record<string, unknown> = {
         data: metaEvents,
         access_token: account.access_token,
+        partner_agent: "capitrack-1.0",
       };
       if (account.test_event_code) requestBody.test_event_code = account.test_event_code;
-
-      console.log(`Sending ${metaEvents.length} events to Meta ${account.source} pixel ${account.pixel_id}`);
 
       const response = await fetch(url, {
         method: "POST",
