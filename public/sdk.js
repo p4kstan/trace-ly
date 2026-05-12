@@ -1081,17 +1081,20 @@
         break;
 
       case 'purchase':
-        enqueueEvent(buildEvent('Purchase', args[0]));
+        enqueueEvent(buildEvent('Purchase', normalizeEcommerce(args[0])));
         // Confirmed conversion → start a fresh journey id for the next funnel.
         refreshJourneyEventId();
         log('Purchase');
         break;
       case 'lead': enqueueEvent(buildEvent('Lead', args[0])); log('Lead'); break;
-      case 'addToCart': enqueueEvent(buildEvent('AddToCart', args[0])); log('AddToCart'); break;
-      case 'initiateCheckout': enqueueEvent(buildEvent('InitiateCheckout', args[0])); log('InitiateCheckout'); break;
-      case 'viewContent': enqueueEvent(buildEvent('ViewContent', args[0])); log('ViewContent'); break;
+      case 'addToCart': enqueueEvent(buildEvent('AddToCart', normalizeEcommerce(args[0]))); log('AddToCart'); break;
+      case 'initiateCheckout': enqueueEvent(buildEvent('InitiateCheckout', normalizeEcommerce(args[0]))); log('InitiateCheckout'); break;
+      case 'addPaymentInfo': enqueueEvent(buildEvent('AddPaymentInfo', normalizeEcommerce(args[0]))); log('AddPaymentInfo'); break;
+      case 'viewContent': enqueueEvent(buildEvent('ViewContent', normalizeEcommerce(args[0]))); log('ViewContent'); break;
       case 'search': enqueueEvent(buildEvent('Search', args[0])); log('Search'); break;
       case 'completeRegistration': enqueueEvent(buildEvent('CompleteRegistration', args[0])); log('CompleteRegistration'); break;
+      case 'subscribe': enqueueEvent(buildEvent('Subscribe', normalizeEcommerce(args[0]))); log('Subscribe'); break;
+      case 'startTrial': enqueueEvent(buildEvent('StartTrial', normalizeEcommerce(args[0]))); log('StartTrial'); break;
 
       case 'getAttribution': return { firstTouch: getFirstTouch(), lastTouch: getLastTouch() };
       case 'getGa4ClientId': return getGa4ClientId();
