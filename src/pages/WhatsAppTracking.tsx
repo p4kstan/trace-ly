@@ -278,6 +278,10 @@ capitrack.whatsapp('${phoneClean}', { message: '${message.replace(/'/g, "\\'")}'
           </Card>
         </TabsContent>
 
+        <TabsContent value="validate" className="mt-4">
+          {workspace?.id && <GoogleAdsValidationPanel workspaceId={workspace.id} />}
+        </TabsContent>
+
         <TabsContent value="setup" className="mt-4 space-y-4">
           <Accordion type="single" collapsible defaultValue="manual">
             <AccordionItem value="manual">
