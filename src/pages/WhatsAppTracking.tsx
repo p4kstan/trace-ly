@@ -339,22 +339,38 @@ Body:
             <div className="text-xs text-muted-foreground">
               Click ID: <span className="font-mono">{convertDialog?.click_id}</span>
             </div>
-            <div className="space-y-2">
-              <Label>Valor da venda (R$)</Label>
-              <Input
-                type="number"
-                step="0.01"
-                placeholder="297.00"
-                value={convertValue}
-                onChange={(e) => setConvertValue(e.target.value)}
-                autoFocus
-              />
+            <div className="grid grid-cols-[1fr_120px] gap-2">
+              <div className="space-y-2">
+                <Label>Valor da venda</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="297.00"
+                  value={convertValue}
+                  onChange={(e) => setConvertValue(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Moeda</Label>
+                <Select
+                  value={convertCurrency}
+                  onValueChange={(v) => { setConvertCurrency(v); localStorage.setItem("wa_convert_currency", v); }}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {["USD","EUR","GBP","BRL","MXN","ARS","CLP","COP","PEN","CAD","AUD","JPY"].map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConvertDialog(null)}>Cancelar</Button>
             <Button
-              onClick={() => convertDialog && convert.mutate({ click_id: convertDialog.click_id, value: Number(convertValue) || 0 })}
+              onClick={() => convertDialog && convert.mutate({ click_id: convertDialog.click_id, value: Number(convertValue) || 0, currency: convertCurrency })}
               disabled={convert.isPending}
             >
               {convert.isPending ? "Enviando..." : "Confirmar venda"}
