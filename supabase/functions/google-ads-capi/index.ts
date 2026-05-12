@@ -87,6 +87,7 @@ async function buildGoogleConversion(
   customerId: string,
   conversionLabel: string,
   workspaceId: string,
+  quantityOnly: boolean = false,
 ): Promise<GoogleConversionPayload | null> {
   const p = item.payload_json || {};
   const customer = p.customer || {};
