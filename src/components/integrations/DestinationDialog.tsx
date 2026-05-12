@@ -63,7 +63,7 @@ export function DestinationDialog({ open, onOpenChange, workspaceId }: Destinati
             <Select value={provider} onValueChange={(v) => { setProvider(v); setFields({}); }}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {Object.entries(AD_PROVIDERS).filter(([k]) => k !== "meta").map(([key, p]) => (
+                {Object.entries(AD_PROVIDERS).map(([key, p]) => (
                   <SelectItem key={key} value={key}>
                     <span className="flex items-center gap-2">{p.emoji} {p.label}</span>
                   </SelectItem>
