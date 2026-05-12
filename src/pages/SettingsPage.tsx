@@ -58,6 +58,40 @@ export default function SettingsPage() {
       </div>
 
       <div className="glass-card p-6 space-y-5">
+        <h3 className="font-medium text-foreground flex items-center gap-2">
+          <Mail className="w-4 h-4 text-primary" /> Conta
+        </h3>
+        <div className="space-y-3">
+          <div>
+            <Label className="text-muted-foreground text-sm">Email cadastrado</Label>
+            <Input
+              value={email}
+              readOnly
+              className="mt-1 bg-muted border-border text-foreground"
+            />
+          </div>
+          <div className="pt-2">
+            <Button
+              onClick={handlePasswordReset}
+              disabled={sendingReset || !email}
+              variant="outline"
+              className="gap-2"
+            >
+              {sendingReset ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <KeyRound className="w-4 h-4" />
+              )}
+              Redefinir senha por email
+            </Button>
+            <p className="text-xs text-muted-foreground mt-2">
+              Enviaremos um link seguro para <strong>{email || "seu email"}</strong> com instruções para criar uma nova senha.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="glass-card p-6 space-y-5">
         <h3 className="font-medium text-foreground">Workspace</h3>
         <div className="space-y-3">
           <div>
