@@ -73,6 +73,7 @@ const DestinationRegistry = lazy(() => import("@/pages/DestinationRegistry"));
 const TrafficAgent = lazy(() => import("@/pages/TrafficAgent"));
 const McpSettings = lazy(() => import("@/pages/McpSettings"));
 const AIActionsLog = lazy(() => import("@/pages/AIActionsLog"));
+const WhatsAppTracking = lazy(() => import("@/pages/WhatsAppTracking"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -148,6 +149,7 @@ function ProtectedRoutes() {
           <Route path="/destination-registry" element={<DestinationRegistry />} />
           <Route path="/traffic-agent" element={<TrafficAgent />} />
           <Route path="/mcp-settings" element={<McpSettings />} />
+          <Route path="/whatsapp" element={<WhatsAppTracking />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
         </RouteErrorBoundary>

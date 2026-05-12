@@ -2,7 +2,7 @@ import {
   LayoutDashboard, GitBranch, MonitorDot, ScrollText, Bug, Settings,
   Zap, Brain, CreditCard, HeartPulse, Key, LogOut, ShoppingCart, Webhook, Inbox, BookOpen, Cpu, Gauge,
   Shield, ShieldCheck, TrendingUp, Lightbulb, Filter, Radio, Send, Code, FileText, HelpCircle, Layers, BarChart3, Wand2,
-  Megaphone, Music2, Copy,
+  Megaphone, Music2, Copy, MessageCircle,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -50,6 +50,7 @@ const connectionsItems = [
   { title: "Contas Conectadas", url: "/contas-conectadas", icon: Layers },
   { title: "Pixels", url: "/pixels", icon: MonitorDot },
   { title: "Fontes de Tracking", url: "/tracking-sources", icon: Radio },
+  { title: "WhatsApp", url: "/whatsapp", icon: MessageCircle },
   { title: "Destinos", url: "/destinations", icon: Send },
   { title: "Registry de Destinos", url: "/destination-registry", icon: Send },
 ];
