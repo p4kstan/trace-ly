@@ -1101,6 +1101,8 @@
       case 'getAnonymousId': return getAnonymousId();
       case 'getConsent': return Object.assign({}, consentGranted);
 
+      case 'whatsapp': return whatsappClick(args[0], args[1] || {});
+
       case 'debug':
         config.debug = args[0] !== false;
         if (config.debug) createDebugPanel();
@@ -1117,6 +1119,66 @@
         console.warn('[CapiTrack] Unknown command:', command);
     }
   }
+
+  // ── WhatsApp click tracking ──────────────────────────────────────────
+  function getWhatsAppEndpoint() {
+    return (config.endpoint || '').replace(/\/track(\?.*)?$/, '/whatsapp-click');
+  }
+  function getWaCookie(name) {
+    var m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+    return m ? decodeURIComponent(m[1]) : '';
+  }
+  function collectWaContext() {
+    var qp = {};
+    try {
+      var sp = new URLSearchParams(window.location.search);
+      ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','gclid','gbraid','wbraid','fbclid'].forEach(function(k){
+        var v = sp.get(k); if (v) qp[k] = v;
+      });
+    } catch(e) {}
+    var ga = getWaCookie('_ga');
+    return Object.assign({
+      fbp: getWaCookie('_fbp'),
+      fbc: getWaCookie('_fbc'),
+      ga_client_id: ga ? ga.split('.').slice(2).join('.') : undefined,
+    }, qp);
+  }
+  function whatsappClick(phone, options) {
+    if (!config.apiKey) return Promise.reject(new Error('SDK not initialized'));
+    var payload = Object.assign({}, collectWaContext(), {
+      phone: String(phone || '').replace(/\D+/g, ''),
+      message: (options && options.message) || 'Olá! Tenho interesse.',
+      url: window.location.href,
+      referrer: document.referrer || '',
+    });
+    return fetch(getWhatsAppEndpoint(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Api-Key': config.apiKey },
+      body: JSON.stringify(payload),
+    }).then(function(r){ return r.json(); });
+  }
+  // Auto-intercept wa.me / api.whatsapp.com links and [data-capitrack-whatsapp]
+  document.addEventListener('click', function(ev) {
+    var a = ev.target && ev.target.closest && ev.target.closest('a');
+    if (!a) return;
+    var href = a.getAttribute('href') || '';
+    var isWa = a.hasAttribute('data-capitrack-whatsapp') || /^https?:\/\/(api\.whatsapp\.com|wa\.me)/i.test(href);
+    if (!isWa || !config.apiKey) return;
+    var phone = a.getAttribute('data-capitrack-phone') || '';
+    if (!phone) {
+      var m = href.match(/wa\.me\/(\d+)/) || href.match(/phone=(\d+)/);
+      if (m) phone = m[1];
+    }
+    if (!phone) return;
+    var msg = a.getAttribute('data-capitrack-message') || '';
+    if (!msg) {
+      try { msg = decodeURIComponent((href.split('text=')[1] || '').split('&')[0]) || ''; } catch(e) {}
+    }
+    ev.preventDefault();
+    whatsappClick(phone, { message: msg }).then(function(res) {
+      window.location.href = (res && res.wa_url) || href;
+    }).catch(function(){ window.location.href = href; });
+  }, true);
 
   // Restore persisted identity
   try {
