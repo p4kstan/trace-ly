@@ -270,10 +270,22 @@ export function generateAuditPrompt(cfg: ProjectConfig): string {
     cfg.hasTikTokAds && "TikTok Ads (Pixel + Events API)",
   ].filter(Boolean).join(", ") || "(definir)";
 
+  const whatsappAuditExtra = cfg.businessType === "whatsapp" ? `
+═══════════════════════════════════════════════
+AUDITORIA ESPECÍFICA — WHATSAPP TRACKING
+═══════════════════════════════════════════════
+- Liste TODOS os botões/links de WhatsApp do projeto (procure por: \`wa.me\`, \`api.whatsapp.com/send\`, \`whatsapp://\`, \`window.open\` com WhatsApp, \`<a href>\` com WhatsApp).
+- Para cada um informe: arquivo:linha + número de destino + se a mensagem é dinâmica.
+- Há alguma chamada ao endpoint \`/whatsapp-click\` do CapiTrack? Se sim, está usando a public key correta (\`pk_...\`)?
+- O click do WhatsApp dispara \`Lead\` (Meta) e \`generate_lead\` (GA4) hoje? Ou abre direto \`wa.me\` sem rastreamento?
+- Existe persistência de \`utm_*, gclid, gbraid, wbraid, fbclid, _fbp, _fbc\` em cookie/localStorage para sobreviver a navegação SPA?
+- Há fluxo de marcação de venda fechada? (manual no painel CapiTrack, Zapier/n8n, ou WhatsApp Business API webhook)
+` : "";
+
   return `${aiPreamble(cfg.targetAI)}
 
 Faça uma AUDITORIA COMPLETA de tracking neste projeto, SEM alterar nenhum arquivo. Responda em formato de relatório.
-${detectionBlock(cfg)}
+${detectionBlock(cfg)}${whatsappAuditExtra}
 ═══════════════════════════════════════════════
 CONTEXTO DO PROJETO
 ═══════════════════════════════════════════════
