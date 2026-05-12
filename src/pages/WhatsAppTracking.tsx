@@ -95,11 +95,11 @@ export default function WhatsAppTracking() {
   }, [clicks, conversions]);
 
   const convert = useMutation({
-    mutationFn: async ({ click_id, value }: { click_id: string; value: number }) => {
+    mutationFn: async ({ click_id, value, currency }: { click_id: string; value: number; currency: string }) => {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-conversion`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Api-Key": publicKey },
-        body: JSON.stringify({ click_id, value, currency: "BRL", source: "manual" }),
+        body: JSON.stringify({ click_id, value, currency, source: "manual" }),
       });
       if (!res.ok) throw new Error(await res.text());
       return res.json();
