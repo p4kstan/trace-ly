@@ -50,6 +50,7 @@ export function usePeriodComparison({ workspaceId, customerId, campaignId, perio
         },
       });
       if (error) throw new Error(error.message);
+      if (data?.reconnect || data?.error) return null;
       return (data?.totals as CampaignTotals) || null;
     },
   });
