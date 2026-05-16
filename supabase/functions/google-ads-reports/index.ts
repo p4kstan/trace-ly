@@ -839,7 +839,11 @@ Deno.serve(async (req) => {
     let accessToken = cred.access_token as string;
     if (!cred.token_expires_at || new Date(cred.token_expires_at).getTime() < Date.now()) {
       if (!cred.refresh_token) {
-        return json({ error: "No refresh token, reconnect required", reconnect: true, customer_id: cred.customer_id }, 400);
+        await service.from("google_ads_credentials").update({
+          status: "error",
+          last_error: "No refresh token, reconnect required",
+        }).eq("workspace_id", workspace_id).eq("customer_id", cred.customer_id);
+        return json({ ok: false, error: "No refresh token, reconnect required", reconnect: true, customer_id: cred.customer_id });
       }
       try {
         const refreshed = await refreshAccessToken(cred.refresh_token);
@@ -850,7 +854,11 @@ Deno.serve(async (req) => {
           token_expires_at: newExpiry,
         }).eq("workspace_id", workspace_id).eq("customer_id", cred.customer_id);
       } catch {
-        return json({ error: "Refresh token invalid, reconnect required", reconnect: true, customer_id: cred.customer_id }, 400);
+        await service.from("google_ads_credentials").update({
+          status: "error",
+          last_error: "Refresh token invalid, reconnect required",
+        }).eq("workspace_id", workspace_id).eq("customer_id", cred.customer_id);
+        return json({ ok: false, error: "Refresh token invalid, reconnect required", reconnect: true, customer_id: cred.customer_id });
       }
     }
 

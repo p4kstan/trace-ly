@@ -160,6 +160,13 @@ export default function GoogleAdsCampaigns() {
         if (info?.reconnect) { err.reconnect = true; err.customerId = info.customer_id; }
         throw err;
       }
+      if (data?.reconnect) {
+        const err = new Error(data.error || "Refresh token invalid, reconnect required") as Error & { reconnect?: boolean; customerId?: string };
+        err.reconnect = true;
+        err.customerId = data.customer_id || customerId;
+        throw err;
+      }
+      if (data?.error) throw new Error(data.error);
       return data as { ok: true; rows: ReportRow[]; totals: Totals; count: number };
     },
     staleTime: 60_000,
